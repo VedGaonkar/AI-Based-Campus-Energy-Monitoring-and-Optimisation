@@ -34,6 +34,8 @@ import {
   Clock3,
   FileCheck2,
   TriangleAlert,
+  Wifi,
+  Camera,
 } from "lucide-react";
 import { api, post, patch } from "./services/api";
 import "./styles.css";
@@ -299,8 +301,7 @@ function App() {
                   <small>{user.role}</small>
                 </div>
                 <button
-                  className="icon-button"
-                  aria-label="Sign out"
+                  className="signout-btn"
                   onClick={() =>
                     act(async () => {
                       await post("/auth/logout");
@@ -308,7 +309,8 @@ function App() {
                     }, "Signed out")
                   }
                 >
-                  <LogOut size={17} />
+                  <LogOut size={14} />
+                  Sign out
                 </button>
               </div>
             </div>
@@ -332,7 +334,7 @@ function App() {
               </div>
               <div className="topbar-right">
                 <span className="online-dot" />
-                Connected to local API
+                <span className="topbar-status">Connected</span>
                 <button
                   className="icon-button"
                   aria-label="Refresh data"
@@ -340,6 +342,22 @@ function App() {
                 >
                   <RefreshCw size={17} />
                 </button>
+                <div className="topbar-user">
+                  <div className="topbar-avatar">{user.name[0]}</div>
+                  <span className="topbar-name">{user.name}</span>
+                  <button
+                    className="topbar-signout"
+                    onClick={() =>
+                      act(async () => {
+                        await post("/auth/logout");
+                        setUser(null);
+                      }, "Signed out")
+                    }
+                  >
+                    <LogOut size={14} />
+                    Sign out
+                  </button>
+                </div>
               </div>
             </div>
             {health?.demoMode && (
@@ -422,12 +440,14 @@ function Login({ onLogin }) {
         .then(setAccessRoom)
         .catch(() => setAccessRoom({ name: "Access URL unavailable" }));
   }, [accessToken]);
-  const { act, busy } = useApp(),
+  const { act } = useApp(),
+    [busy, setBusy] = useState(false),
     [tab, setTab] = useState("login"),
     [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
     [name, setName] = useState(""),
     [confirmPassword, setConfirmPassword] = useState(""),
+    [adminKey, setAdminKey] = useState(""),
     [error, setError] = useState("");
 
   const switchTab = (t) => {
@@ -437,6 +457,7 @@ function Login({ onLogin }) {
     setPassword("");
     setName("");
     setConfirmPassword("");
+    setAdminKey("");
   };
 
   return (
@@ -501,15 +522,15 @@ function Login({ onLogin }) {
               onSubmit={async (e) => {
                 e.preventDefault();
                 setError("");
-                const result = await act(
-                  () => post("/auth/login", { email, password }),
-                  "Signed in",
-                );
-                if (result) onLogin(result.user);
-                else
-                  setError(
-                    "Sign-in failed. Check your credentials and the API connection.",
-                  );
+                setBusy(true);
+                try {
+                  const result = await post("/auth/login", { email, password });
+                  onLogin(result.user);
+                } catch (err) {
+                  setError(err.message || "Sign-in failed. Check your credentials and the API connection.");
+                } finally {
+                  setBusy(false);
+                }
               }}
             >
               <Field label="Email address">
@@ -549,7 +570,7 @@ function Login({ onLogin }) {
         ) : (
           <>
             <h2>Create account</h2>
-            <p>New accounts start as viewers. An admin can assign rooms and roles.</p>
+            <p>New accounts start as viewers. Leave the admin key blank unless you have one.</p>
             <form
               onSubmit={async (e) => {
                 e.preventDefault();
@@ -562,15 +583,17 @@ function Login({ onLogin }) {
                   setError("Password must be at least 8 characters.");
                   return;
                 }
-                const result = await act(
-                  () => post("/auth/register", { name, email, password }),
-                  "Account created — welcome!",
-                );
-                if (result) onLogin(result.user);
-                else
-                  setError(
-                    "Sign-up failed. The email may already be in use.",
-                  );
+                setBusy(true);
+                try {
+                  const body = { name, email, password };
+                  if (adminKey.trim()) body.adminKey = adminKey.trim();
+                  const result = await post("/auth/register", body);
+                  onLogin(result.user);
+                } catch (err) {
+                  setError(err.message || "Sign-up failed. Please try again.");
+                } finally {
+                  setBusy(false);
+                }
               }}
             >
               <Field label="Full name">
@@ -608,6 +631,15 @@ function Login({ onLogin }) {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
+                />
+              </Field>
+              <Field label="Admin invite key" hint="Optional — leave blank for a viewer account">
+                <input
+                  type="password"
+                  autoComplete="off"
+                  value={adminKey}
+                  onChange={(e) => setAdminKey(e.target.value)}
+                  placeholder="Paste key to register as admin"
                 />
               </Field>
               <ErrorText>{error}</ErrorText>
@@ -1145,6 +1177,10 @@ function RoomDetail({ roomId }) {
               ["forgotten-lights", "Forgotten lights"],
               ["person-returns", "Person returns"],
               ["camera-offline", "Camera offline"],
+              ["unknown-cause", "Unknown cause"],
+              ["building-anomaly", "Building anomaly"],
+              ["optimisation", "Optimisation"],
+              ["qr-access", "QR access demo"],
             ].map(([key, label]) => (
               <Button
                 secondary
@@ -1680,7 +1716,10 @@ function Incidents() {
 function IncidentDetail({ incidentId }) {
   const { user, act } = useApp(),
     [incident, error] = useData(`/incidents/${incidentId}`),
-    [reason, setReason] = useState("");
+    [users] = useData("/users"),
+    [reason, setReason] = useState(""),
+    [reassignFirst, setReassignFirst] = useState(""),
+    [reassignSecond, setReassignSecond] = useState("");
   if (!incident) return <ErrorText>{error || "Loading incident…"}</ErrorText>;
   const job = incident.jobs.find((j) =>
     ["pending", "leased"].includes(j.status),
@@ -1769,6 +1808,42 @@ function IncidentDetail({ incidentId }) {
             Acknowledgement is not resolution. Snooze deadlines use persisted
             backend time.
           </p>
+          {user.role === "admin" && (
+            <form
+              className="inline-form"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                await act(
+                  () =>
+                    post(`/incidents/${incidentId}/reassign`, {
+                      ...(reassignFirst ? { firstResponderId: reassignFirst } : {}),
+                      ...(reassignSecond ? { secondResponderId: reassignSecond } : {}),
+                    }),
+                  "Responders reassigned",
+                );
+              }}
+            >
+              <h3>Reassign responders</h3>
+              {[
+                ["First responder", reassignFirst, setReassignFirst],
+                ["Second responder", reassignSecond, setReassignSecond],
+              ].map(([label, val, setter]) => (
+                <Field key={label} label={label}>
+                  <select value={val} onChange={(e) => setter(e.target.value)}>
+                    <option value="">Unchanged</option>
+                    {(users ?? [])
+                      .filter((u) => RESPONDERS.includes(u.role))
+                      .map((u) => (
+                        <option key={u._id} value={u._id}>
+                          {u.name} · {u.role}
+                        </option>
+                      ))}
+                  </select>
+                </Field>
+              ))}
+              <Button secondary>Reassign</Button>
+            </form>
+          )}
         </>
       )}
     </>
@@ -2171,6 +2246,38 @@ function Admin() {
         description="Assignments, evidence quality and conservative defaults for one building."
       />
       <ErrorText>{error}</ErrorText>
+      <div className="admin-setup-banner section-gap">
+        <div className="admin-setup-label">
+          <Settings size={15} />
+          HARDWARE SETUP — START HERE
+        </div>
+        <div className="two-columns">
+          <section className="panel panel-highlight">
+            <div className="section-title">
+              <Wifi size={20} />
+              <h2 style={{ margin: 0 }}>Add room & Wi-Fi master breaker</h2>
+            </div>
+            <p className="caption" style={{ marginTop: 6 }}>
+              Each room needs exactly one Wi-Fi smart circuit breaker. Enter the
+              breaker's native device ID exactly as it appears in your device
+              management app. New rooms start in alert-only mode.
+            </p>
+            <AddRoomForm />
+          </section>
+          <section className="panel panel-highlight">
+            <div className="section-title">
+              <Camera size={20} />
+              <h2 style={{ margin: 0 }}>Register camera / occupancy source</h2>
+            </div>
+            <p className="caption" style={{ marginTop: 6 }}>
+              Register each camera or presence sensor here and get a one-time
+              service token to configure on the device. The token is never stored
+              in plain text — copy it immediately after registration.
+            </p>
+            <AddIntegrationForm rooms={rooms ?? []} />
+          </section>
+        </div>
+      </div>
       <div className="two-columns">
         <section className="panel">
           <h2>Installation & estimates</h2>
@@ -2322,27 +2429,60 @@ function Admin() {
                 </Badge>
               </div>
               <h3>{i.name}</h3>
+              <p className="muted" style={{ fontSize: 10, margin: "2px 0 6px" }}>
+                {i.type} · room {i.roomId?.slice(0, 8)}…
+              </p>
               <p>
                 {i.capabilities?.fixtureReplay
                   ? "Synthetic replay supported. Live inference is not implemented."
                   : "Optional adapter is unavailable until its supported configuration is provided."}
               </p>
-              <Button
-                secondary
-                onClick={() =>
-                  act(
-                    async () => {
-                      const r = await post(`/integrations/${i._id}/test`);
-                      return r;
-                    },
-                    i.health === "online"
-                      ? "Recent observations available; this is not a physical connection test"
-                      : "Unavailable integration; no successful connection claimed",
-                  )
-                }
-              >
-                Test connection
-              </Button>
+              <div className="action-row" style={{ flexWrap: "wrap", gap: 6 }}>
+                <Button
+                  secondary
+                  onClick={() =>
+                    act(
+                      async () => {
+                        const r = await post(`/integrations/${i._id}/test`);
+                        return r;
+                      },
+                      i.health === "online"
+                        ? "Recent observations available; this is not a physical connection test"
+                        : "Unavailable integration; no successful connection claimed",
+                    )
+                  }
+                >
+                  Test connection
+                </Button>
+                <Button
+                  secondary
+                  onClick={() =>
+                    act(
+                      () =>
+                        patch(`/integrations/${i._id}`, {
+                          coverageValidated: !i.coverageValidated,
+                        }),
+                      i.coverageValidated
+                        ? "Coverage validation cleared"
+                        : "Coverage marked validated",
+                    )
+                  }
+                >
+                  {i.coverageValidated ? "✓ Coverage validated" : "Mark coverage validated"}
+                </Button>
+                <Button
+                  secondary
+                  onClick={() =>
+                    act(
+                      () =>
+                        patch(`/integrations/${i._id}`, { health: "unavailable" }),
+                      "Source marked unavailable; room work cancelled",
+                    )
+                  }
+                >
+                  Mark unavailable
+                </Button>
+              </div>
             </article>
           ))}
         </div>
@@ -2357,6 +2497,54 @@ function Admin() {
         >
           Stop all fixture replays
         </Button>
+      </section>
+      <section className="panel section-gap">
+        <h2>Staff accounts</h2>
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Rooms</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(users ?? []).map((u) => (
+                <tr key={u._id}>
+                  <td>{u.name}</td>
+                  <td>{u.email}</td>
+                  <td style={{ textTransform: "capitalize" }}>{u.role}</td>
+                  <td>
+                    <Badge tone={u.active ? "sage" : "neutral"}>
+                      {u.active ? "Active" : "Inactive"}
+                    </Badge>
+                  </td>
+                  <td>{u.permittedRoomIds?.length ?? 0}</td>
+                  <td>
+                    <Button
+                      secondary
+                      onClick={() =>
+                        act(
+                          () =>
+                            patch(`/users/${u._id}`, {
+                              active: !u.active,
+                            }),
+                          u.active ? "Account deactivated" : "Account reactivated",
+                        )
+                      }
+                    >
+                      {u.active ? "Deactivate" : "Reactivate"}
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
       <section className="panel section-gap">
         <h2>Recent audit history</h2>
@@ -2878,6 +3066,144 @@ function AdministrationExtras({ settings, rooms }) {
           <Button>Create account</Button>
         </form>
       </section>
+    </>
+  );
+}
+
+function AddRoomForm() {
+  const { act } = useApp();
+  return (
+    <form
+      className="form-grid"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        const f = new FormData(e.target);
+        const result = await act(
+          () =>
+            post("/rooms", {
+              code: f.get("code"),
+              name: f.get("name"),
+              capacity: Number(f.get("capacity")) || 0,
+              roomBreakerId: f.get("breakerId"),
+              controlMode: "alert_only",
+              coverageValidated: false,
+              independentInfrastructure: false,
+              requiredSourceIds: [],
+              firstResponderId: null,
+              secondResponderId: null,
+              backupResponderId: null,
+              allowedStartHour: 7,
+              allowedEndHour: 22,
+            }),
+          "Room and master breaker registered; control mode is alert-only until reviewed",
+        );
+        if (result) e.target.reset();
+      }}
+    >
+      <Field label="Room code" hint="e.g. R-101">
+        <input name="code" required maxLength={30} pattern="[A-Za-z0-9 _-]+" />
+      </Field>
+      <Field label="Room name">
+        <input name="name" required maxLength={200} />
+      </Field>
+      <Field label="Capacity (seats)">
+        <input name="capacity" type="number" min="0" defaultValue={0} />
+      </Field>
+      <Field label="Wi-Fi breaker device ID" hint="Unique — must match native device ID exactly">
+        <input
+          name="breakerId"
+          required
+          maxLength={100}
+          pattern="[A-Za-z0-9_-]+"
+          placeholder="e.g. breaker-r101"
+        />
+      </Field>
+      <Button>Register room & breaker</Button>
+    </form>
+  );
+}
+
+function AddIntegrationForm({ rooms }) {
+  const { act } = useApp(),
+    [token, setToken] = useState(null),
+    [tokenName, setTokenName] = useState("");
+  return (
+    <>
+      {token && (
+        <div className="callout wide" style={{ marginBottom: 16 }}>
+          <ShieldCheck size={16} />
+          <div>
+            <strong>Service token for "{tokenName}" — copy now</strong>
+            <p className="wrap" style={{ fontFamily: "monospace", fontSize: 11, userSelect: "all", wordBreak: "break-all" }}>
+              {token}
+            </p>
+            <p style={{ margin: "6px 0 0" }}>
+              Configure device: <code>Authorization: Bearer &lt;token&gt;</code>{" "}
+              + <code>X-Source-Id: &lt;source-id&gt;</code>. Not shown again.
+            </p>
+          </div>
+        </div>
+      )}
+      <form
+        className="form-grid"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          const f = new FormData(e.target);
+          const sourceId = f.get("sourceId").trim();
+          const name = f.get("name").trim();
+          const result = await act(
+            () =>
+              post("/integrations", {
+                _id: sourceId,
+                roomId: f.get("roomId"),
+                type: f.get("type"),
+                name,
+                freshnessSeconds: Number(f.get("freshness")),
+                coverageValidated: false,
+              }),
+            "Integration registered — copy the service token above now",
+          );
+          if (result) {
+            setToken(result.serviceToken);
+            setTokenName(name);
+            e.target.reset();
+          }
+        }}
+      >
+        <Field label="Source ID" hint="Unique slug — used as device identifier">
+          <input
+            name="sourceId"
+            required
+            maxLength={100}
+            pattern="[A-Za-z0-9_-]+"
+            placeholder="e.g. cam-r101-01"
+          />
+        </Field>
+        <Field label="Display name">
+          <input name="name" required maxLength={200} placeholder="e.g. R-101 ceiling camera" />
+        </Field>
+        <Field label="Room">
+          <select name="roomId" required>
+            <option value="">Select room…</option>
+            {rooms.map((r) => (
+              <option key={r._id} value={r._id}>
+                {r.code} — {r.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Source type">
+          <select name="type">
+            <option value="camera">Camera (video inference)</option>
+            <option value="presence">Presence sensor (PIR / BLE)</option>
+            <option value="meter">Meter integration</option>
+          </select>
+        </Field>
+        <Field label="Freshness window (seconds)" hint="Max age before source is stale">
+          <input name="freshness" type="number" min="1" max="300" defaultValue={120} />
+        </Field>
+        <Button>Register source & get token</Button>
+      </form>
     </>
   );
 }

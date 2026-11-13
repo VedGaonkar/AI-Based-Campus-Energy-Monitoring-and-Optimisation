@@ -146,6 +146,14 @@ export function createApplication({ config, connection, models }) {
       }).lean();
     next();
   });
+  const authRateLimitHandler = (req, res) =>
+    res.status(429).json({
+      error: {
+        code: "RATE_LIMITED",
+        message: "Too many attempts — please wait 15 minutes and try again.",
+        requestId: req.requestId,
+      },
+    });
   api.post(
     "/auth/login",
     rateLimit({
@@ -153,6 +161,7 @@ export function createApplication({ config, connection, models }) {
       limit: 20,
       standardHeaders: "draft-8",
       legacyHeaders: false,
+      handler: authRateLimitHandler,
     }),
     async (req, res) => {
       const input = loginInput.parse(req.body),
@@ -181,9 +190,11 @@ export function createApplication({ config, connection, models }) {
     "/auth/register",
     rateLimit({
       windowMs: 900000,
-      limit: 10,
+      limit: config.demoMode ? 50 : 10,
       standardHeaders: "draft-8",
       legacyHeaders: false,
+      handler: authRateLimitHandler,
+      skip: (req) => config.demoMode && req.ip === "127.0.0.1",
     }),
     async (req, res) => {
       const input = z
@@ -191,6 +202,7 @@ export function createApplication({ config, connection, models }) {
           name: z.string().min(1).max(200),
           email: z.email().max(200),
           password: z.string().min(8).max(200),
+          adminKey: z.string().optional(),
         })
         .strict()
         .parse(req.body);
@@ -198,11 +210,15 @@ export function createApplication({ config, connection, models }) {
         email: input.email.toLowerCase(),
       }).lean();
       if (existing) fail(409, "EMAIL_TAKEN", "An account with that email already exists");
+      const isAdmin =
+        input.adminKey &&
+        config.adminInviteKey &&
+        equalSecret(input.adminKey, config.adminInviteKey);
       const user = await models.User.create({
         name: input.name,
         email: input.email.toLowerCase(),
         passwordHash: await bcrypt.hash(input.password, 12),
-        role: "viewer",
+        role: isAdmin ? "admin" : "viewer",
         permittedRoomIds: [],
       });
       await new Promise((resolve, reject) =>
@@ -390,6 +406,27 @@ export function createApplication({ config, connection, models }) {
     await audit(models, req.user._id, "user.create", user._id);
     const { passwordHash, ...safe } = user.toObject();
     res.status(201).json({ data: safe });
+  });
+  api.patch("/users/:id", async (req, res) => {
+    admin(req.user);
+    const input = z
+      .object({
+        name: z.string().min(1).max(200).optional(),
+        role: z.enum(["admin", "hod", "technician", "teacher", "viewer"]).optional(),
+        active: z.boolean().optional(),
+        permittedRoomIds: z.array(id).max(100).optional(),
+      })
+      .strict()
+      .parse(req.body);
+    if (input.permittedRoomIds)
+      for (const roomId of input.permittedRoomIds)
+        found(await models.Room.findById(roomId).lean());
+    const target = found(await models.User.findById(req.params.id).lean());
+    await models.User.updateOne({ _id: target._id }, { $set: input });
+    await audit(models, req.user._id, "user.update", target._id);
+    const updated = await models.User.findById(target._id).lean();
+    const { passwordHash: _h, ...safe } = updated;
+    res.json({ data: safe });
   });
   api.get("/rooms", async (req, res) =>
     res.json({

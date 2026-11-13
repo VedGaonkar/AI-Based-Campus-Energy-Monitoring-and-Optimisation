@@ -29,6 +29,8 @@ export async function api(path, { method = "GET", body, signal } = {}) {
     );
   }
   if (payload.data?.csrfToken) csrfToken = payload.data.csrfToken;
+  // Clear cached token after logout so the next login fetches a fresh one
+  if (path === "/auth/logout" && payload.data?.loggedOut) csrfToken = undefined;
   return payload.data;
 }
 export const post = (path, body = {}) => api(path, { method: "POST", body });

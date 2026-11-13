@@ -59,6 +59,11 @@ export function loadConfig(env = process.env) {
         .default(120),
       QR_EXPIRY_WARNING_MINUTES: z.coerce.number().min(0).max(30).default(10),
       NOTIFICATIONS_MODE: z.literal("in_app").default("in_app"),
+      ADMIN_INVITE_KEY: z
+        .string()
+        .min(16, "ADMIN_INVITE_KEY must be at least 16 characters or left empty to disable admin self-registration")
+        .optional()
+        .or(z.literal("").transform(() => undefined)),
     })
     .parse(env);
   if (parsed.ALLOW_PHYSICAL_CONTROL)
@@ -93,5 +98,6 @@ export function loadConfig(env = process.env) {
     qrWarningMs:
       (parsed.QR_EXPIRY_WARNING_MINUTES * 60000) /
       (parsed.DEMO_MODE ? parsed.DEMO_TIME_SCALE : 1),
+    adminInviteKey: parsed.ADMIN_INVITE_KEY ?? null,
   };
 }
