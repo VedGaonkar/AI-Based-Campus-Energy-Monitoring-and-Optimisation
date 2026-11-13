@@ -26,3 +26,8 @@ Record completed changes here. Planned work belongs in [TASKS.md](TASKS.md), app
 - Clarified that generic design-skill stack/path examples do not override the project's JavaScript/React/Vite architecture. Preserved all 57 reusable Markdown files, including bundle-local duplicate references, and left `PLAN.md` unchanged.
 
 The preceding documentation synchronisation changed documentation only. Subsequent implementation/results are recorded above; wider field/production checks remain in [TESTING.md](TESTING.md).
+
+
+## CE-017 - consumption evidence and contextual explanations
+
+Added per-interval baseline chart colouring with calculated crossings, labelled baseline/reference markers, honest gap/no-data handling, original-resolution details and matching CSV export. Source/range filters, provenance, last accepted time, disclosed freshness and average-power labels share existing accepted readings. Completed recalculation now invalidates existing live snapshots. Added reusable hover/focus/tap help for unfamiliar metrics and evidence states. Preserved approved base palette, control/alert policies, workspace isolation and user data. Verification and limits are in TESTING.md and HANDOFF.md.

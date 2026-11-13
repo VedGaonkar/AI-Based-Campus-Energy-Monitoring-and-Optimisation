@@ -9,6 +9,7 @@ import {
 } from "../domain/energy.js";
 import { getSettings, audit, cancelRoomWork } from "./context.js";
 import { fail, withRoomLock } from "../security/access.js";
+import { publishChange } from "../realtime/journal.js";
 
 const hash = (value) =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -280,6 +281,9 @@ export async function refreshAnalytics(models, config) {
       },
     },
   );
+  // Reading writes can invalidate before recalculation finishes. Publish the
+  // completed snapshot through the same scoped journal, including non-anomalies.
+  await publishChange(models.EnergyInterval.db, { resource: "energy", operation: "recalculated" });
   return intervals;
 }
 

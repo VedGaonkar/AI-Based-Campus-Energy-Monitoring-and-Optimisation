@@ -195,6 +195,7 @@ async function attachPage(target, processHandle) {
   }
   const page = {
     evaluate,
+    pressKey: async (key) => { const params = { key, code: key, windowsVirtualKeyCode: ({ Tab: 9, Enter: 13, Escape: 27 })[key] }; await send("Input.dispatchKeyEvent", { ...params, type: "keyDown", ...(key === "Enter" ? { text: "\r" } : {}) }); await send("Input.dispatchKeyEvent", { ...params, type: "keyUp" }); },
     bringToFront: () => send("Page.bringToFront"),
     setOffline: async offline => { await send("Network.enable"); await send("Network.emulateNetworkConditions", { offline, latency: 0, downloadThroughput: -1, uploadThroughput: -1 }); },
     on: (name, handler) => {

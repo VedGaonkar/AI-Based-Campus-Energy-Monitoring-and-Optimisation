@@ -33,6 +33,7 @@
     "test:devices-browser": "node scripts/connected-devices-browser.mjs",
     "stop": "node scripts/stop-dev.mjs",
     "test:realtime-browser": "node scripts/realtime-browser.mjs",
+    "test:consumption-browser": "node scripts/consumption-browser.mjs",
     "setup:ocr": "node scripts/setup-ocr.mjs",
     "test:meter-browser": "node scripts/meter-camera-browser.mjs",
     "test:meter-camera": "node --test tests/meter-camera.test.js"

@@ -828,7 +828,9 @@ export function createApplication({ config, connection, models, workspaceDirecto
       .sort({ startAt: -1 })
       .limit(1500)
       .lean();
-    res.json({ data: intervals.reverse() });
+    const readings = await models.MeterReading.find({ _id: { $in: intervals.flatMap(i => i.sourceReadingIds) } }).select("sourceType").lean();
+    const sourceTypes = new Map(readings.map(r => [r._id, r.sourceType]));
+    res.json({ data: intervals.reverse().map(i => ({ ...i, sourceTypes: [...new Set(i.sourceReadingIds.map(id => sourceTypes.get(id)).filter(Boolean))] })) });
   });
   api.get("/analytics/anomalies", async (req, res) =>
     res.json({

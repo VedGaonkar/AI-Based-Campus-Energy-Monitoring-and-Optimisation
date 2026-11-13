@@ -1,6 +1,8 @@
 /* Campus Energy Stewardship — adapted from the supplied Stitch screens.
    Layout primitives stay in styles.css; this layer owns the visual system. */
 :root {
+  --consumption-below: #20483C;
+  --consumption-above: #a73535;
   --sidebar-bg: #D5E6DF;
   --background: #F4FAF7;
   --card-bg: #FFFFFF;
@@ -22,6 +24,26 @@
   --mono: "Azeret Mono", Consolas, monospace;
   --heading: "Barlow Condensed", "Arial Narrow", Impact, sans-serif;
 }
+.consumption-filters { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0; align-items: end; }
+.consumption-filters label { display: grid; gap: 5px; font-size: 12px; flex: 1 1 155px; min-width: 0; }
+.consumption-filters input, .consumption-filters select { width: 100%; min-width: 0; padding: 8px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text-primary); border-radius: 3px; }
+.chart-legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 12px; margin: 12px 0; }
+.chart-legend .below { color: var(--consumption-below); }
+.chart-legend .above { color: var(--consumption-above); }
+.quality-warning { font-size: 12px; color: var(--accent); margin: 6px 0; }
+.metric-help { display: inline-flex; vertical-align: middle; }
+.help-trigger { display: inline-grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 1px solid var(--border); border-radius: 50%; background: var(--card-bg); color: var(--text-primary); font: 13px var(--mono); }
+.help-tooltip { position: fixed; z-index: 10000; display: block; width: min(340px, calc(100vw - 16px)); padding: 10px 12px; font: 13px/1.5 "Karla", sans-serif; color: var(--text-primary); background: var(--card-bg); border: 1px solid var(--border); border-radius: 3px; box-shadow: 0 4px 14px #20483c22; text-transform: none; letter-spacing: normal; }
+.interval-tooltip { max-width: min(340px, 80vw); white-space: normal; padding: 12px; background: var(--card-bg); color: var(--text-primary); border: 1px solid var(--border); font-size: 12px; }
+.interval-tooltip p { margin: 6px 0; }
+.consumption-dialog { width: min(1150px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); padding: 24px; border: 1px solid var(--border); border-radius: 3px; background: var(--background); color: var(--text-primary); overflow-y: auto; }
+.consumption-dialog::backdrop { background: #20483c66; }
+.consumption-dialog .section-title { align-items: start; gap: 12px; flex-wrap: wrap; }
+.consumption-table { min-width: 760px; font-size: 12px; }
+.consumption-table td { vertical-align: top; overflow-wrap: anywhere; }
+.consumption-source { overflow-wrap: anywhere; }
+.metric-card .text-link { margin-top: 10px; font-size: 11px; }
+@media (max-width: 600px) { .consumption-dialog { padding: 14px; } .help-trigger { min-width: 32px; min-height: 32px; } }
 body { background: var(--background); }
 h1, h2, h3 { font-family: var(--heading); color: var(--text-primary); font-weight: 600; letter-spacing: -.015em; }
 h1 { text-transform: uppercase; }

@@ -1,5 +1,13 @@
 # Implementation Tasks
 
+## CE-017 - consumption views and contextual help
+
+- [x] Interval baselines, exact linear crossings, gap breaks, units and separate anomaly policy.
+- [x] Existing live journal completion event; shared filters/details/CSV and reusable accessible help.
+- [x] Build, 124 application tests, 15 calculation checks, 85 syntax files, 17-asset secret scan.
+- [x] Ten isolated browser checks: crossings/provenance, keyboard/help, matching details/card/CSV, accepted updates, reconnect, mobile, no-data and stale source; zero runtime errors. Screenshots inspected, documentation updated,managed dev restarted; external Mongo/user data preserved.
+
+
 ## CE-016 complete - dedicated meter camera OCR
 
 - [x] Institution-scoped meter/camera registration,hashed pairing,persisted hourly capture requests,health/preview/ROI/decimal setup,separate meter source and labelled virtual fixture.

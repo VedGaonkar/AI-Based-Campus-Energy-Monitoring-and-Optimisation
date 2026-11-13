@@ -47,12 +47,15 @@ import { MeterCameras } from "./MeterCameras.jsx";
 import { ConnectedDevices } from "./ConnectedDevices.jsx";
 import { PhoneDemo, PhoneDemoSummary } from "./PhoneDemo.jsx";
 import { InstitutionPicker } from "./Institutions.jsx";
+import Help from "./components/Help.jsx";
+import { selectIntervals, sourceLabel, freshness } from "./services/consumption.js";
 import "./styles.css";
 import "./stewardship.css";
 
 const LazyConsumptionChart = React.lazy(
   () => import("./components/ConsumptionChart.jsx"),
 );
+const LazyConsumptionDetails = React.lazy(() => import("./components/ConsumptionChart.jsx").then(m => ({ default: m.ConsumptionDetails })));
 
 const AppContext = createContext();
 const useApp = () => useContext(AppContext);
@@ -726,12 +729,45 @@ function Login({ onLogin }) {
   );
 }
 
-function ConsumptionChart({ intervals = [], range = 7 }) {
+function ConsumptionChart({ intervals = [], range = 7, expanded, setExpanded, focus }) {
+  const { syncState } = useApp();
+  const [settings] = useData("/settings");
+  const [localOpen, setLocalOpen] = useState(false), [meter, setMeter] = useState(""), [mode, setMode] = useState(""), [from, setFrom] = useState(""), [to, setTo] = useState("");
+  const [dayScope, setDayScope] = useState(false);
+  const timezone = settings?.timezone ?? "Asia/Kolkata";
+  useEffect(() => { setDayScope(false); setFrom(""); setTo(""); }, [range]);
+  useEffect(() => {
+    if (!focus) return;
+    if (focus.kind === "today") { setMeter("*"); setMode("*"); setFrom(""); setTo(""); setDayScope(true); }
+    else if (focus.interval) { const inputTime = value => { const d = new Date(value); return new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, -1); }; setMeter(focus.interval.meterId); setMode(focus.interval.dataMode); setFrom(inputTime(focus.interval.startAt)); setTo(inputTime(focus.interval.endAt)); setDayScope(false); }
+  }, [focus]);
+  const open = expanded ?? localOpen, setOpen = setExpanded ?? setLocalOpen;
+  const [incidents, incidentError] = useData(open ? "/incidents" : null), [recommendations, recommendationError] = useData(open ? "/recommendations" : null);
+  const meters = [...new Set(intervals.map(i => i.meterId))];
+  const selectedMeter = meter === "*" ? "*" : meters.includes(meter) ? meter : meters[0];
+  const modes = [...new Set(intervals.filter(i => selectedMeter === "*" || i.meterId === selectedMeter).map(i => i.dataMode))];
+  const selectedMode = mode === "*" ? "*" : modes.includes(mode) ? mode : modes[0];
+  const localDate = value => new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(value));
+  const selected = dayScope ? intervals.filter(i => localDate(i.startAt) === localDate(Date.now()) && localDate(Date.parse(i.endAt) - 1) === localDate(Date.now())) : selectIntervals(intervals, { range, meter: selectedMeter === "*" ? undefined : selectedMeter, mode: selectedMode === "*" ? undefined : selectedMode, from, to });
+  const latest = intervals.filter(i => (selectedMeter === "*" || i.meterId === selectedMeter) && (selectedMode === "*" || i.dataMode === selectedMode)).sort((a, b) => Date.parse(a.endAt) - Date.parse(b.endAt)).at(-1);
+  const filters = <div className="consumption-filters">
+    <label>Meter<select aria-label="Consumption meter" value={selectedMeter ?? ""} onChange={e => { setMeter(e.target.value); setDayScope(false); }}><option value="*">All authorised meters</option>{meters.map(m => <option key={m}>{m}</option>)}</select></label>
+    <label>Data source<select aria-label="Consumption data source" value={selectedMode ?? ""} onChange={e => { setMode(e.target.value); setDayScope(false); }}><option value="*">All data modes</option>{modes.map(m => <option key={m} value={m}>{m === "live" ? "Metered" : m}</option>)}</select></label>
+    <label>From (browser local time)<input type="datetime-local" step="any" value={from} onChange={e => { setFrom(e.target.value); setDayScope(false); }} /></label>
+    <label>To (browser local time)<input type="datetime-local" step="any" value={to} onChange={e => { setTo(e.target.value); setDayScope(false); }} /></label>
+    {(from || to || dayScope) && <button type="button" className="text-link" onClick={() => { setFrom(""); setTo(""); setDayScope(false); }}>Reset custom range</button>}
+  </div>;
   return (
     <React.Suspense
       fallback={<div className="empty">Loading the consumption profile…</div>}
     >
-      <LazyConsumptionChart intervals={intervals} range={range} />
+      {filters}
+      <p className="caption consumption-source" role="status">{latest ? sourceLabel(latest) : "Source unavailable"} · Last accepted: {date(latest?.endAt)} · Sampling interval: {latest ? `${number(latest.durationHours * 60)} min recorded` : "unknown"} · {freshness(latest)} <Help topic="stale" /> · {syncState === "current" ? "Workspace connected" : "Offline / synchronising: data may be stale"}.</p>
+      <p className="caption">Freshness uses twice the last recorded interval; configured source cadence and physical connection health are not supplied by this energy feed.</p>
+      <p className="caption">{dayScope ? `Today (${timezone}); same complete-interval rule as the Energy today card.` : `Latest accepted data anchors the ${range}-day range. Custom dates take precedence; whole intervals only.`} Up to 1,500 recent intervals available; older records are outside this view.</p>
+      {from && to && Date.parse(from) >= Date.parse(to) && <p role="alert">Choose an end time after the start time.</p>}
+      <LazyConsumptionChart intervals={selected} timezone={settings?.timezone ?? "Asia/Kolkata"} onOpen={() => setOpen(true)} />
+      {open && <LazyConsumptionDetails intervals={selected} timezone={settings?.timezone ?? "Asia/Kolkata"} onClose={() => setOpen(false)} incidents={incidents ?? []} recommendations={recommendations ?? []} relatedError={incidentError || recommendationError} loadingRelated={!incidents || !recommendations} syncState={syncState} filters={filters} />}
     </React.Suspense>
   );
 }
@@ -747,9 +783,9 @@ function Overview() {
     [integrations] = useData("/integrations"),
     [recommendations] = useData("/recommendations"),
     [rooms] = useData("/rooms");
-  const [range, setRange] = useState(7);
+  const [range, setRange] = useState(7), [consumptionOpen, setConsumptionOpen] = useState(false), [consumptionFocus, setConsumptionFocus] = useState(null);
   const open = (incidents ?? []).filter((i) => i.active),
-    latest = intervals?.at(-1);
+    latest = intervals ? [...intervals].sort((a, b) => Date.parse(a.endAt) - Date.parse(b.endAt)).at(-1) : null;
   if (!summary || !intervals || !incidents)
     return (
       <>
@@ -790,13 +826,13 @@ function Overview() {
           [
             PlugZap,
             "Energy today",
-            `${number(summary?.todayKwh)} kWh`,
+            summary.coverageHours ? `${number(summary.todayKwh)} kWh` : "Unavailable",
             `${number(summary?.coverageHours)} hours covered · ${summary?.partialDay ? "partial day" : "full day"}`,
           ],
           [
             ChartNoAxesCombined,
             "Average interval power",
-            `${number(latest?.averagePowerKw)} kW`,
+            latest ? `${number(latest.averagePowerKw)} kW` : "Unavailable",
             "Latest accepted interval · not instantaneous",
           ],
           [
@@ -815,10 +851,13 @@ function Overview() {
           <section className="metric-card" key={label}>
             <div className="metric-top">
               <span>{label}</span>
+              {i === 1 && <Help topic="power" />}
+              {i === 2 && <Help topic="anomaly" />}
               <Icon size={19} />
             </div>
             <strong>{value}</strong>
             <small>{note}</small>
+            {i < 2 && <button type="button" className="text-link" onClick={() => { setConsumptionFocus({ kind: i === 0 ? "today" : "latest", interval: latest }); setConsumptionOpen(true); }}>View consumption details</button>}
             <div className={`metric-line line-${i}`} />
           </section>
         ))}
@@ -844,12 +883,7 @@ function Overview() {
           </div>
           <div className="chart-summary">
             <strong>
-              {number(
-                (intervals ?? [])
-                  .slice(-24)
-                  .reduce((s, i) => s + i.energyKwh, 0),
-              )}
-              <span>kWh · latest 24 intervals</span>
+              <span>Recorded energy · select source and range below</span>
             </strong>
             <Badge
               tone={summary?.sourceLabel === "Simulated" ? "amber" : "sage"}
@@ -857,7 +891,7 @@ function Overview() {
               {summary?.sourceLabel ?? "Unknown"}
             </Badge>
           </div>
-          <ConsumptionChart intervals={intervals ?? []} range={range} />
+          <ConsumptionChart intervals={intervals ?? []} range={range} expanded={consumptionOpen} setExpanded={setConsumptionOpen} focus={consumptionFocus} />
           <p className="caption">
             Latest accepted meter time: {date(summary.latestMeterAt)} · Today's
             energy-only cost: {money(summary.energyCost)} estimated at{" "}
@@ -952,7 +986,7 @@ function Overview() {
           <Link className="button" to="/recommendations">
             Explore opportunities <ArrowUpRight size={16} />
           </Link>
-          <small>Estimates are not verified savings.</small>
+          <small>Estimates are not verified savings. <Help topic="savings" /></small>
         </section>
       </div>
       <section className="panel section-gap overview-ledger">
@@ -1140,7 +1174,7 @@ function RoomDetail({ roomId }) {
       <p>{status.observed.reason}</p>
       <div className="detail-metrics">
         <div><span>OBSERVED OCCUPANCY</span><strong>{status.observed.state}</strong><small>Latest available evidence</small></div>
-        <div><span>AUTHORISED USE</span><strong>{status.protectedBy?.replaceAll("_", " ") ?? "None active"}</strong><small>Booking, access or override</small></div>
+        <div><span>AUTHORISED USE <Help topic="override" /></span><strong>{status.protectedBy?.replaceAll("_", " ") ?? "None active"}</strong><small>Booking, access or override</small></div>
         <div><span>MASTER SUPPLY / SIMULATED</span><strong>{status.breaker.reportedSupply.toUpperCase()}</strong><small>{status.room.roomBreakerId}</small></div>
       </div>
       <p className="caption">
@@ -1869,7 +1903,7 @@ function IncidentDetail({ incidentId }) {
           <p>
             <strong>
               Supply {c.action.toUpperCase()} ·{" "}
-              {c.result?.verification ?? "unverified"}
+              {c.result?.verification ?? "unverified"} <Help topic="verification" />
             </strong>
             {c.result?.dataMode ?? "Unknown"} · transport{" "}
             {c.result?.transportStatus ?? "unknown"}. No independent physical
@@ -2035,7 +2069,7 @@ function RecommendationCard({ record: r }) {
         </span>
         <strong>
           {number(r.estimate?.lowKwh)}–{number(r.estimate?.highKwh)}
-          <small> kWh estimated</small>
+          <small> kWh estimated <Help topic="savings" /></small>
         </strong>
         <span>
           {money((r.estimate?.lowKwh ?? 0) * (r.estimate?.tariff ?? 0))}–
