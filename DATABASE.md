@@ -1,6 +1,17 @@
 # Database design and consistency
 
-**Status:** Planned MongoDB/Mongoose design. No application schemas, indexes, seed data, database configuration or worker have been implemented in this repository. The collection catalogue and rules below derive from [PLAN.md §14](PLAN.md#14-database-collections-and-consistency-rules); they are not evidence of an existing database.
+**Status:** MongoDB/Mongoose schemas and indexes now exist in `backend/src/models/index.js`, with database/API verification. The catalogue follows [PLAN.md §14](PLAN.md#14-database-collections-and-consistency-rules). The additional `importBatches` collection stores durable preview/commit state. No production database deployment is claimed.
+
+## Implemented storage conventions
+
+- Documents use stable string `_id` values (UUID by default), UTC Mongoose timestamps and strict schemas. Relations use string room/source/actor IDs, validated by service routes.
+- `settings` has singleton ID `installation`: timezone, tariffs, baseline thresholds, holidays, meter/epoch/register/supply-limit configuration and cost assumptions. Seed values are hypothetical.
+- `roomBreakers.roomId`, `rooms.code`, `rooms.roomBreakerId` and public room tokens are unique. Room command leases (`commandLockOwner`/`commandLockUntil`) serialize policy/evidence/lease/command operations; those lock fields are omitted from responses.
+- Observations are unique by sourceId/eventId. Meter identities include meter/epoch/register/mode/capture/kind and a canonical import key. Timetable import keys and notification keys are unique.
+- `energyIntervals` persists boundaries, kWh, average kW, coverage, lineage and an embedded baseline/calculation version. `baselines` has a reserved schema/index; current calculations use the embedded record. Calculation implementation is version 1; fuller baseline history/version management remains future work.
+- `importBatches` holds type, mode, creator, normalised rows, `rowErrors`, duplicate count, status, commit time and 24-hour expiry. API responses expose rowErrors as `errors`. TTL only cleans previews, never executes control deadlines.
+- `notificationOutbox` is also the MVP inbox: recipient, stage, delivery state and readAt. `sessions` is managed by connect-mongo with its expiry index, not an application Mongoose model. No external provider delivery is claimed.
+- Reading `corrections` preserve old/new value, actor, time and evidence reason. Normal-stop evidence retains actor/reason/time and is invalidated after restart or uncertain occupancy. Raw meter-image/OCR files, physical credentials and production retention enforcement remain pending. No identifiable footage is stored.
 
 ## Installation and ownership
 
@@ -10,7 +21,7 @@ The Node backend validates writes and owns policy decisions. Python and hardware
 
 ## Planned collections
 
-The names and essential fields follow the plan. Concrete schemas, optional/required field definitions and migrations remain implementation work.
+The names and essential fields follow the plan. See source schemas for exact types/defaults; this table also retains intended optional-integration fields. Deployed schema/index changes require explicit migrations; seed performs no destructive reset.
 
 | Collection | Purpose and essential data |
 | --- | --- |
@@ -80,7 +91,7 @@ Enforce these in the database, not just UI checks:
 | `observations` by room/source and `capturedAt` | Evaluate room evidence and freshness. |
 | Meter observations by meter/epoch/register/time | Retrieve compatible ordered readings. |
 
-The precise compound keys, active-issue key and partial-filter definition remain to be designed with the schemas. Reopening an issue creates a new episode and timeline. Do not treat a duplicate import, MQTT delivery or worker retry as a new incident.
+Implemented active issue keys are `vacancy:<roomId>`, `energy:<intervalId>` and `access_expired:<roomId>`, with unique partial filter `{active:true}`. Job IDs are `<incidentId>:first/second/final`. Reopening a room issue creates a new episode; recalculating the same energy interval does not reopen a resolved investigation. Duplicate events/imports/retries are not new incidents.
 
 ## Durable work and lifecycle
 
@@ -100,4 +111,4 @@ TTL cleanup may remove expired sessions/observations according to retention poli
 
 Store password hashes and protected/referenced integration secrets, redact credentials from audits, and restrict evidence-image access. Retain minimal occupancy metadata by default and define a short configurable image retention period; no fixed retention duration has been selected. See [SECURITY.md](SECURITY.md).
 
-The plan does not specify every schema, lifecycle transition, import record identity or persistence detail for meter configuration/epochs, public QR tokens, holidays, image review and user-facing inbox state. Resolve these within shared contracts and the one-installation model before implementation. No extra collection or API is implied here. Track implementation in [TASKS.md](TASKS.md) and verify its behaviour through [TESTING.md](TESTING.md).
+Meter/epoch configuration and holidays live in settings; public tokens in rooms; inbox state in notificationOutbox; previews in importBatches. Manual reading review is implemented; raw image/OCR review and production retention/migrations remain pending. Jobs reconcile partial writes; row/document idempotency and room leases are not transactions or exactly-once guarantees. Track work in [TASKS.md](TASKS.md) and verify through [TESTING.md](TESTING.md).

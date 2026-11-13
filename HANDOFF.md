@@ -2,47 +2,63 @@
 
 ## Current objective
 
-Build the local PLAN.md prototype. Active milestone CE-001: JavaScript workspace, shared contracts, real MongoDB schemas, login and room API/UI. Continue into core energy workflows after verification.
+CE-001 through CE-006 are complete for the local single-building MVP/simulator. No partial operation remains. CE-007 holds wider field/production work and optional live integrations; do not present those as complete or scaffold over existing source.
 
 ## Confirmed decisions
 
-One building; exactly one Wi-Fi smart master per controlled room, with approved loads switching together. Keep sensors/network/emergency supplies independent. No individual appliance actuation. Node backend owns policy; Python only vision/OCR. Default alert-only/simulation. Unknown occupancy blocks vacancy shutdown; QR expiry is not vacancy. Persist escalation at first alert, +10 minutes and +15 additional minutes. No commits, push, merge or publication authorised.
+One building; one independently controlled Wi-Fi smart master per controlled room; all approved ordinary loads share it. Keep protection, physical switches and independent camera/sensor/network/emergency supply. No individual appliance actuators, IR or multi-building expansion. Node backend owns policy; Python is reserved for optional vision/OCR. Rooms start alert-only, all switching is simulated, and physical enablement is rejected. Unknown occupancy blocks vacancy cutoff; QR expiry is not vacancy. Escalation is persisted: first alert, +10 minutes, +15 additional minutes after confirmed vacancy. Default demo acceleration is 60x. No agent commit, push, merge, publication or deployment was authorised/performed.
 
 ## Repository state
 
 - Root: `C:/Coding stuff/Hackathon projects/AI-based-campus-monitering-system/AI-Based-Campus-Energy-Monitoring-and-Optimisation`.
-- Branch `main`; starting HEAD `186aa1b`.
-- Pre-existing modified files: AGENTS.md, API.md, ARCHITECTURE.md, CHANGELOG.md, DATABASE.md, README.md, SECURITY.md, TASKS.md, TESTING.md. Do not discard them.
-- This session: continuity files and AGENTS.md continuity reference; application implementation has not started at this checkpoint.
+- Branch `main`; starting HEAD `186aa1b`. HEAD advanced externally during implementation to `2434a21` (`all .md updated`); preserve it. The implementation agent did not create that commit.
+- Pre-existing modified documents at turn start: AGENTS.md, API.md, ARCHITECTURE.md, CHANGELOG.md, DATABASE.md, README.md, SECURITY.md, TASKS.md, TESTING.md. Their content was maintained incrementally. The external commit also captured the early continuity checkpoint.
+- Current uncommitted work: forty new source/config/fixture files under the workspace plus affected existing docs/continuity updates. Nothing was staged by the implementation agent. The new implementation files are untracked: preserve/include them during a provider/workspace transfer, not just HEAD. Do not run git clean/reset.
+- PLAN.md remains unchanged with SHA-256 `0D26419583B677B7DF1E7A00BFD15E2DF2080966A9FF134F955FB204C019B75C`. Reusable .agents/skills content is unchanged.
 
 ## Completed and verified
 
-Repository inspection and plan/supporting-document review. No campus application files existed. Generic design-tool scripts are not application implementation.
+CE-001: pinned JavaScript workspaces, actual MongoDB schemas/indexes/session store, strict contracts, scoped login and room workflow.
+CE-002: three CSV formats, persistent preview/commit/retry, manual meter entry and audited correction, reset epochs, provenance/gaps/intervals.
+CE-003: connected dashboard/chart, explainable anomalies, recommendation decisions and staff-reviewed outcomes (not certified savings).
+CE-004: durable incidents/jobs/in-app inbox, worker leasing/reconnect, first/second/final stages and stale-work cancellation.
+CE-005: QR leases/extensions/expiry warnings, staff overrides, guarded explicit/idempotent simulated room-master actions, normal-stop/restart/fault restrictions.
+CE-006 implementation: connected admin, source health, assignments, load policy/inventory, budget estimates, account creation, scoped service ingestion, eight labelled demo entry points/fallbacks and local lifecycle helpers.
 
 ## In progress
 
-CE-001: establish dependencies, source structure, contracts, MongoDB persistence, authentication and room workflow. No partially written application files yet.
+None. The built-app HTTP/static/API smoke, documentation/scope validation and owned-service teardown all passed. Known pending work is CE-007: optional live transports/model/calibration, field/production checks and hardening. Existing source is a runnable local prototype, not a commissioned installation or full production release.
 
 ## Verification
 
-`git status --short`, `git branch --show-current`, `git log -1 --oneline`, file discovery and UTF-8 document reads completed. `node --version`: 22.20.0; `npm --version`: 10.9.3; `python --version`: 3.11.0. `docker info --format '{{.ServerVersion}}'` failed: Docker daemon pipe absent (also inaccessible user Docker config). No application checks run.
+- `npm test`: 31 passed, 0 failed after final seed/PATCH/normal-stop fixes; isolated real MongoDB 8.2.6.
+- `npm run test:browser`: 13 passed, no browser runtime errors. Actual login and all main pages, complete first alert/HOD escalation/simulated OFF, eligible occupancy restoration, QR creation/extension, QR image and 390px navigation. Uses installed Chrome's DevTools Protocol outside the sandbox in this environment. Not a real-phone test.
+- `npm run build`: passed after the last caption-only cleanup; main bundle about 370 KB and lazy chart about 381 KB, no large-chunk warning.
+- `npm run check`: passed 25 server/shared/script/test JavaScript files. Frontend JSX checked by build.
+- `npm ci --dry-run --ignore-scripts --offline`: passed lockfile/install-plan consistency, not an actual fresh reinstall. System Node 22.20 emits engine warnings; npm scripts use local Node 26.13.1.
+- `npm run stop`: passed, preserving reused/external services. Development startup and HTTP readiness passed.
+- Built-app smoke via `npm start`: `/`, `/rooms`, `/access/example-token` and hashed JavaScript assets returned 200; API health/readiness passed with physicalControl=false; unauthenticated room API returned JSON 401. That owned server was stopped.
+- Final static validation passed twelve root Markdown documents, 113 local links/anchors, 30 implementation path references, dependency pins, ignored artifacts and Git whitespace. PLAN hash and reusable skills remain unchanged.
+- Ignored evidence: `.local/browser-verification.json`, `.local/screenshots/overview-desktop.png`, `.local/screenshots/overview-mobile.png`; screenshots inspected after data loaded. Do not treat browser-failure.txt/old failure image as the latest result.
+- Earlier failed seed/default-PATCH/browser-start attempts and repairs are recorded in PROGRESS.md. Later relevant source edits require rerunning affected checks; do not blindly reuse this snapshot.
 
 ## Blockers
 
-No local mongod on PATH and Docker daemon is unavailable. Evaluate a real MongoDB development/test binary without substituting an in-memory JavaScript database. No institution data, supported breaker, approved camera/model, broker or SMTP credentials: use explicitly simulated fixtures and disconnected integration states. No secrets belong in Markdown.
+No core-demo blocker. Real camera footage/model/licence, OCR calibration, exact breaker/protocol/electrical commissioning, MQTT/SMTP/provider credentials and real phone/HTTPS deployment are unavailable/unverified. Optional transports remain unavailable; simulator/CSV/manual fallback works. Production retention/migration, full account lifecycle, baseline history/version management and broader failure/role/accessibility review remain CE-007.
+Official npm registry returned ECONNRESET; per-command registry.npmmirror.com worked for dependencies. Browser-package tarballs timed out, so browser smoke uses Node's built-in WebSocket, not Playwright. No global registry/runtime setting was changed. Three Context7 CLI calls were used for this request (first failed); do not exceed the request limit. Secrets exist only in ignored local .env; never print them or copy them into docs.
 
 ## Running processes
 
-None launched by this implementation session. Verify the actual environment before resuming.
+All owned services are stopped: dev run 94713 through `npm run stop`, built-server smoke run 39703 through its retained process session. Final probes found port 5000 and localhost:5173 closed. Existing MongoDB 127.0.0.1:27017 is still listening and was deliberately preserved; do not kill it. Browser processes were closed. Inspect `.local/dev-session.json` and actual processes on resume, since metadata can become stale.
 
 ## Next actions
 
-1. Read AGENTS.md, this file, PROGRESS.md and TASKS.md; inspect actual working tree.
-2. Obtain current framework documentation within the Context7 command limit.
-3. Implement CE-001 starting with root package.json, shared contracts and backend configuration/models.
-4. Establish a real MongoDB test process; implement and verify login/room API and frontend.
-5. Checkpoint results and continue the next ready task.
+1. Read AGENTS.md, this file, PROGRESS.md, TASKS.md and specialised docs; inspect current Git state/HEAD and owned process metadata.
+2. To run the prototype, use `npm run dev` (after documented install/setup if dependencies are missing). It preserves existing data/services. Use the local generated credential from .env; never print it in a handoff.
+3. For further development, select a bounded CE-007 item and record it before editing. For baseline/history work, inspect `backend/src/domain/energy.js`, `backend/src/services/energy.js`, DATABASE.md and `tests/energy.test.js` first; do not replace the existing calculation engine blindly.
+4. For live integration work, obtain exact model/licence/footage or provider/hardware requirements and retain honest unavailable adapters until tested. Keep one room master and the independent observation/network supply.
+5. Rerun only checks relevant to changed code, refresh TASKS/PROGRESS/HANDOFF and stop only owned services. A real phone/HTTPS/physical/production acceptance pass still requires its own evidence.
 
 ## Resume instructions
 
-Read PLAN.md and relevant specialised documents before editing. Continue existing files rather than scaffolding over them. Treat recorded checks/processes as stale after relevant edits; verify them. Update this snapshot after meaningful increments and approximately every five minutes.
+Use README.md for real commands, API.md/DATABASE.md/SECURITY.md for implemented contracts and TESTING.md for current checks versus broader pending work. Review source before relying on a claimed capability. `npm ci`, `npm run setup`, `npm run dev` starts the local workflow; `npm run stop` stops only owned services. Do not reset/reseed destructively, overwrite user commits, or initialise another repository. Checkpoint after meaningful changes and before ending a session.

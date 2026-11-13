@@ -1,6 +1,40 @@
 # API and integration contracts
 
-**Status:** Planned contracts, not an implemented API. The repository has no application server, route handlers, shared schemas or OpenAPI document. No endpoint or integration below has been exercised. [PLAN.md](PLAN.md) is authoritative; this file organises its contracts for implementation.
+**Status:** The local Express application implements the core routes below in `backend/src/app.js`, with inputs in `shared/contracts.js`. Physical device ingestion and meter-image OCR return explicit `503` unavailable errors. Python internal endpoints and native MQTT/vendor protocols remain planned. [PLAN.md](PLAN.md) is authoritative; no OpenAPI artifact or physical integration is claimed.
+
+## Implemented HTTP conventions
+
+- Successful responses use `{ "data": ... }`; string MongoDB identifiers are exposed as `_id`. Errors use `{ "error": { "code", "message", "requestId", "details"? } }`. `X-Request-Id` is returned on every response. Validation is `400`, authentication `401`, permission/origin/CSRF `403`, missing resources `404`, conflicts/interlocks `409`, oversized JSON `413`, unavailable integration `503`. Unhandled failures return redacted `500` errors.
+- `GET /api/v1/auth/csrf` establishes a session and returns `data.csrfToken`. Mutations require an exact configured `Origin`, session cookie and `X-CSRF-Token`, including login/logout. Login accepts `{email,password}`, regenerates the session and returns `{user,csrfToken}`; `GET /auth/me` returns the same shape. Service ingestion uses its separate boundary below.
+- List responses are arrays in `data`; supported lists accept a bounded `limit` (default 100, maximum 200). Charts return up to 1,500 original intervals. Cursor pagination is not implemented.
+- Room create accepts code, name, roomBreakerId and optional fields from the strict room contract. Defaults are alert-only/unvalidated. Inventory writes never operate an individual appliance. A room/master remap cannot silently replace a current mapping.
+- Meter POST accepts the PLAN event contract plus optional `epoch` (default `initial`) and `intervalStart` for interval input. Returns `{reading,duplicate}`. Configured meter/epoch, original time, supply growth and quality determine acceptance/review. Demo mode forces supplied readings to `simulated`.
+- Import POST accepts `{csv,dataMode}` and returns a persisted preview with `_id`, normalised `rows`, `errors` and duplicate count. `POST /imports/:id/commit` commits the creator's valid preview; invalid rows block commit. Repeated records/commits are idempotent. A commit can partially persist before a failure; retry reconciles row identities.
+- Supply POST accepts `{requestId,action,reason:"staff_override",expiresAt?}` and returns a persisted command. Automatic/QR reasons are generated internally. Request IDs cannot be reused for a different actor/room/action/reason. Commands expire within one minute and require current interlocks. Only simulated results are possible.
+- Lease create/extend accepts `{durationMinutes,acceptedPolicy:true}`; duration is capped at 120 policy minutes. Server-controlled lease time is accelerated only in demo mode. An extension is a new duration from now after booking/hour checks. Ending/extension is limited to the requester or admin and room scope.
+
+The unit/API tests exercise these contracts against MongoDB; see TESTING.md for exact coverage.
+
+## Additional implemented workflow routes
+
+All paths below are relative to `/api/v1` and remain subject to role and room scope:
+
+| Method/path | Contract |
+| --- | --- |
+| `GET /auth/csrf` | Obtain session CSRF token; does not switch supply |
+| `POST /imports/:id/commit` | Commit a valid persistent preview created by the authenticated admin |
+| `GET/POST /users` | Admin account creation: name, email, password (minimum 12), role and permittedRoomIds; password never returned |
+| `POST /incidents/:id/inspect` | Record inspection without resolving |
+| `POST /incidents/:id/reassign` | Admin assigns validated first/second responder IDs |
+| `POST /recommendations/:id/schedule` | Accepted recommendation plus ISO `dueAt` |
+| `POST /recommendations/:id/verify` | Completed recommendation plus evidence `reason` and optional observedReductionKwh; stores staff-reviewed outcome, not certified savings |
+| `GET /notifications`; `POST /notifications/:id/read` | Persisted in-app inbox/read state; reading is not incident resolution |
+| `GET /rooms/:id/qr` | Staff-only opaque access URL and QR PNG data URL; no switching |
+| `PATCH /meter-readings/:id/review` | Responder supplies confirmed value and evidence reason; validates neighbors/supply bound, preserves source/mode and correction history |
+| `POST /devices/:id/confirm-stop` | Room-scoped responder records reason/actor/time for an existing required stop procedure; it does not operate an appliance |
+| `POST /integrations` | Admin maps source ID/type/room, coverage/freshness and optional meterId; returns a source-scoped service token once |
+
+Recommendation states implemented: `proposed → accepted → scheduled/completed → reviewed`; rejection requires a reason. Proposed recommendations become `withdrawn` if recalculated evidence no longer supports the pattern. Inspection/acknowledgement remains unresolved. Snooze accepts 1–30 policy minutes; manual resolution requires evidence text. Assignment snapshots are retained until explicit reassignment. PATCH parsing retains only explicitly supplied fields; omitted defaults cannot reset safety metadata or resurrect a cancelled booking.
 
 ## Application boundary
 
@@ -10,7 +44,7 @@ The Node backend owns authentication, room scope, policy decisions, ingestion ac
 
 Apply server-side role and room checks to mutations and Socket.IO subscriptions. Use scoped service credentials for ingestion. A public QR lookup exposes only minimal room/access-policy information. Creating, extending or ending a lease requires authenticated authorisation; GET/page load must not switch power. See [SECURITY.md](SECURITY.md).
 
-## Planned application routes
+## Application routes from the plan
 
 The methods and paths follow [PLAN.md §13.1](PLAN.md#131-application-endpoints).
 
@@ -38,7 +72,7 @@ The methods and paths follow [PLAN.md §13.1](PLAN.md#131-application-endpoints)
 
 ## Imports and event validation
 
-The exact CSV examples live in [PLAN.md §6.4](PLAN.md#64-import-contracts). Preserve these headers:
+The exact CSV examples live in [PLAN.md §6.4](PLAN.md#64-import-contracts) and executable examples are under `fixtures/`. Preserve these headers:
 
 | Input format | Header |
 | --- | --- |
@@ -90,12 +124,12 @@ setSupply(roomBreakerId, on, requestId, expiresAt)
 getCommandResult(requestId)
 ```
 
-These functions are application contracts, not universal manufacturer endpoints. Exact hardware model, firmware, protocol, feedback capabilities and connection tests remain to be selected and implemented.
+These functions are application contracts, not universal manufacturer endpoints. The internal simulator's `setSupply` service receives room ID, command input and actor to enforce mapping/policy before applying the contract. Exact physical model, firmware, protocol and feedback remain unavailable. Connection-test responses explicitly distinguish recent fixture observations from real integration availability.
 
 Optional private MQTT topics follow [PLAN.md §13.5](PLAN.md#135-application-mqtt-topics). Commands and results are not retained. Retained presence keeps its original timestamp and must pass freshness checks. Deduplicate QoS 1 deliveries using stable event/request IDs, enforce per-device access and reject expired commands after reconnection. Socket.IO is for authorised application updates; event names and payload schemas remain to be defined.
 
 ## Contract work still required
 
-The plan defines route names and selected event examples, rather than a complete HTTP specification. Request/response schemas, error envelopes/status mappings, pagination, Socket.IO contracts and remaining enum values must be agreed and tested during implementation.
+Schemas and HTTP envelopes for implemented inputs now exist. Socket.IO uses the session cookie, validates source origin and active accounts, accepts a checked `subscribe-room` request, and emits a payload-free `refresh` signal with server time every three seconds. Room state is retrieved through scoped HTTP routes; it is not broadcast globally. Account/session state is rechecked before refresh. Native MQTT events, cursor pagination and a generated OpenAPI contract remain pending.
 
-The required workflows include import preview/commit and OCR correction, incident inspection/reassignment, recommendation scheduling/verification, staff administration and the persisted in-app inbox. The route table does not specify dedicated operations for all of them. Resolve that mapping in shared contracts before wiring the UI; this document does not invent endpoints or imply those workflows already exist. Track the work in [TASKS.md](TASKS.md), with acceptance evidence in [TESTING.md](TESTING.md).
+Service observation ingestion requires `X-Source-Id` and `Authorization: Bearer <source-specific token>`. Tokens are derived server-side with HMAC from the protected root secret and source ID. Source/type/room, five-minute timestamp bounds and uniqueness are checked. Repeated identical evidence returns the stored event; conflicting occupancy/mode/time for the same event ID is rejected. Replay remains isolated to demo mode. Native device events are unavailable; meter telemetry requires a registered meter scope. Manual meter correction is implemented; raw OCR/image processing, full account lifecycle and external transports remain pending. Track work in [TASKS.md](TASKS.md), with evidence in [TESTING.md](TESTING.md).

@@ -1,16 +1,14 @@
 # Repository instructions
 
-## Authority and current state
-
 ## Continuity and session recovery
 
 Read [HANDOFF.md](HANDOFF.md), [PROGRESS.md](PROGRESS.md) and [TASKS.md](TASKS.md) at session start, then reconcile them with actual source, Git status and running services. PROGRESS.md holds concise history/current task; HANDOFF.md holds the latest actionable resume snapshot. Checkpoint after meaningful increments, failed verification, before lengthy/risky operations, approximately every five minutes and before ending a session. Record task IDs, results, limitations and next steps without secrets or private reasoning. Preserve pre-existing working-tree changes. Do not commit, push, merge, deploy or publish unless explicitly authorised.
 
-### Plan authority
+## Authority and current state
 
 Read [PLAN.md](PLAN.md) completely before implementation, then inspect the repository. It defines the intended direction; source code and executed checks determine what is actually implemented. Resolve supporting documentation conflicts in favour of the plan, and record any ambiguity rather than inventing behaviour. Preserve the plan unless the task explicitly authorises changing it.
 
-As of 13 November 2026 this is a planning repository: ten project Markdown files plus reusable `.agents/skills/` tooling. No campus application source, manifests, runtime configuration, fixtures or application tests exist. Do not treat skill scripts/tests as the application or mark planned work complete without evidence.
+Implementation began on 13 November 2026. The repository now contains JavaScript workspaces, a Mongo-backed API/worker, React UI, shared contracts, seed fixtures and application tests. Read HANDOFF.md and PROGRESS.md for the current checkpoint; do not rely on the earlier documentation-only baseline. Skill scripts/tests remain unrelated to application verification. Preserve the nine Markdown files already modified before implementation began.
 
 ## Scope and implementation rules
 

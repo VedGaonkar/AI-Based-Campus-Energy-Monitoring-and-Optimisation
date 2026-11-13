@@ -1,12 +1,34 @@
 # Validation and Acceptance Plan
 
-**Status:** All application checks below are pending. There is no application source, dependency manifest, test runner configuration, build script or application test suite in this repository. The scripts and tests under `.agents/skills/` support reusable design tooling; they do not verify the campus-energy application. No application tests, builds, API smoke checks or hardware tests have been run for this documentation update.
+**Status:** Application unit/API/database checks and a frontend build now exist. Executed results are recorded separately from the wider pending PLAN acceptance matrix. Tool tests under `.agents/skills/` remain unrelated. No physical hardware tests have been run.
 
-[PLAN.md section 21](PLAN.md#21-acceptance-checks) defines the authoritative acceptance matrix. This file organises its checks for implementation; it does not record passing application results.
+[PLAN.md section 21](PLAN.md#21-acceptance-checks) defines the authoritative acceptance matrix. This file separates executed application checks from broader pending acceptance work.
+
+## Available commands and recorded checks
+
+Run from the repository root after `npm ci` and `npm run setup`. npm scripts use the workspace-local Node 26.13.1. Tests launch isolated real MongoDB 8.2.6 with a cached/downloaded binary; no running application or external database is needed for `npm test`.
+
+| Command | Purpose | Recorded result |
+| --- | --- | --- |
+| `npm run test:unit` | Calculations, calendar, occupancy/protection and control interlocks | Initial 13 passed; the added historical-baseline case is included in the 31-check full run |
+| `npm test` | Unit plus Supertest/API/MongoDB/session/worker/config recovery | 31 passed, zero failures, after seed/PATCH/normal-stop regression fixes |
+| `npm run check` | Server/shared/script/test JavaScript syntax | Passed for 25 files at final implementation checkpoint |
+| `npm run build` | Vite production build and JSX compilation | Final copy-cleanup build passed; main/chart lazy split, no large-chunk warning |
+| `npm run dev` | Local MongoDB, API, worker and Vite | Started; frontend HTTP 200 and API health with physicalControl=false verified |
+| `npm run test:browser` | Installed headless Chromium: real login/pages/escalation/QR/narrow viewport | 13 passed; zero browser runtime errors; desktop and loaded 390px screenshots inspected |
+| `npm run stop` | Stop only the recorded owned dev services | Passed; reused MongoDB preserved |
+| `npm ci --dry-run --ignore-scripts --offline` | Check lockfile/install-plan consistency without reinstalling | Passed; not a clean-environment install test |
+| `npm start` plus built-app HTTP smoke | Built index/deep links/assets, health/readiness, protected API | Frontend/asset/readiness HTTP 200, rooms JSON 401; physicalControl=false; owned server stopped afterward |
+
+Browser smoke requires the running dev stack, demo configuration, generated local credentials and installed Chrome/Edge (or `BROWSER_EXECUTABLE`). It uses an isolated ignored profile and Node's built-in WebSocket/Chrome DevTools Protocol, downloads no browser, and writes screenshots/report under `.local/`. Browser-package tarball downloads failed, so no additional browser-test package is required. A successful smoke run changes only synthetic demonstration state and stops replay afterward.
+
+Covered API cases: login/session/hash redaction; CSRF/origin/viewer/room denial; all three CSV formats and repeat-safe commit; seed rows/intervals/anomaly actually persisted; invalid rows/reading conflicts; audited manual review/epoch boundaries; duplicate master mapping; booking cancellation and PATCH preservation; QR GET safety/extension/unknown expiry; escalation through a new Mongo connection; command idempotency; occupancy cancellation; faulted restoration; source-scoped deduplication/conflicts; normal-stop audit/restart invalidation; acknowledgement versus resolution and recommendation outcome uncertainty. Startup rejects physical enablement and accelerated non-demo clocks. Wider scenarios below are not all verified yet.
+
+Known failed checks and fixes: initial browser found an empty chart because bulk-upsert UUID defaults dropped seed rows silently; wrapped defaults and explicit validation errors plus stored-row tests fixed it. An expanded stop/restart test exposed Zod defaulted omitted PATCH fields; explicit-key parsing and policy/cancelled-booking regression checks fixed it. Final 31-check suite and 13-check browser run passed after those fixes. Chrome requires outside-sandbox execution in this environment; default-sandbox Page.enable timed out. No real phone, installed electrical hardware, live inference/OCR, external notification or production HTTPS/retention/security certification was tested.
 
 ## Test approach and prerequisites
 
-Use deterministic meter/timetable fixtures and controllable time for policy tests. Cover calculation and policy logic first, then validate API persistence, worker recovery and selected browser workflows against the actual implementation. The planned tools are the Node test runner or Vitest, Supertest and selected browser checks; no runner has been selected or installed yet.
+Use deterministic meter/timetable fixtures and controllable time. The implementation uses the Node test runner, Supertest, real MongoDB and selected browser smoke checks; it does not use Vitest. Broaden checks when changes or unresolved concerns justify them.
 
 Use test accounts and a separate test database. Preserve fixture provenance as simulated throughout the pipeline. Device commands default to the simulator, and optional integrations must be independently disableable. Record the actual runtime, dependency/model versions, fixture inputs, commands and results once they exist; do not invent `npm` scripts or a passing test count.
 
@@ -89,4 +111,6 @@ Before calling the prototype complete, perform and record:
 
 For documentation changes, check Markdown links and section anchors, documented paths and commands against the repository, consistent planned/implemented status, and the final diff for unrelated changes. Preserve [PLAN.md](PLAN.md) as the source of truth. Application execution results remain pending until source code and runnable commands exist.
 
-For the 13 November 2026 synchronisation, all 67 Markdown files were audited. Automated checks passed for 111 local links/anchors across the ten project documents, all 48 application API-table entries and 20 collection names against the plan, UTF-8 decoding, balanced fenced blocks and diff whitespace. An independent review reread the full plan and all nine modified supporting documents. The plan's original SHA-256 is unchanged, and the final change scope contains only those nine existing Markdown files. No application tests or builds were run.
+At the earlier documentation-only checkpoint on 13 November 2026, 67 Markdown files, 111 project links, 48 plan route entries and 20 planned collections were checked. That historical count predates implementation, continuity files and additional workflow routes; it is not the current application validation result. PLAN.md remains unchanged. Consult PROGRESS.md/HANDOFF.md and the table above for current checks.
+
+Final implementation documentation check: twelve root Markdown files, 113 local links/anchors and 30 actual implementation paths passed, along with exact dependency pins, ignored artifact boundaries and Git whitespace. PLAN's initial SHA-256 and reusable skill files are unchanged. Broader field/production acceptance remains explicitly pending.

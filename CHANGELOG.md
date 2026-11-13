@@ -1,8 +1,19 @@
 # Changelog
 
-Record completed repository changes here. Planned work belongs in [TASKS.md](TASKS.md), and intended behaviour is defined by [PLAN.md](PLAN.md). No application release or implemented integration is claimed.
+Record completed changes here. Planned work belongs in [TASKS.md](TASKS.md), approved behaviour in [PLAN.md](PLAN.md), current state in PROGRESS.md/HANDOFF.md. The local prototype is not a production release or commissioned physical integration.
 
 ## Unreleased — 13 November 2026
+
+### Local prototype implementation
+
+- Established PROGRESS.md/HANDOFF.md and task IDs, preserving the nine pre-existing modified documents and the original PLAN.md.
+- Added pinned JavaScript workspaces, ignored secret generation, real MongoDB development/test support, server sessions, scoped roles, strict contracts and protected room mappings.
+- Implemented durable CSV preview/commit, manual meter entry/review, meter epochs, interval/gap/quality calculations, explainable baselines/anomalies and recommendation decisions/outcome review with disclosed uncertainty.
+- Connected React screens for overview, rooms/load policies, energy/imports, timetable, incidents/inbox, recommendations, QR access and admin/assignments/budget/account creation. Lazy-loaded charts; retained separate occupancy, authorised use, supply and estimated load evidence.
+- Implemented persistent worker jobs/outbox, database-reconnect recovery, invalidation, lease warnings/expiry, overrides, explicit idempotent simulated room-master actions and AC/fault/restoration interlocks. All physical enablement remains rejected; optional vision/OCR/MQTT/SMTP are unavailable honestly.
+- Fixed two verification findings: bulk seed UUID defaults silently dropping rows, and Zod optional defaults resetting omitted PATCH fields. Added regression coverage for actual seed persistence, booking/policy preservation, manual review, scoped ingestion and normal-stop/restart behaviour.
+- Verified 31 unit/API/database/config checks, the production build, JavaScript syntax and a complete 13-check Chrome workflow at desktop/narrow viewport, including escalation → simulated OFF → occupancy restoration and QR leases. Screenshots/report are ignored local artifacts; no real phone/physical installation is claimed.
+- Added explicit development ownership/stop handling and built-app HTTP/documentation validation. No staging, commits, pushes, publication or deployment were performed by the implementation agent. External commit `2434a21` advanced HEAD during work; it was preserved.
 
 ### Documentation synchronisation
 
@@ -14,4 +25,4 @@ Record completed repository changes here. Planned work belongs in [TASKS.md](TAS
 - Recorded unresolved route/schema/persistence choices, deployment inputs and commissioning requirements without inventing interfaces, commands, hardware results or passing tests.
 - Clarified that generic design-skill stack/path examples do not override the project's JavaScript/React/Vite architecture. Preserved all 57 reusable Markdown files, including bundle-local duplicate references, and left `PLAN.md` unchanged.
 
-This update changes documentation only. Application implementation and the [acceptance checks](TESTING.md) remain pending.
+The preceding documentation synchronisation changed documentation only. Subsequent implementation/results are recorded above; wider field/production checks remain in [TESTING.md](TESTING.md).

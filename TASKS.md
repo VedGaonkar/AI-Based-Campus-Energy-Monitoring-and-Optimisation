@@ -1,6 +1,6 @@
 # Implementation Tasks
 
-**Status as of 13 November 2026:** Planning/documentation only. The authoritative scope and completion criteria are in [PLAN.md](PLAN.md). No campus application source, manifests, seed fixtures, runtime configuration or application tests exist; all implementation milestones below are pending. Reusable scripts/tests under `.agents/skills/` do not count as application progress.
+**Status as of 13 November 2026:** The core local prototype and CE-006 checkpoint are complete: 31 application checks, 13 browser checks, production build, syntax, built-app HTTP and documentation validation passed. [PLAN.md](PLAN.md) remains authoritative. Skill tests do not count as application progress. CE-007 physical/vision/external transports and wider field/production acceptance remain pending; no installation or production readiness is claimed.
 
 ## Documentation baseline
 
@@ -11,47 +11,61 @@ Do not check off application work based on documentation alone. Each milestone n
 
 ## 24-hour implementation sequence
 
+### Active implementation tasks
+
+| ID | Status | Depends on | Acceptance criteria |
+| --- | --- | --- | --- |
+| CE-001 | Complete | Documentation baseline | Pinned workspaces, strict contracts, real Mongo indexes/session store, scoped login/rooms and connected UI verified |
+| CE-002 | Complete | CE-001 | Three CSV formats, durable preview/commit/retry, manual entry/review and epoch separation verified |
+| CE-003 | Complete for MVP | CE-002 | Connected interval/expected chart, explainable anomalies and guarded recommendation outcome transitions verified |
+| CE-004 | Complete for MVP | CE-001 | Durable incidents/jobs/inbox, first/second/final stages, database reconnect and cancellation verified |
+| CE-005 | Complete for simulator | CE-004 | QR creation/extension/unknown expiry, overrides, explicit idempotent simulated master and interlocks verified |
+| CE-006 | Complete for local MVP | CE-003, CE-005 | Connected admin/demo/browser/lifecycle, built-app HTTP and documentation checkpoint verified |
+| CE-007 | Pending field/production work | CE-006 | Real phone/HTTPS and full role/accessibility review; model/licence/footage, external transports, exact hardware commissioning, retention/migrations and broader stress/failure acceptance |
+
+The milestone windows below preserve the original sequence. Statuses reflect the verified MVP subset; the task IDs above and PROGRESS.md record actual execution. No physical integration is marked complete by simulator results.
+
 This follows [PLAN.md section 20](PLAN.md#20-time-boxed-24-hour-execution-plan). Hours are intended execution windows, not recorded effort or completed work.
 
 | Status | Hours | Work | Exit condition |
 | --- | --- | --- | --- |
-| Pending | 0–2 | Confirm contracts/schema, scaffold JavaScript frontend/backend, sessions/roles and labelled seed data | Login and one room available through the API |
-| Pending | 2–5 | Meter/timetable import, preview/validation, manual entry and interval calculations | Uploaded data produces correct consumption without duplication |
-| Pending | 5–8 | Dashboard, contextual baselines/anomalies and recommendation rules | Explainable anomaly and actionable recommendation with assumptions visible |
-| Pending | 8–11 | Observations, occupancy/protection policies, incidents, durable jobs and in-app alerts | Restart-safe first/second/final stages with invalidation checks |
-| Pending | 11–14 | QR leases, warnings/extensions, manual override and room-master simulator | Authorised access, extension, cancellation and simulated control work |
-| Pending | 14–17 | Approved camera clip/person inference and meter-image OCR adapters | Genuine integration exercised or limitation/fallback honestly declared |
-| Pending | 17–20 | Integration tests/configuration UI, room/load approval, admin, assignments and outcomes | End-to-end workflow usable by each role |
-| Pending | 20–22 | Failure handling, permissions, imports, calculations and timer verification | Core acceptance scenarios pass with evidence |
-| Pending | 22–24 | Deterministic demos, walkthrough and documentation of actual commands | Reproducible demo with visible provenance and remaining limitations |
+| Core verified | 0–2 | Confirm contracts/schema, scaffold JavaScript frontend/backend, sessions/roles and labelled seed data | Login and one room available through the API |
+| Core verified | 2–5 | Meter/timetable import, preview/validation, manual entry and interval calculations | Uploaded data produces correct consumption without duplication |
+| MVP verified | 5–8 | Dashboard, contextual baselines/anomalies and recommendation rules | Explainable anomaly and actionable recommendation with assumptions visible |
+| In-app verified | 8–11 | Observations, occupancy/protection policies, incidents, durable jobs and in-app alerts | Restart-safe first/second/final stages with invalidation checks |
+| Simulator verified | 11–14 | QR leases, warnings/extensions, manual override and room-master simulator | Authorised access, extension, cancellation and simulated control work |
+| Fallback declared | 14–17 | Approved camera clip/person inference and meter-image OCR adapters | Genuine integration exercised or limitation/fallback honestly declared |
+| MVP verified; wider role review pending | 17–20 | Integration tests/configuration UI, room/load approval, admin, assignments and outcomes | End-to-end workflow usable by each role |
+| 31 checks passed | 20–22 | Failure handling, permissions, imports, calculations and timer verification | Core acceptance scenarios pass with evidence |
+| Local demo verified; field checks pending | 22–24 | Deterministic demos, walkthrough and documentation of actual commands | Reproducible demo with visible provenance and remaining limitations |
 
 ## Required implementation details
 
-- [ ] Select compatible supported runtime/dependency versions, record model licences and commit lockfiles. Follow [setup order](PLAN.md#192-setup-procedure-for-the-coding-agent); proposed directories are not existing application paths.
-- [ ] Define validated shared contracts, standard errors and scoped Socket.IO subscriptions before wiring consumers. Resolve the open [API](API.md) and [persistence](DATABASE.md) decisions.
-- [ ] Implement one installation with rooms/zones, inventory, assignments and exactly one master per controlled room. Reject duplicate or shared mappings between independent rooms.
-- [ ] Implement all three [CSV contracts](PLAN.md#64-import-contracts), invalid/duplicate reporting, provenance and idempotent commit; allow timetable edits, holidays, cancellations and ad hoc bookings.
-- [ ] Validate accepted meter readings, epochs/registers/units, resets/rollovers, quality and gaps. Compute compatible intervals and partial-day coverage, reconcile sources and distinguish kWh from interval-average kW.
-- [ ] Build robust/contextual or initial-rule baselines with sample-count/insufficient-data labels. Keep possible contributors and confirmed causes separate; assign manual investigation for unexplained anomalies.
-- [ ] Implement recommendation accept/reject/schedule/complete/verify behaviour, owners, evidence and non-overlapping benefit estimates. Include tariffs, implementation quotes, uncertainty, net benefit and meaningful payback; do not claim estimates are verified savings.
-- [ ] Separate occupancy, authorised-use protection, supply and appliance evidence. Validate camera/sensor coverage and freshness; unknown blocks vacancy cutoff, while fresh positive occupancy protects immediately.
-- [ ] Implement persistent incident episodes, job leasing, outbox, backup routing and at-least-once/idempotency handling. Confirm vacancy (initial 15 minutes), first alert at t=0, escalation at +10 minutes, final recheck at +25 minutes.
-- [ ] Invalidate stale actions on occupancy, protected booking/preparation period, QR lease/extension, override, policy change or source failure. Acknowledgement is not resolution; snooze expiry requires re-evaluation.
-- [ ] Implement QR permission/hour/booking/duration/lockout checks, initial 120-minute maximum and 10-minute expiry warning. No-source expiry defaults to a staff task, not a vacancy claim. Keep any approved fixed-duration physical policy separate.
-- [ ] Implement the simulator's room-master adapter, explicit ON/OFF commands, request IDs, short expiries, capabilities/status and verification labels. Add connection-test UI and a documented exact-model integration route; do not fabricate vendor endpoints or successful physical tests.
-- [ ] Apply whole-room shared-cutoff approval, valid AC stop confirmation, restart delays and fault/maintenance/manual-isolation interlocks. Retain manual tasks for incompatible loads or unconnected hardware. Restore only eligible automation-disabled supply.
-- [ ] Enforce simulation isolation on backend/gateway and preserve all source/data-mode labels. Accelerated time, replay and fixtures cannot trigger physical switching or notify real staff.
-- [ ] Build Overview, Rooms, Incidents, Energy/imports, Recommendations, mobile QR Access and Admin screens from [frontend requirements](PLAN.md#16-frontend-screens-and-dashboard-requirements), including integration health, budget estimates, quotes and audit history.
-- [ ] Apply [security requirements](SECURITY.md): role/room checks, scoped ingestion, sessions/CSRF, rate limits, secrets/redaction, bounded uploads, authorised footage and configurable evidence retention.
-- [ ] Track source/OCR quality, gaps, false alerts, response times, command verification, recommendation outcomes and baseline age. Document remapping/recalibration after physical changes.
-- [ ] Validate [TESTING.md](TESTING.md), including build/API/role/phone checks, worker restart/failure cases and one full incident-to-outcome run. Seed the eight demo scenarios with 30 days of visibly synthetic data.
-- [ ] Record exact install/start/build/seed/test commands, enabled and unavailable integrations, credential prerequisites and verified results in the existing documentation once they exist.
+- [x] Select compatible supported runtime/dependency versions, maintain the exact-version lockfile. No vision model is selected; record its licence before enabling one. Follow [setup order](PLAN.md#192-setup-procedure-for-the-coding-agent); the existing source map is recorded in ARCHITECTURE.md.
+- [x] Define validated shared contracts, standard errors and scoped Socket.IO subscriptions before wiring consumers. Resolve the open [API](API.md) and [persistence](DATABASE.md) decisions.
+- [x] Implement one installation with rooms/zones, inventory, assignments and exactly one master per controlled room. Reject duplicate or shared mappings between independent rooms.
+- [x] Implement all three [CSV contracts](PLAN.md#64-import-contracts), invalid/duplicate reporting, provenance and idempotent commit; allow timetable edits, holidays, cancellations and ad hoc bookings.
+- [x] Validate accepted meter readings, epochs/registers/units, resets/rollovers, quality and gaps. Compute compatible intervals and partial-day coverage, reconcile sources and distinguish kWh from interval-average kW.
+- [x] Build robust/contextual or initial-rule baselines with sample-count/insufficient-data labels. Keep possible contributors and confirmed causes separate; assign manual investigation for unexplained anomalies.
+- [x] Implement recommendation accept/reject/schedule/complete/verify behaviour, owners, evidence and non-overlapping benefit estimates. Include tariffs, implementation quotes, uncertainty, net benefit and meaningful payback; do not claim estimates are verified savings.
+- [x] Separate occupancy, authorised-use protection, supply and appliance evidence. Enforce coverage-validation and freshness metadata; real coverage commissioning remains pending; unknown blocks vacancy cutoff, while fresh positive occupancy protects immediately.
+- [x] Implement persistent incident episodes, job leasing, outbox, backup routing and at-least-once/idempotency handling. Confirm vacancy (initial 15 minutes), first alert at t=0, escalation at +10 minutes, final recheck at +25 minutes.
+- [x] Invalidate stale actions on occupancy, protected booking/preparation period, QR lease/extension, override, policy change or source failure. Acknowledgement is not resolution; snooze expiry requires re-evaluation.
+- [x] Implement QR permission/hour/booking/duration/lockout checks, initial 120-minute maximum and 10-minute expiry warning. No-source expiry defaults to a staff task, not a vacancy claim. Keep any approved fixed-duration physical policy separate.
+- [x] Implement the simulator's room-master adapter, explicit ON/OFF commands, request IDs, short expiries, capabilities/status and verification labels. Provide capabilities/connection-test UI and an honest unavailable boundary; the exact physical model/adapter remains pending; do not fabricate vendor endpoints or successful physical tests.
+- [x] Apply whole-room shared-cutoff approval, valid AC stop confirmation, restart delays and fault/maintenance/manual-isolation interlocks. Retain manual tasks for incompatible loads or unconnected hardware. Restore only eligible automation-disabled supply.
+- [x] Enforce simulation isolation on backend/gateway and preserve all source/data-mode labels. Accelerated time, replay and fixtures cannot trigger physical switching or notify real staff.
+- [x] Build Overview, Rooms, Incidents, Energy/imports, Recommendations, mobile QR Access and Admin screens from [frontend requirements](PLAN.md#16-frontend-screens-and-dashboard-requirements), including integration health, budget estimates, quotes and audit history.
+- [ ] Complete production security review, credential rotation/revocation and retention enforcement. Core role/room checks, ingestion scope, sessions/CSRF, rate limits, redaction and bounded uploads are implemented/tested; footage/image storage is unavailable.
+- [ ] Add operational trend/maintenance reporting for OCR review, false-alert findings, uptime and baseline age. Current raw source freshness, meter quality/gaps, incident timelines, command verification and recommendation outcomes are stored; physical recalibration and genuine OCR metrics remain unavailable.
+- [ ] Complete the remaining [TESTING.md](TESTING.md) field/production matrix, real phone/HTTPS and all-role/accessibility walkthrough. Unit/API/restart checks, build, synthetic thirty-day seed and a full browser incident-to-outcome/QR/mobile run have passed; optional integrations retain declared fallbacks.
+- [x] Record exact install/start/build/seed/test commands, enabled and unavailable integrations, credential prerequisites and verified results in the existing documentation once they exist.
 
 ## Inputs and unresolved decisions
 
 Collect institution-provided meter/timetable data, authorised roles/assignments, tariff assumptions and generated server secrets. Optional live features additionally need footage permission/source details, actual model/weights/licence, OCR installation, provider/broker credentials and supported hardware documentation. See [PLAN.md section 18](PLAN.md#18-credentials-tools-and-information-to-collect).
 
-The plan specifies workflows beyond its endpoint table: import preview/commit details, image correction/review, incident inspection/reassignment, recommendation scheduling/verification, user administration and inbox access still need precise contract mapping. Event/error schemas and some persistence details also remain open in [API.md](API.md) and [DATABASE.md](DATABASE.md). The problem-statement PDF is referenced by the plan but is not present locally; its content has not been independently revalidated during this audit.
+Additional core workflow routes are now mapped in [API.md](API.md): import commit, manual reading review, stop confirmation, incident inspection/reassignment, recommendation scheduling/outcome review, account creation, inbox and opaque QR generation. Raw image/OCR processing, full account lifecycle, generated OpenAPI/cursor pagination, deeper baseline history/version management and production retention/migration details remain work. The source problem-statement PDF is not present locally and has not been independently revalidated.
 
 Real installation additionally requires an electrician's feeder/load survey, exact breaker model/firmware/protocol, coverage/network testing, AC stop/restart approvals, local override and installed quotes. Physical installation is outside the hackathon deliverable. Reference prices and hypothetical payback in [PLAN.md section 23](PLAN.md#23-budget-purchasing-and-operating-cost-plan) are not purchase commitments or current installed quotes. Retention values and a security-reporting contact/process remain to be established.
 

@@ -1,6 +1,25 @@
 # Architecture
 
-**Status:** Design only, aligned with [PLAN.md](PLAN.md). As of 13 November 2026, the repository has no campus application source, dependency manifests or runtime configuration. The components and paths below are proposed, not deployed services.
+**Status:** Local prototype implemented in JavaScript, aligned with [PLAN.md](PLAN.md). React/Vite, Express, Mongoose/MongoDB and a separate Node worker now exist. Physical devices, live vision/OCR and external transports remain unavailable. The implementation has not been deployed or electrically commissioned; see PROGRESS.md and HANDOFF.md for current checks.
+
+## Implemented source map
+
+| Existing path | Responsibility |
+| --- | --- |
+| `frontend/src/main.jsx` | Authenticated application shell and connected overview, room, import, timetable, incident, recommendation, QR and admin screens |
+| `frontend/src/components/ConsumptionChart.jsx` | Lazy-loaded building interval/expected chart |
+| `frontend/src/services/api.js` | Same-origin fetch, CSRF and error handling |
+| `shared/contracts.js` | Strict Zod input contracts, role names and error envelope |
+| `backend/src/app.js` | HTTP routes, server sessions, role/room checks and scoped live refresh |
+| `backend/src/models/index.js` | Explicit MongoDB schemas, indexes and connection factory |
+| `backend/src/domain/` | Pure energy, baseline, calendar, protection and shared-cutoff rules |
+| `backend/src/services/` | Ingestion, durable import previews/commit, analytics, room evidence and audit helpers |
+| `backend/src/adapters/room-master.js` | Persistent idempotent simulator; all physical enablement rejected |
+| `backend/src/workers/tick.js`, `run.js` | Persistent due work, recovery, notifications, source/lease checks and guarded room actions |
+| `backend/src/seed.js`, `fixtures/` | Idempotent synthetic dataset/test accounts and example CSVs |
+| `scripts/`, `tests/` | Local setup/database/dev orchestration and application verification |
+
+The original plan's boundaries below remain requirements where optional integrations are absent. No alternate database, actuator or hosted architecture was introduced.
 
 ## Scope and component boundaries
 
@@ -81,8 +100,10 @@ Live cameras and breakers need an authorised reachable local gateway. A cloud da
 
 ## Implementation structure and open decisions
 
-[PLAN.md section 19.1](PLAN.md#191-suggested-repository-layout) proposes `frontend/`, `backend/`, `vision/`, optional `firmware/`, `shared/`, `fixtures/`, `tests/` and `docs/`. None exists yet. Keep the existing root documentation as the entry points; add folders only when implementation requires them.
+[PLAN.md section 19.1](PLAN.md#191-suggested-repository-layout) proposes the wider layout. `frontend/`, `backend/`, `shared/`, `fixtures/`, `tests/` and `scripts/` now exist. `vision/`, `firmware/` and `docs/` have not been created; existing root documents remain the entry points.
 
-Pending decisions include dependency/model versions and licences, real input quality and tariff, exact breaker capabilities/firmware, gateway protocol, room wiring/coverage, credentials and installed-cost quotes. UI requirements for recommendation scheduling/verification, incident reassignment, inbox access and meter-image review are not all assigned explicit routes by the plan; resolve those contract details before wiring them. Runtime/build/demo validation remains pending; [TASKS.md](TASKS.md) and [TESTING.md](TESTING.md) track the planned work.
+Installed dependency versions are pinned in manifests/lockfile. API gaps were resolved for import commit, inspection/reassignment, recommendation scheduling/outcome review, user creation and the in-app inbox without changing approved product scope. Import previews use the additional `importBatches` collection; in-app inbox state lives in `notificationOutbox`. Shared room locks serialize policy mutations and simulated commands; jobs use atomic leasing and deterministic IDs, with reconciliation for partial incident/job creation. Operations are at-least-once row/document writes, not cross-collection transactions. Room creation has bounded compensating cleanup; multi-process transaction/lock hardening remains future work.
+
+Manual meter review, reset-epoch configuration and staff normal-stop confirmation are implemented with retained evidence. Still pending: real input/tariff validation, model/licence selection, image/vision/OCR processing, exact breaker/firmware/gateway, physical coverage/commissioning, external transports and installed quotes. Socket.IO sends authenticated refresh signals without room payloads; clients refetch scoped HTTP data. The API validates room subscriptions and active sessions. [TASKS.md](TASKS.md) and [TESTING.md](TESTING.md) distinguish completed checks from remaining acceptance work.
 
 Operational follow-up includes source uptime, OCR review/gaps, false-alert reviews, response times, command verification, recommendation outcomes and baseline age. Revalidate coverage/mappings after room or wiring changes. Commercial subscriptions, savings-performance contracts and ESG reporting in the plan describe future evaluation; they do not expand this single-building MVP.

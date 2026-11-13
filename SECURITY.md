@@ -1,6 +1,14 @@
 # Security and Control Requirements
 
-**Status:** Planned requirements, not implemented controls. The repository has no application, authentication service, device adapter or deployment configuration yet. [PLAN.md](PLAN.md) is authoritative; this file summarises its security boundaries for implementation and review.
+**Status:** Core local controls are implemented in `backend/src/app.js`, `security/access.js`, `config.js` and the room-master service, with API/policy tests. Optional integrations and production hardening remain pending. [PLAN.md](PLAN.md) is authoritative; requirements below still apply beyond the verified subset.
+
+## Implemented safeguards and current limits
+
+Implemented: bcrypt hashing, Mongo-backed HttpOnly/SameSite sessions with login regeneration, strict Zod input, exact-origin/CSRF mutation checks, role/room/service scope, login/lease/supply rate limits, bounded JSON/CSV parsing, redacted errors/audits, room locks, expiring explicit commands and durable deduplication. Configuration rejects placeholder secrets and all physical enablement because no commissioned adapter exists. Demo meter inputs remain simulated.
+
+`npm run setup` generates ignored local secrets without printing them. No password/token is embedded in the UI or Markdown. Integration creation returns an HMAC-derived source-specific token to an authenticated admin; the root secret remains server-side. Source/type/room and timestamp checks prevent cross-source observation submission. Socket.IO reuses sessions and checks active accounts before payload-free refresh; room subscriptions are scoped.
+
+Local development binds loopback. HTTPS/reverse-proxy deployment, credential rotation/revocation, shared production rate-limit storage, retention enforcement, dependency/security review and an institutional reporting contact remain deployment work. There is no video/image storage or public remote-URL analysis; missing transports return unavailable. A real phone/HTTPS installation has not been verified.
 
 ## Access and trust boundaries
 
@@ -29,7 +37,7 @@ Implement the [planned security rules](PLAN.md#17-security-access-and-deployment
 - Authenticate service/device ingestion separately from user sessions. Enforce source scope, event deduplication, replay protection and timestamp validation; submitted confidence or a zero person count cannot bypass backend checks.
 - Allow only administrator-configured integration endpoints validated at the gateway. Public analysis requests must not accept arbitrary remote URLs or reach unintended internal services.
 
-Use [PLAN.md's environment template](PLAN.md#181-environment-configuration-template) as a future configuration contract. Production startup must reject placeholder secrets and physical-control enablement without required configuration. Blank optional credentials must disable that integration cleanly; no environment loader currently exists.
+`.env.example` and `backend/src/config.js` implement the current environment contract; [PLAN.md's template](PLAN.md#181-environment-configuration-template) also describes future transports. Startup rejects short/placeholder secrets and physical enablement. SMTP/MQTT/vision currently remain unavailable even if optional credentials are filled. Production deployment has not been verified.
 
 ## Simulation isolation
 
