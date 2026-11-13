@@ -6,7 +6,6 @@ import { randomUUID } from "node:crypto";
 import { createServer as createViteServer } from "vite";
 import { loadConfig } from "../backend/src/config.js";
 import { connectDatabase } from "../backend/src/models/index.js";
-import { seed } from "../backend/src/seed.js";
 import { startDatabase } from "./database.mjs";
 
 process.chdir(fileURLToPath(new URL("../", import.meta.url)));
@@ -46,10 +45,7 @@ try {
     config.demoMode &&
     !(await models.Settings.exists({ _id: "installation" }))
   ) {
-    await seed(models, config);
-    console.log(
-      "Seeded synthetic data and local test accounts. Existing installations are preserved.",
-    );
+    console.log("No sample data is seeded at startup. Create an institution through onboarding, or explicitly enable and run demo setup/seeding.");
   }
 } finally {
   await connection.close();
@@ -141,5 +137,5 @@ for (const child of children)
 for (const signal of ["SIGINT", "SIGTERM"])
   process.once(signal, () => void stop());
 console.log(
-  "Open http://localhost:5173. Credentials are in ignored .env (DEMO_PASSWORD), not in source or logs.",
+  "Open http://localhost:5173. Select your institution to sign in, or register an empty workspace. Explicit showcase credentials use DEMO_ADMIN/VIEWER_EMAIL/PASSWORD in ignored .env.",
 );

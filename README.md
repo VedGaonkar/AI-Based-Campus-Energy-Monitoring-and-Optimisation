@@ -25,7 +25,7 @@ npm run dev
 
 For separately supervised services, restart both `npm start` and `npm run worker`. If a stale value was set in PowerShell, remove that process override with `Remove-Item Env:ADMIN_INVITE_KEY -ErrorAction SilentlyContinue` before starting again; also check your process manager's environment. Never print the key or put it in a `VITE_*` variable. A frontend rebuild alone does not rotate server configuration. Sign out and test a new sign-in: the new key must work and the previous key must fail.
 
-If your existing account shows Viewer, open **My profile** and verify your account password plus the valid key to activate admin access. You can also supply both during sign-in. The server audits the role change; the profile displays the role verified by `/auth/me`.
+In the migrated legacy institution, an existing Viewer can still use the prior password/key activation flow in **My profile** or during sign-in; the server audits it. In a new institution, the workspace administrator must authorise membership roles; a shared enrollment key cannot promote a viewer. The profile displays the server-verified role.
 
 **Admin management** at `/admin` has dedicated Building setup, Rooms & corridors, Camera mapping, Smart controllers, Timetable, Room QR & overrides, Automation & control logs, Users & permissions and Advanced settings pages. Building setup persists organisation details, generates floors and supports named spaces with stable identities. Existing rooms can be assigned to floors without replacing their records. Hardware transport remains simulated or unavailable until commissioned.
 
@@ -61,7 +61,7 @@ Building meter readings do not establish unmetered room consumption. Camera obse
 
 Physical installation is outside the hackathon deliverable. A qualified electrician must approve the feeder, downstream protection and every connected load before physical operation. Cameras, sensors, networking and essential supplies remain available when ordinary room supply is OFF. AC stop/restart requirements can block the entire room cutoff.
 
-The scope excludes multiple-building operation/comparisons, new per-appliance actuators, smart-plug purchases, per-button modules, AC IR blasters, facial recognition and attendance monitoring. The approved optional Home Assistant extension permits native OFF for reviewed existing smart appliances; room-master controls remain independent. Core functionality requires neither an LLM nor paid cloud services. See [scope and exclusions](PLAN.md#1-product-objective-and-agreed-decisions).
+Separate institution workspaces, each containing one building, are supported. The scope excludes multi-building portfolios/comparisons, new per-appliance actuators, smart-plug purchases, per-button modules, AC IR blasters, facial recognition and attendance monitoring. The approved optional Home Assistant extension permits native OFF for reviewed existing smart appliances; room-master controls remain independent. Core functionality requires neither an LLM nor paid cloud services. See [scope and exclusions](PLAN.md#1-product-objective-and-agreed-decisions).
 
 ## Local setup and startup
 
@@ -77,9 +77,9 @@ npm run setup
 npm run dev
 ```
 
-Open `http://localhost:5173`. Setup creates an ignored `.env` with generated secrets, an `ADMIN_INVITE_KEY` and a local `DEMO_PASSWORD`; existing configuration is preserved. Demo account names are `admin@campus.test`, `hod@campus.test`, `technician@campus.test`, `teacher@campus.test` and `viewer@campus.test`. Read the generated password locally; it is not published in documentation or embedded in browser code. Never commit `.env`.
+Open `http://localhost:5173`. Setup creates ignored server configuration while preserving existing settings. New administrators register an institution/building name and start empty. Login selects an authorised institution. Read [INSTITUTIONS.md](INSTITUTIONS.md) for migration, private identity codes, membership invitations and optional dedicated demo setup. Never commit `.env`.
 
-Development starts the API at `http://localhost:5000`, worker and Vite. The initial database is seeded once; subsequent starts preserve it. `npm run seed` idempotently adds missing synthetic records/accounts without resetting existing policies/passwords. Use `npm run stop` from another terminal for explicit owned-service cleanup, or Ctrl+C. A reachable existing local MongoDB is reused; an existing Campus Energy Vite server on port 5173 is also reused. Reused services are never stopped by the helper. Ignored `.local/dev-session.json` records process ownership; verify it rather than assuming all local listeners belong to this run.
+Development starts the API at `http://localhost:5000`, worker and Vite. Startup never seeds samples. Existing installations require `npm run migrate:institutions` (dry-run), backup/stopped writers, then `npm run migrate:institutions -- --apply`. Explicit local demo: `npm run setup -- --enable-demo`, then `npm run seed`; dedicated credentials live only in ignored `.env`, existing identities/passwords/roles remain intact. Use `npm run stop` from another terminal for explicit owned-service cleanup, or Ctrl+C. A reachable existing local MongoDB is reused; an existing Campus Energy Vite server on port 5173 is also reused. Reused services are never stopped by the helper. Ignored `.local/dev-session.json` records process ownership; verify it rather than assuming all local listeners belong to this run.
 
 The official npm registry reset connections in the implementation environment; `npm install --registry=https://registry.npmmirror.com` was the per-command workaround. No global npm setting was changed. Normal network environments can use the standard registry; the lockfile records the selected package artifacts and integrity hashes.
 
@@ -111,7 +111,7 @@ Supporting documents identify implemented behaviour separately from remaining re
 
 ## Demonstration and rollout
 
-The seed supplies 30 calendar days of visibly synthetic intervals (only completed intervals on the current day), three rooms and test roles. Open a room to start normal-class, forgotten-lights, person-return or camera-offline fixture replay. Forgotten-lights demonstrates 15 seconds of vacancy confirmation, a first alert, escalation 10 seconds later and a final simulated recheck 15 seconds after that at the default 60× scale. In-app notifications are persisted; nobody is emailed. QR access uses its normal authenticated form; analytics and recommendation scenarios use seeded data. These are explicit fixtures, not genuine vision/OCR output.
+The explicitly enabled dedicated demo seed supplies 30 calendar days of visibly synthetic intervals (only completed intervals on the current day), three rooms and test roles. Open a room to start normal-class, forgotten-lights, person-return or camera-offline fixture replay. Forgotten-lights demonstrates 15 seconds of vacancy confirmation, a first alert, escalation 10 seconds later and a final simulated recheck 15 seconds after that at the default 60× scale. In-app notifications are persisted; nobody is emailed. QR access uses its normal authenticated form; analytics and recommendation scenarios use seeded data. These are explicit fixtures, not genuine vision/OCR output.
 
 Installation estimates require one suitable breaker quote per controlled room plus feeder/protection, labour, sensing, connectivity and commissioning costs. [Budget assumptions](PLAN.md#23-budget-purchasing-and-operating-cost-plan) are planning references, not current purchase quotes or verified payback. [Commercial options](PLAN.md#24-customer-segmentation-and-business-model) are future evaluation work; checkout, tenant management and ESG reporting are not MVP requirements.
 

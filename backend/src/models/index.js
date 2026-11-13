@@ -18,16 +18,21 @@ export async function connectDatabase(uri) {
   return { connection, models };
 }
 
-export function createModels(connection) {
+export function createModels(connection, institutionId) {
   const model = (name, collection, fields, indexes = []) => {
+    if (connection.models[name]) {
+      if (institutionId) connection.models[name].schema.path("institutionId").default(institutionId);
+      return connection.models[name];
+    }
     const schema = new Schema(
-      { _id: { type: String, default: () => randomUUID() }, ...fields },
+      { _id: { type: String, default: () => randomUUID() }, institutionId: { type: String, immutable: true, ...(institutionId ? { default: institutionId } : {}) }, ...fields },
       { timestamps: true, versionKey: false, strict: "throw" },
     );
     for (const [keys, options] of indexes) schema.index(keys, options);
     return connection.model(name, schema, collection);
   };
   return {
+    Report: model("Report", "reports", { name: String, generatedAt: Date, createdBy: String, dataMode: mode, payload: mixed }),
     DemoSession: model("DemoSession", "demoSessions", {
       roomId: { type: String, required: true }, active: { type: Boolean, default: true },
       createdBy: String, stoppedBy: String, expiresAt: Date, endedAt: Date,
@@ -169,7 +174,7 @@ export function createModels(connection) {
         policyVersion: { type: Number, default: 1 },
         publicToken: {
           type: String,
-          default: () => randomBytes(24).toString("base64url"),
+          default: () => `${institutionId ? `${institutionId}.` : ""}${randomBytes(24).toString("base64url")}`,
         },
         commandLockOwner: String,
         commandLockUntil: Date,

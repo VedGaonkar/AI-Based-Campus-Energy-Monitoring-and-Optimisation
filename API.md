@@ -1,5 +1,16 @@
 # API and integration contracts
 
+## Institution contracts (CE-013)
+
+Production uses institution-aware auth before legacy test-harness routes. Public GET /institutions/suggestions?q= requires 3?80 characters and returns at most eight { _id, displayName } identities from discoverable institutions; a server flag disables it. POST /institutions/resolve accepts { code } (private identity or valid invitation) and returns identity only. Both are throttled; no operational data is public.
+
+POST /auth/register accepts name/email/password (12+ chars), plus either institutionName/adminKey/discoverable (new empty institution), or invitationToken (authorised existing membership). Global duplicate email returns 409; existing accounts use POST /auth/accept-invitation { email, password, invitationToken }. POST /auth/login accepts email/password and institutionId or workspaceCode, with adminKey when required. Without an explicit workspace, valid credentials return 409 WORKSPACE_SELECTION_REQUIRED. Invalid credential/membership combinations return a generic 401. Names/IDs/codes never establish membership. Sessions store the selected institution and authoritative account; CSRF/origin/admin checks remain.
+
+Authenticated GET /auth/workspaces lists only the caller's active memberships. GET /institutions/current returns identity and current privacy/demo status. Admin PATCH /institutions/current { displayName, discoverable? } edits labels without changing IDs. Admin POST /institutions/current/access-code returns a newly generated identity code once and revokes its predecessor. Admin POST /institutions/current/invitations { role, email?, permittedRoomIds, expiresInHours } returns a single-use token once; scope must belong to the current workspace. New administrator invitations additionally require the configured key before registration; new user invitations sign in within their authorised role; existing invited administrators complete key-checked sign-in after acceptance.
+
+Every operational endpoint derives its database from validated membership; institutionId in query/body does not authorise another workspace. Ingestion requires X-Institution-Id plus a source HMAC bound to that institution. New QR and phone capability tokens include a routing prefix, but the full stored token hash must still validate. Socket sessions validate active membership and qualify room names by institution; demo-phone tokens are scoped before namespace services resolve. Existing legacy room QR tokens route only to the legacy institution. See [INSTITUTIONS.md](INSTITUTIONS.md) for migration/re-pair instructions.
+
+
 ## Two-phone demonstration (CE-011)
 
 `GET /demo/available-rooms` is admin-only and returns room `_id`, code, name and unavailableReason (null when available). Shared checks cover existing session/native policy, mapped simulator, health/interlocks, independent infrastructure and reviewed load inventory; missing legacy nativeOffMode defaults to alert_only. Session creation rechecks the same rules under its room lock. Availability is setup eligibility, not permission to bypass current occupancy/booking/QR/override or command-time checks.

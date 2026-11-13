@@ -1,5 +1,12 @@
 # Validation and Acceptance Plan
 
+## Institution regression checks (CE-013)
+
+Run npm test for the isolated two-institution API/database/job/socket/migration/demo suite. It covers overlapping room/master IDs, foreign writes/reads, invitation email/expiry/role/room restrictions, global unique email, rename-stable membership, private identity without membership, bounded suggestions, empty onboarding, separate integration caches and phone/source credentials, durable jobs and socket subscriptions. Repeated explicit demo seed preserves password hashes and refuses role/account reactivation. Migration preserves hashes/IDs/roles and blocks ambiguous records.
+
+After npm run build, node scripts/institutions-browser.mjs runs an isolated installed-Chromium check for empty admin signup, profile rename/discovery, debounced selector/login, private identity code and 390px layout. Never uses the user's configured database. npm run check:client-secrets also scans dedicated configured demo passwords without printing them. Live hardware, real-phone network and production security assessment remain separate.
+
+
 ## CE-012 - environment-authoritative admin key, 14 November 2026
 
 Existing `npm run test:admin-browser` repeat passed **14/14** with zero runtime errors. Its first attempt passed auth/profile/building but timed out on an unrelated camera-policy save; the complete repeat passed. Evidence `.local/admin-key-browser.log` and `.local/admin-browser-verification.json`. No real accounts were used or changed.
@@ -166,3 +173,5 @@ For documentation changes, check Markdown links and section anchors, documented 
 At the earlier documentation-only checkpoint on 13 November 2026, 67 Markdown files, 111 project links, 48 plan route entries and 20 planned collections were checked. That historical count predates implementation, continuity files and additional workflow routes; it is not the current application validation result. PLAN.md remains unchanged. Consult PROGRESS.md/HANDOFF.md and the table above for current checks.
 
 Final implementation documentation check: twelve root Markdown files, 113 local links/anchors and 30 actual implementation paths passed, along with exact dependency pins, ignored artifact boundaries and Git whitespace. PLAN's initial SHA-256 and reusable skill files are unchanged. Broader field/production acceptance remains explicitly pending.
+
+CE-013 final executed results (14 November 2026): 99/99 application tests, 6 isolated institution browser checks without runtime errors, production/buildless build, 68 syntax checks and 12 client assets secret scan passed. Logs are ignored .local/institution-*.log. Actual local migration/account preservation and dedicated demo repeat were separately verified.

@@ -1,5 +1,14 @@
 # Database design and consistency
 
+## Institution persistence (CE-013)
+
+The configured MongoDB database holds the shared directory: institutions (immutable UUID, editable display/search name, private-by-default discovery, backend-only dbName, kind/active/migration flags, hashed identity code), workspaceAccounts (global unique email, name, query-excluded passwordHash/active), workspaceMemberships (unique userId/institutionId pair, active) and workspaceInvitations (hashed single-use token, institution, optional email, role/room scope, expiry/claim audit). Local User records retain membership role/permissions; authentication uses the global account hash.
+
+Each institution's operational models use its own database and immutable institutionId, including Settings, User role profiles, rooms/floors/readings/schedules/cameras/devices/integration credentials/incidents/jobs/notifications/reports/audit/imports. Existing deterministic IDs/indexes remain local to each database. Database names come exclusively from the trusted directory. Cached Mongoose useDb connections/models, service state and provider clients are bound per institution. Source DB remains the legacy institution on migration; records are annotated in place, not moved to a random administrator.
+
+Migration is explicit, dry-run first, blocks ambiguous ownership and retains original IDs, hashes, roles and records. Directory and operational writes are resumable, not cross-database transactions. Partial onboarding/invitation claims require operator reconciliation; preserve evidence and backups. Startup refuses unmigrated original installations. See [INSTITUTIONS.md](INSTITUTIONS.md) for exact commands, backup and token reissue. Normal startup never seeds fixtures. Dedicated demo seeding is explicitly enabled, isolated and repeat-safe without role/password reset.
+
+
 ## Two-phone demo extension (CE-011)
 
 `demoSessions` binds an existing room, author, source/mode/coverage convention, expiry, previous owned room configuration, marker epoch/scene, timing, latest observation and processing lease. A unique partial active-room index prevents concurrent sessions. The latest thumbnail alone is retained (query-excluded), with two-minute expiry/worker cleanup and explicit erasure on end. Observation/command metadata remains for audit, never measured energy.

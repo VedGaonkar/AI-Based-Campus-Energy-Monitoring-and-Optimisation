@@ -1,5 +1,14 @@
 # Implementation Tasks
 
+## CE-013 - isolated institution workspaces
+
+- [x] Global email identity plus immutable institution IDs and explicit membership; scoped login, private code/invitation alternative and minimal discoverable suggestions.
+- [x] Operational database isolation across APIs, worker/jobs, sockets/camera sessions, integrations/caches and exports; safe resumable legacy migration.
+- [x] Empty administrator onboarding, editable workspace name and explicit dedicated demo setup/seeding with environment-only credentials.
+- [x] Two-workspace API/job/socket/rename/membership/demo/migration regressions, build and continuity; document operator migration steps.
+
+Verification: 99 application tests, 6 isolated browser checks, production/buildless build, 68 syntax files and 12 client assets passed. Local legacy migration/backed-up data preservation and explicit dedicated demo repeat verified; managed stack restarted. INSTITUTIONS.md records operator rollout/recovery limits. Physical/production acceptance remains separate.
+
 ## CE-012 - environment-authoritative administrator enrollment
 
 - [x] Trace UI/backend/config/seed/settings path; remove parent-process dotenv mutation and test-fixture key constants, preserve explicit deployment variable precedence and existing account scope.

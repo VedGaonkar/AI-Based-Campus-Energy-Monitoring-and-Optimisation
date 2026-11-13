@@ -8,9 +8,9 @@ import { refreshAnalytics, readingKey } from "./services/energy.js";
 export async function seed(
   models,
   config,
-  { password = config.demoPassword, now = new Date() } = {},
+  { password = config.demoPassword, now = new Date(), accounts, allowProductionDemo = false } = {},
 ) {
-  if (!config.demoMode || config.env === "production")
+  if (!config.demoMode || (config.env === "production" && !allowProductionDemo))
     throw new Error(
       "Demo seed is disabled outside non-production demonstration mode",
     );
@@ -29,8 +29,9 @@ export async function seed(
     { upsert: true },
   );
   const roomIds = ["room-r101", "room-r102", "room-r103"];
+  const demoUserId = role => `${accounts && models.institutionId ? `${models.institutionId}-` : ""}demo-${role}`;
   const passwordHash = await bcrypt.hash(password, 12);
-  for (const [role, name] of [
+  for (const [role, name, email, accountPassword] of accounts ?? [
     ["admin", "Campus administrator"],
     ["hod", "Department head"],
     ["technician", "Facilities technician"],
@@ -38,13 +39,13 @@ export async function seed(
     ["viewer", "Campus viewer"],
   ])
     await models.User.updateOne(
-      { _id: `demo-${role}` },
+      { _id: demoUserId(role) },
       {
         $setOnInsert: {
-          email: `${role}@campus.test`,
+          email: email ?? `${role}@campus.test`,
           name,
           role,
-          passwordHash,
+          passwordHash: accountPassword ? await bcrypt.hash(accountPassword, 12) : passwordHash,
           department: "Academic",
           permittedRoomIds: roomIds,
           active: true,
@@ -68,9 +69,9 @@ export async function seed(
           coverageValidated: index !== 1,
           independentInfrastructure: true,
           requiredSourceIds: index === 1 ? [] : [`CAM-${code}`],
-          firstResponderId: "demo-technician",
-          secondResponderId: "demo-hod",
-          backupResponderId: "demo-admin",
+          firstResponderId: demoUserId(accounts ? "admin" : "technician"),
+          secondResponderId: demoUserId(accounts ? "admin" : "hod"),
+          backupResponderId: demoUserId("admin"),
           allowedStartHour: 0,
           allowedEndHour: 24,
           policyVersion: 1,
@@ -182,7 +183,7 @@ export async function seed(
         validationState: "accepted",
         validationReason: "Explicit deterministic synthetic seed",
         receivedAt: now,
-        enteredBy: "demo-admin",
+        enteredBy: demoUserId("admin"),
         quality: {},
       };
       const importKey = readingKey(row);
@@ -209,14 +210,5 @@ export async function seed(
   };
 }
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const config = loadConfig();
-  const { connection, models } = await connectDatabase(config.mongoUri);
-  try {
-    const result = await seed(models, config);
-    console.log(
-      `Demo seed ready: ${result.rooms} rooms, ${result.seededIntervals} synthetic intervals. Accounts: ${result.accounts.join(", ")}. Read DEMO_PASSWORD only from your ignored local .env; it is not printed.`,
-    );
-  } finally {
-    await connection.close();
-  }
+  throw new Error("Direct legacy seeding is disabled. Enable dedicated demo setup, then use npm run seed.");
 }

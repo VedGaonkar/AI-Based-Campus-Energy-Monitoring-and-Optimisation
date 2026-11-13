@@ -53,6 +53,7 @@ import { registerManagement } from "./management.js";
 import { registerConnectedDevices } from "./connected-device-routes.js";
 import { createPhoneDemoService } from "./services/phone-demo.js";
 import { registerDemoPhoneRoutes, registerDemoAdminRoutes, registerDemoSockets } from "./phone-demo-routes.js";
+import { workspaceMiddleware, registerWorkspaceAuth, registerWorkspaceAdministration } from "./workspaces/auth.js";
 
 const admin = (user) => requireRole(user, ["admin"]);
 const staff = (user) =>
@@ -66,7 +67,7 @@ const limit = (req) =>
   Math.min(200, Math.max(1, Number(req.query.limit) || 100));
 const cleanRoom = ({ commandLockOwner, commandLockUntil, ...room }) => room;
 
-export function createApplication({ config, connection, models }) {
+export function createApplication({ config, connection, models, workspaceDirectory }) {
   const app = express(),
     server = createServer(app),
     adapter = createRoomMaster(models, config);
@@ -103,6 +104,7 @@ export function createApplication({ config, connection, models }) {
     },
   });
   app.use(sessions);
+  if (workspaceDirectory) app.use(workspaceMiddleware(workspaceDirectory));
   const origins = new Set([
     config.frontendOrigin,
     new URL(config.publicAppUrl).origin,
@@ -114,6 +116,7 @@ export function createApplication({ config, connection, models }) {
     res.json({
       data: {
         status: "ok",
+        institutionWorkspaces: !!workspaceDirectory,
         demoMode: config.demoMode,
         physicalControl: false,
         nativeControl: config.allowNativeControl && !config.demoMode,
@@ -146,7 +149,9 @@ export function createApplication({ config, connection, models }) {
       )
         fail(403, "CSRF_REJECTED", "Refresh the session and retry");
     }
-    if (req.session.userId)
+    if (workspaceDirectory) {
+      if (req.session.userId && req.workspaceRealm) req.user = await workspaceDirectory.user(req.workspaceRealm, req.session.userId);
+    } else if (req.session.userId)
       req.user = await models.User.findOne({
         _id: req.session.userId,
         active: true,
@@ -161,6 +166,7 @@ export function createApplication({ config, connection, models }) {
         requestId: req.requestId,
       },
     });
+  if (workspaceDirectory) registerWorkspaceAuth(api, { directory: workspaceDirectory, config });
   api.post(
     "/auth/login",
     rateLimit({
@@ -278,7 +284,7 @@ export function createApplication({ config, connection, models }) {
     const sourceId = id.parse(req.get("X-Source-Id"));
     const source = await models.Integration.findById(sourceId).lean();
     const expected = createHmac("sha256", config.ingestToken)
-      .update(sourceId)
+      .update(`${workspaceDirectory ? `${models.institutionId}:` : ""}${sourceId}`)
       .digest("hex");
     if (!source || !equalSecret(req.get("Authorization"), `Bearer ${expected}`))
       fail(401, "SERVICE_AUTH_REQUIRED", "Invalid scoped service credential");
@@ -378,6 +384,7 @@ export function createApplication({ config, connection, models }) {
       fail(401, "ADMIN_KEY_REQUIRED", "Sign in again with your password and admin invite key.");
     next();
   });
+  if (workspaceDirectory) registerWorkspaceAdministration(api, { directory: workspaceDirectory });
   registerManagement(api, { models, config });
   const connectedDevices = registerConnectedDevices(api, { models, config });
   registerDemoAdminRoutes(api, { models, service: phoneDemo });
@@ -1308,7 +1315,7 @@ export function createApplication({ config, connection, models }) {
       capabilities: meterId ? { meterId } : {},
     });
     const token = createHmac("sha256", config.ingestToken)
-      .update(integration._id)
+      .update(`${workspaceDirectory ? `${models.institutionId}:` : ""}${integration._id}`)
       .digest("hex");
     await audit(models, req.user._id, "integration.create", integration._id);
     res.status(201).json({ data: { integration, serviceToken: token } });
@@ -1503,10 +1510,20 @@ export function createApplication({ config, connection, models }) {
       callback(null, req.headers.origin ? socketOrigins.has(req.headers.origin) : hostAllowed && sameSite);
     },
   });
-  const closeDemoSockets = registerDemoSockets(io, { models, config, service: phoneDemo });
-  io.engine.use(sessions);
+  const closeDemoSockets = registerDemoSockets(io, { models, config, service: phoneDemo, workspaceDirectory });
+  // Bind identity on the initial handshake. Poll/upgrade responses must not
+  // touch a session concurrently destroyed by logout; active sockets reload
+  // their original session and membership in the refresh loop below.
+  io.engine.use((req, res, next) => req._query.sid === undefined ? sessions(req, res, next) : next());
   io.use(async (socket, next) => {
     try {
+      if (workspaceDirectory) {
+        const realm = await workspaceDirectory.realm(socket.request.session?.institutionId);
+        const user = await workspaceDirectory.user(realm, socket.request.session?.userId);
+        if (!user || (user.role === "admin" && !socket.request.session.adminVerified)) return next(new Error("AUTH_REQUIRED"));
+        socket.data.user = user; socket.data.institutionId = realm.institution._id;
+        return next();
+      }
       const user = await models.User.findOne({
         _id: socket.request.session?.userId,
         active: true,
@@ -1519,11 +1536,17 @@ export function createApplication({ config, connection, models }) {
     }
   });
   io.on("connection", (socket) => {
-    socket.on("subscribe-room", (roomId, ack) => {
+    socket.on("subscribe-room", async (roomId, ack) => {
       try {
         id.parse(roomId);
+        if (workspaceDirectory) {
+          const realm = await workspaceDirectory.realm(socket.data.institutionId);
+          const user = await workspaceDirectory.user(realm, socket.request.session?.userId);
+          if (!user || !await realm.models.Room.exists({ _id: roomId })) throw new Error("ROOM_FORBIDDEN");
+          socket.data.user = user;
+        }
         requireRoom(socket.data.user, roomId);
-        socket.join(`room:${roomId}`);
+        socket.join(`room:${socket.data.institutionId ?? "legacy"}:${roomId}`);
         if (typeof ack === "function") ack({ ok: true });
       } catch {
         if (typeof ack === "function")
@@ -1535,6 +1558,16 @@ export function createApplication({ config, connection, models }) {
     for (const socket of io.sockets.sockets.values())
       socket.request.session.reload(async (err) => {
         if (err) return socket.disconnect(true);
+        if (workspaceDirectory) {
+          try {
+            if (socket.request.session.institutionId !== socket.data.institutionId) return socket.disconnect(true);
+            const realm = await workspaceDirectory.realm(socket.data.institutionId);
+            const user = await workspaceDirectory.user(realm, socket.request.session.userId);
+            if (!user || (user.role === "admin" && !socket.request.session.adminVerified)) return socket.disconnect(true);
+            socket.data.user = user; socket.emit("refresh", { serverTime: new Date().toISOString() });
+          } catch { socket.disconnect(true); }
+          return;
+        }
         const user = await models.User.findOne({
           _id: socket.request.session.userId,
           active: true,

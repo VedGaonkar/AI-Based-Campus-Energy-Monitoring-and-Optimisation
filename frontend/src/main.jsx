@@ -44,6 +44,7 @@ import { api, post, patch } from "./services/api";
 import { Management, Profile } from "./Management.jsx";
 import { ConnectedDevices } from "./ConnectedDevices.jsx";
 import { PhoneDemo, PhoneDemoSummary } from "./PhoneDemo.jsx";
+import { InstitutionPicker } from "./Institutions.jsx";
 import "./styles.css";
 import "./stewardship.css";
 
@@ -444,7 +445,7 @@ function App() {
 }
 function Login({ onLogin }) {
   const accessToken = useLocation().pathname.match(
-      /^\/access\/([A-Za-z0-9_-]+)$/,
+      /^\/access\/([A-Za-z0-9_.-]+)$/,
     )?.[1],
     [accessRoom, setAccessRoom] = useState(null);
   useEffect(() => {
@@ -453,7 +454,7 @@ function Login({ onLogin }) {
         .then(setAccessRoom)
         .catch(() => setAccessRoom({ name: "Access URL unavailable" }));
   }, [accessToken]);
-  const { act } = useApp(),
+  const { act, health } = useApp(),
     [busy, setBusy] = useState(false),
     [tab, setTab] = useState("login"),
     [email, setEmail] = useState(""),
@@ -461,6 +462,9 @@ function Login({ onLogin }) {
     [name, setName] = useState(""),
     [confirmPassword, setConfirmPassword] = useState(""),
     [adminKey, setAdminKey] = useState(""),
+    [institutionId, setInstitutionId] = useState(""),
+    [institutionName, setInstitutionName] = useState(""),
+    [invitationToken, setInvitationToken] = useState(""),
     [error, setError] = useState("");
 
   const switchTab = (t) => {
@@ -537,7 +541,7 @@ function Login({ onLogin }) {
                 setError("");
                 setBusy(true);
                 try {
-                  const result = await post("/auth/login", { email, password, ...(adminKey.trim() ? { adminKey: adminKey.trim() } : {}) });
+                  const result = await post("/auth/login", { email, password, ...(adminKey.trim() ? { adminKey: adminKey.trim() } : {}), ...(health?.institutionWorkspaces ? { institutionId } : {}) });
                   onLogin(result.user);
                   if (result.user.role === "admin" && !window.location.pathname.startsWith("/access/")) window.location.assign("/admin");
                 } catch (err) {
@@ -547,6 +551,7 @@ function Login({ onLogin }) {
                 }
               }}
             >
+              {health?.institutionWorkspaces && <InstitutionPicker Field={Field} onSelect={setInstitutionId} />}
               <Field label="Email address">
                 <input
                   type="email"
@@ -568,6 +573,12 @@ function Login({ onLogin }) {
               <Field label="Admin invite key" hint="Required for administrator sign-in when configured on the server. Leave blank for ordinary login; the server checks enrollment and access.">
                 <input type="password" autoComplete="off" inputMode="numeric" pattern="[0-9]{8}" maxLength={8} value={adminKey} onChange={(e) => setAdminKey(e.target.value)} placeholder="8-digit administrator key" />
               </Field>
+              {health?.institutionWorkspaces && <details className="section-gap"><summary>Accept an invitation with an existing account</summary><Field label="Invitation for existing account"><input type="password" autoComplete="off" value={invitationToken} onChange={event => setInvitationToken(event.target.value)} maxLength={200} /></Field><button type="button" className="button secondary" disabled={busy || !invitationToken.trim() || !email || !password} onClick={async () => {
+                setBusy(true); setError("");
+                try { const result = await post("/auth/accept-invitation", { email, password, invitationToken: invitationToken.trim() });
+                  if (result.user) onLogin(result.user); else { setInstitutionId(result.institution._id); setError("Membership added. Select your institution and sign in with its administrator requirements."); }
+                } catch (failure) { setError(failure.message); } finally { setBusy(false); }
+              }}>Accept membership invitation</button></details>}
               <ErrorText>{error}</ErrorText>
               <button className="button" disabled={busy}>
                 {busy ? "Signing in…" : "Sign in to workspace"}
@@ -577,17 +588,17 @@ function Login({ onLogin }) {
             <div className="login-help">
               <ShieldCheck size={20} />
               <p>
-                Demo accounts use <strong>role@campus.test</strong>. Use the
+                {health?.institutionWorkspaces ? <>Select your institution before signing in. For the optional <strong>Campus Energy Demo</strong>, use the dedicated credentials supplied by your administrator.</> : <>Demo accounts use <strong>role@campus.test</strong>. Use the
                 generated local <code>DEMO_PASSWORD</code> from your ignored{" "}
                 <code>.env</code> file. Credentials are never embedded in the
-                website.
+                website.</>}
               </p>
             </div>
           </>
         ) : (
           <>
             <h2>Create account</h2>
-            <p>New accounts start as viewers. Leave the admin key blank unless you have one.</p>
+            <p>{health?.institutionWorkspaces ? "Create an empty institution as administrator, or join an existing workspace with an invitation." : "New accounts start as viewers. Leave the admin key blank unless you have one."}</p>
             <form
               onSubmit={async (e) => {
                 e.preventDefault();
@@ -596,14 +607,18 @@ function Login({ onLogin }) {
                   setError("Passwords do not match.");
                   return;
                 }
-                if (password.length < 8) {
-                  setError("Password must be at least 8 characters.");
+                if (password.length < (health?.institutionWorkspaces ? 12 : 8)) {
+                  setError(`Password must be at least ${health?.institutionWorkspaces ? 12 : 8} characters.`);
                   return;
                 }
                 setBusy(true);
                 try {
                   const body = { name, email, password };
                   if (adminKey.trim()) body.adminKey = adminKey.trim();
+                  if (health?.institutionWorkspaces) {
+                    if (institutionName.trim()) body.institutionName = institutionName.trim();
+                    if (invitationToken.trim()) body.invitationToken = invitationToken.trim();
+                  }
                   const result = await post("/auth/register", body);
                   onLogin(result.user);
                   if (result.user.role === "admin") window.location.assign("/admin");
@@ -632,14 +647,14 @@ function Login({ onLogin }) {
                   required
                 />
               </Field>
-              <Field label="Password" hint="Minimum 8 characters">
+              <Field label="Password" hint={health?.institutionWorkspaces ? "Minimum 12 characters" : "Minimum 8 characters"}>
                 <input
                   type="password"
                   autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  minLength={8}
+                  minLength={health?.institutionWorkspaces ? 12 : 8}
                 />
               </Field>
               <Field label="Confirm password">
@@ -651,7 +666,12 @@ function Login({ onLogin }) {
                   required
                 />
               </Field>
-              <Field label="Admin invite key" hint="Optional — leave blank for a viewer account">
+              {health?.institutionWorkspaces && <>
+                <Field label="Institution / building name for new administrator"><input value={institutionName} onChange={event => setInstitutionName(event.target.value)} maxLength={200} required={!!adminKey.trim() && !invitationToken.trim()} placeholder="Your institution's single-building workspace" /></Field>
+                <Field label="Membership invitation (joining an existing institution)"><input type="password" value={invitationToken} onChange={event => setInvitationToken(event.target.value)} maxLength={200} autoComplete="off" /></Field>
+                <p className="caption">New administrators receive an empty, private workspace. To join an existing institution, use its authorised invitation; its name or admin key alone does not grant membership.</p>
+              </>}
+              <Field label="Admin invite key" hint="New workspace administrator enrollment; existing-institution members use an invitation">
                 <input
                   type="password"
                   autoComplete="off"

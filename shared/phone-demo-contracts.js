@@ -6,7 +6,7 @@ export const demoSessionInput = z.object({
   durationMinutes: z.number().int().min(5).max(120).default(60),
   coverageReviewed: z.literal(true), allowManualControl: z.boolean().default(false),
 }).strict();
-export const pairInput = z.object({ code: z.string().trim().min(10).max(40) }).strict();
+export const pairInput = z.object({ code: z.string().trim().min(10).max(150) }).strict();
 export const pairRoleInput = z.object({ role: z.enum(["camera", "classroom", "presenter"]) }).strict();
 export const frameInput = z.object({
   sequence: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),

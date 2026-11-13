@@ -95,6 +95,10 @@ export async function getSettings(models) {
       "NOT_SEEDED",
       "Run the documented seed command first",
     );
+  if (models.workspaceDirectory && models.institutionId) {
+    const institution = await models.workspaceDirectory.Institution.findById(models.institutionId).select("displayName").lean();
+    if (institution) { settings.installationName = institution.displayName; settings.organisationName = institution.displayName; }
+  }
   return settings;
 }
 export async function cancelRoomWork(models, roomId, reason, now = new Date()) {

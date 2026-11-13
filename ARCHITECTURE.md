@@ -1,5 +1,12 @@
 # Architecture
 
+## Independent institution workspaces (CE-013)
+
+The approved scope now permits multiple independent institution workspaces, each with one building. No portfolio aggregation or cross-building comparison was added. backend/src/workspaces provides the shared account/membership directory, immutable identity, migration, scoped auth and runtime. AsyncLocalStorage supplies fail-closed trusted request context; operational models use a separate database per institution on the existing MongoDB deployment. Provider/phone caches bind actual models rather than a shared mutable global scope. Workers enumerate active institutions with separate tick/locking context; one workspace failure does not starve another. Sessions, sockets, ingestion and public capabilities are separately validated and institution-qualified. Existing controllers/interlocks stay unchanged.
+
+Global email uniqueness is preserved. Display names never form authorization keys. New admin onboarding is empty and private. An explicit dedicated demo institution owns its simulated samples and configured administrator/viewer identities; startup does not seed. Existing original data remains in a legacy workspace through an operator-reviewed, resumable migration. See [INSTITUTIONS.md](INSTITUTIONS.md), [API.md](API.md) and [DATABASE.md](DATABASE.md).
+
+
 ## Two-phone demonstration (CE-011)
 
 `demo/cctv-camera/` uploads sampled video-only pixels; `demo/circuit-board/` illustrates loads and acts as the existing room-master simulator's visible endpoint. PhoneDemo.jsx provides admin session/evidence/command controls. `phone-demo-routes.js`, `services/phone-demo.js` and shared phone contracts use existing Express/Mongo/auth/Socket.IO. No second database, auth provider, policy engine or scheduler is introduced.
@@ -127,3 +134,5 @@ Installed dependency versions are pinned in manifests/lockfile. API gaps were re
 Manual meter review, reset-epoch configuration and staff normal-stop confirmation are implemented with retained evidence. Still pending: real input/tariff validation, field model/coverage validation, general RTSP/OCR processing, exact breaker/firmware/gateway, physical coverage/commissioning, external transports and installed quotes. Socket.IO sends authenticated refresh signals without room payloads; clients refetch scoped HTTP data. The API validates room subscriptions and active sessions. [TASKS.md](TASKS.md) and [TESTING.md](TESTING.md) distinguish completed checks from remaining acceptance work.
 
 Operational follow-up includes source uptime, OCR review/gaps, false-alert reviews, response times, command verification, recommendation outcomes and baseline age. Revalidate coverage/mappings after room or wiring changes. Commercial subscriptions, savings-performance contracts and ESG reporting in the plan describe future evaluation; they do not expand this single-building MVP.
+
+CE-013 documentation checked 14 November 2026 through Context7: Mongoose 9.12.1 uses cached useDb connections with separately registered models (https://mongoosejs.com/docs/connections.html); Socket.IO 4.8.4 uses independent Managers for separate test identities and handshake-only session middleware with explicit periodic membership reload (https://socket.io/docs/v4/client-api/ and https://socket.io/docs/v4/middlewares/). Existing pinned dependencies/licenses were retained; no new package was installed.
