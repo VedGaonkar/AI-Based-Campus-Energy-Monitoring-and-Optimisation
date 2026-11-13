@@ -1,5 +1,14 @@
 # Implementation progress
 
+## CE-008 — Frontend redesign checkpoint, 13 November 2026
+
+- Completed the user's ZIP-based frontend redesign. Read four reference screens and DESIGN.md; treated the larger pasted master prompt as context rather than authority to expand the backend or replace the single-building plan.
+- `frontend/src/stewardship.css` applies the pale/copper editorial system across all screens; locally bundled fonts and licenses live under `frontend/public/fonts/`. Existing layout primitives and application workflows remain intact.
+- Added room search and control-policy filters, grid/list layouts, a dashboard room ledger with correct room detail links, conservation directives and a room detail drawer with separate occupancy/use/supply summaries.
+- Verification: `npm run build` passed; `npm run check` passed 25 JavaScript files. The read-only Chrome run passed 14 checks with zero runtime errors, covering login, eight pages, filters/list/drawer/deep-link behavior, 24 route/viewport combinations (390/768/1280px) and mobile sidebar navigation. Screenshots of overview, rooms, energy, mobile and detail were inspected. Evidence: ignored `.local/redesign-verification.json` and `.local/screenshots/redesign-*.png`; runner: `.local/redesign-smoke.mjs`.
+- Initial font request inside the sandbox failed; outside-sandbox download succeeded. Initial dev start failed on existing ADMIN_INVITE_KEY validation; a temporary process-only override passed validation but found existing frontend/API processes, which were preserved and used for read-only browser checks. `.env` was not edited or printed. No demo reset, seed, supply commands or data mutations were executed by these checks.
+- Backend regression and the mutating end-to-end scenario suite were not rerun for this presentation-only change. No services were successfully started or stopped by this task; existing user services remain running. No commit, deployment or publication performed.
+
 ## Current checkpoint — 13 November 2026
 
 - **Objective:** Implement PLAN.md as a local, recoverable single-building prototype; no commits, pushes or deployment authorised.

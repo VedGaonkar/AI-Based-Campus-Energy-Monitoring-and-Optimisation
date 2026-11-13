@@ -36,9 +36,13 @@ import {
   TriangleAlert,
   Wifi,
   Camera,
+  Search,
+  List,
+  Grid2X2,
 } from "lucide-react";
 import { api, post, patch } from "./services/api";
 import "./styles.css";
+import "./stewardship.css";
 
 const LazyConsumptionChart = React.lazy(
   () => import("./components/ConsumptionChart.jsx"),
@@ -252,20 +256,20 @@ function App() {
                 <Activity size={24} />
               </span>
               <span>
-                campus<span className="brand-light">energy</span>
-                <small>INTELLIGENT OPERATIONS</small>
+                CAMPUS ENERGY
+                <small>STEWARDSHIP / OPERATIONS</small>
               </span>
             </Link>
-            <div className="workspace-label">WORKSPACE</div>
+            <div className="workspace-label">FACILITY WORKSPACE</div>
             <nav>
               {[
                 ["/", LayoutDashboard, "Overview"],
                 ["/rooms", DoorOpen, "Rooms"],
-                ["/energy", ChartNoAxesCombined, "Energy & imports"],
+                ["/energy", ChartNoAxesCombined, "Energy analytics"],
                 ["/timetable", CalendarDays, "Timetable"],
                 ["/incidents", Bell, "Incidents"],
                 ["/recommendations", Lightbulb, "Recommendations"],
-                ["/access", QrCode, "Room access"],
+                ["/access", QrCode, "QR access"],
                 ...(user.role === "admin"
                   ? [["/admin", Settings, "Administration"]]
                   : []),
@@ -330,11 +334,11 @@ function App() {
                 </span>
                 <BuildingLabel />
                 <span className="divider">/</span>
-                <span className="muted">Energy operations</span>
+                <span className="muted terminal-label">Operations terminal</span>
               </div>
               <div className="topbar-right">
                 <span className="online-dot" />
-                <span className="topbar-status">Connected</span>
+                <span className="topbar-status">Workspace connected</span>
                 <button
                   className="icon-button"
                   aria-label="Refresh data"
@@ -687,7 +691,8 @@ function Overview() {
     [intervals, intervalError] = useData("/analytics/intervals"),
     [incidents, incidentError] = useData("/incidents"),
     [integrations] = useData("/integrations"),
-    [recommendations] = useData("/recommendations");
+    [recommendations] = useData("/recommendations"),
+    [rooms] = useData("/rooms");
   const [range, setRange] = useState(7);
   const open = (incidents ?? []).filter((i) => i.active),
     latest = intervals?.at(-1);
@@ -895,15 +900,46 @@ function Overview() {
           <small>Estimates are not verified savings.</small>
         </section>
       </div>
+      <section className="panel section-gap overview-ledger">
+        <div className="section-title">
+          <div><div className="eyebrow">FACILITY REGISTRY / EVIDENCE LEDGER</div><h2>Rooms & supply status</h2></div>
+          <Link className="text-link" to="/rooms">Inspect all rooms <ArrowRight size={16} /></Link>
+        </div>
+        <div className="table-scroll">
+          <table>
+            <thead><tr><th>Enclosure / space</th><th>Observed occupancy</th><th>Authorised use</th><th>Room master</th><th>Action</th></tr></thead>
+            <tbody>{(rooms ?? []).map((room) => <RoomLedgerRow key={room._id} room={room} />)}</tbody>
+          </table>
+        </div>
+        {!rooms?.length && <Empty title="No registered rooms">Configure rooms in the facility registry.</Empty>}
+      </section>
+      <section className="section-gap">
+        <div className="section-title"><h2>Active conservation directives</h2><Link className="text-link" to="/recommendations">View recommendations <ArrowRight size={16} /></Link></div>
+        <div className="directive-grid">{(recommendations ?? []).filter((r) => r.status === "proposed").slice(0, 2).map((r) => (
+          <Link className="panel directive-card" key={r._id} to="/recommendations"><div className="section-title"><Badge tone="sage">{r.status}</Badge><ArrowUpRight size={17} /></div><h2>{r.title}</h2><p>{r.description ?? "Review the supporting evidence, assumptions and assigned action."}</p><span className="text-link">Inspect directive <ArrowRight size={14} /></span></Link>
+        ))}</div>
+      </section>
     </>
   );
 }
 
+function RoomLedgerRow({ room }) {
+  const [status] = useData(`/rooms/${room._id}/status`);
+  return <tr><td><strong>{room.name}</strong><small>{room.code} / {room.capacity} seats</small></td><td><Badge tone={status?.observed.state === "occupied" ? "sage" : "neutral"}>{status?.observed.state ?? "unknown"}</Badge><small>{status?.observed.reason}</small></td><td>{status?.protectedBy?.replaceAll("_", " ") ?? "None active"}</td><td><Badge>{status?.breaker?.reportedSupply?.toUpperCase() ?? "UNKNOWN"}</Badge><small>Simulated / {room.roomBreakerId}</small></td><td><Link className="button secondary" to={`/rooms?room=${encodeURIComponent(room._id)}`}>Review <ArrowUpRight size={13} /></Link></td></tr>;
+}
+
 function Rooms() {
+  const location = useLocation();
   const { user, act } = useApp(),
     [rooms, error] = useData("/rooms"),
-    [selected, setSelected] = useState(null),
-    [showAdd, setShowAdd] = useState(false);
+    [selected, setSelected] = useState(new URLSearchParams(location.search).get("room")),
+    [showAdd, setShowAdd] = useState(false),
+    [query, setQuery] = useState(""),
+    [policy, setPolicy] = useState("all"),
+    [view, setView] = useState("grid");
+  const filtered = (rooms ?? []).filter((room) =>
+    `${room.name} ${room.code} ${room.roomBreakerId}`.toLowerCase().includes(query.toLowerCase()) &&
+    (policy === "all" || room.controlMode === policy));
   return (
     <>
       <PageHead
@@ -918,8 +954,14 @@ function Rooms() {
         )}
       </PageHead>
       <ErrorText>{error}</ErrorText>
-      <div className="room-grid">
-        {(rooms ?? []).map((room) => (
+      <section className="room-toolbar" aria-label="Room filters">
+        <div className="segmented policy-filter">{[["all", "All rooms"], ["alert_only", "Alert-only"], ["simulated", "Simulated control"]].map(([value, label]) => <button key={value} onClick={() => setPolicy(value)} className={policy === value ? "selected" : ""} aria-pressed={policy === value}>{label}</button>)}</div>
+        <label className="room-search"><Search size={16} /><input aria-label="Search rooms" placeholder="Filter by room, code or master…" value={query} onChange={(e) => setQuery(e.target.value)} /></label>
+        <div className="segmented"><button aria-label="Grid view" aria-pressed={view === "grid"} className={view === "grid" ? "selected" : ""} onClick={() => setView("grid")}><Grid2X2 size={16} /></button><button aria-label="List view" aria-pressed={view === "list"} className={view === "list" ? "selected" : ""} onClick={() => setView("list")}><List size={16} /></button></div>
+      </section>
+      <div className="registry-count" role="status">{filtered.length} OF {rooms?.length ?? 0} REGISTERED SPACES <span>OBSERVATION / AUTHORISED USE / SUPPLY</span></div>
+      <div className={`room-grid ${view === "list" ? "room-list" : ""}`}>
+        {filtered.map((room) => (
           <RoomCard
             room={room}
             key={room._id}
@@ -927,6 +969,7 @@ function Rooms() {
           />
         ))}
       </div>
+      {!!rooms?.length && !filtered.length && <Empty title="No matching rooms">Try another room name or control policy.</Empty>}
       {!rooms?.length && (
         <Empty title="No rooms in your scope">
           An administrator can configure rooms and assignments.
@@ -995,6 +1038,11 @@ function RoomCard({ room, onOpen }) {
       <p className="muted">{room.capacity || "—"} seats · one room master</p>
       <div className="room-facts">
         <div>
+          <span>Observed occupancy</span>
+          <strong>{status?.observed.state ?? "Unknown"}</strong>
+          <small>Presence evidence / not a headcount</small>
+        </div>
+        <div>
           <span>Supply · simulated</span>
           <strong>
             {status?.breaker?.reportedSupply?.toUpperCase() ?? "UNKNOWN"}
@@ -1035,6 +1083,11 @@ function RoomDetail({ roomId }) {
         </Badge>
       </div>
       <p>{status.observed.reason}</p>
+      <div className="detail-metrics">
+        <div><span>OBSERVED OCCUPANCY</span><strong>{status.observed.state}</strong><small>Latest available evidence</small></div>
+        <div><span>AUTHORISED USE</span><strong>{status.protectedBy?.replaceAll("_", " ") ?? "None active"}</strong><small>Booking, access or override</small></div>
+        <div><span>MASTER SUPPLY / SIMULATED</span><strong>{status.breaker.reportedSupply.toUpperCase()}</strong><small>{status.room.roomBreakerId}</small></div>
+      </div>
       <p className="caption">
         Master: {status.room.roomBreakerId}. All approved ordinary loads share
         this supply. There are no individual appliance controls.

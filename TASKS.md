@@ -1,5 +1,14 @@
 # Implementation Tasks
 
+## CE-008 — Stitch frontend redesign (13 November 2026)
+
+- [x] Apply the supplied Campus Energy Stewardship visual system across the login screen and all eight authenticated pages, preserving connected APIs and access restrictions.
+- [x] Bundle Karla, Barlow Condensed and Azeret Mono locally with OFL licenses; use copper charts, pale surfaces, condensed headings and rectangular controls.
+- [x] Add room search, policy filtering, grid/list views, a room-status ledger with detail deep links, conservation directive links and a responsive room detail drawer.
+- [x] Verify production build, 25 JavaScript syntax checks and 14 read-only browser checks, including all eight routes at 390/768/1280px and mobile navigation. No browser runtime errors.
+- Scope: the attached master prompt is supporting context; its multi-building/backend expansion is not implemented by this redesign. PLAN.md is unchanged. Existing data, credentials and backend control logic are preserved.
+- Local startup limitation: the current `.env` has an invalid short `ADMIN_INVITE_KEY`; use at least 16 characters or an empty value when next starting the backend. Its value was never printed or changed.
+
 **Status as of 13 November 2026:** The core local prototype and CE-006 checkpoint are complete: 31 application checks, 13 browser checks, production build, syntax, built-app HTTP and documentation validation passed. [PLAN.md](PLAN.md) remains authoritative. Skill tests do not count as application progress. CE-007 physical/vision/external transports and wider field/production acceptance remain pending; no installation or production readiness is claimed.
 
 ## Documentation baseline

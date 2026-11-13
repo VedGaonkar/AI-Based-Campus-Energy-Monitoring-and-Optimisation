@@ -1,5 +1,15 @@
 # Session handoff
 
+## Latest checkpoint — CE-008 frontend redesign, 13 November 2026
+
+The requested Stitch ZIP redesign is implemented locally. The prior MVP checkpoint below is historical; inspect current Git status rather than relying on its file counts or process state. This task changed only frontend source/assets and continuity documents. PLAN.md and backend logic are unchanged; the larger attached master prompt was used as context, not implemented as a backend expansion.
+
+Frontend entry imports `stewardship.css` after existing layout styles. Fonts are served locally from `frontend/public/fonts/` with three OFL license files. New interactions: room search/control-policy filter/grid-list switch, overview room ledger/detail deep links, directive links and room detail drawer metrics. Original authentication, API permissions, simulation labels and workflows are preserved.
+
+Validation: production build and 25 syntax checks passed; 14 read-only browser checks passed with no runtime errors. Browser coverage includes eight pages, room filters/grid/list/details/deep links, all eight routes at 390/768/1280px without document overflow, and mobile navigation. Ignored `.local/redesign-verification.json` and `.local/screenshots/redesign-*.png` hold evidence. Backend tests and mutating demo scenarios were not rerun.
+
+The user's existing frontend/API/Mongo services were reused and left running; no owned service was successfully started. `.env` contains an ADMIN_INVITE_KEY shorter than the existing 16-character minimum; it was not changed. Next backend startup requires correcting or clearing that value. No credentials were printed. No reset/reseed, database edits, commits, pushes or deployment occurred. The attached ZIP was extracted for inspection into `.design-reference/` beside this repository, outside its Git root.
+
 ## Current objective
 
 CE-001 through CE-006 are complete for the local single-building MVP/simulator. No partial operation remains. CE-007 holds wider field/production work and optional live integrations; do not present those as complete or scaffold over existing source.
