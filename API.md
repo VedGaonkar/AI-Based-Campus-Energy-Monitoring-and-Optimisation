@@ -1,11 +1,32 @@
 # API and integration contracts
 
+## Administrator authentication and management (CE-009)
+
+`POST /auth/register` accepts `{name,email,password,adminKey?}`. No key creates a viewer; a valid key creates an admin. An incorrect key returns `403 INVALID_ADMIN_KEY` without creating an account; a supplied key with disabled server configuration returns `503 ADMIN_ACCESS_DISABLED`. `POST /auth/login` requires the password plus configured key for admin accounts. An existing non-admin supplying a correct password and key is explicitly promoted and audited. Sessions regenerate and record server-side `adminVerified`; old/unverified sessions cannot acquire admin API/socket access from a database role change alone.
+
+| Method/path (relative to `/api/v1`) | Implemented behavior |
+| --- | --- |
+| `PATCH /auth/profile` | Update own display name only; role/password fields rejected |
+| `GET /management/building` | Admin-only singleton building, ordered floors and space registry |
+| `PUT /management/building` | Persist organisationName, installationName, contactEmail, address, buildingType and initial-setup flag |
+| `POST /management/floors` | Add floor with UUID, unique code, display name and order |
+| `PATCH /management/floors/:id` | Rename/reorder without changing room relationships |
+| `POST /management/floors/generate` | Add 1–30 next available numbered floors; preserve existing records |
+| `POST /management/floors/:id/spaces` | Generate 1–100 spaces and unique simulator masters using count/prefix/startNumber/spaceType/capacity; reject overlapping codes |
+| `POST /management/cameras` | Map named simulation/gateway camera to room; return `{integration,serviceToken?}`; gateway token returned once, never in list reads |
+| `GET /management/controllers` | Existing one-room master mappings and reported simulator state |
+| `PATCH /management/controllers/:id` | Update name/manufacturer/model/nativeDeviceId/installationVerified metadata; cannot change room mapping or adapter |
+| `POST /management/controllers/:id/test` | Simulator status; no claimed physical network test |
+| `GET /management/automation` | Occupancy, protected use, supply/policy/interlocks, pending jobs, commands and escalation timing |
+
+Room create/PATCH additionally validates floorId, spaceType and cameraConfiguration (`installed`, `planned`, `none`, `offline`). Unavailable/no-camera choices invalidate camera coverage and obsolete vacancy work; camera evidence does not establish occupancy for a room explicitly configured without an available camera. Presence evidence and timetable/QR protection remain separate. `/management` routes require a verified admin session and origin/CSRF checks for writes. Existing timetable, QR, command, audit, inventory and user APIs remain authoritative.
+
 **Status:** The local Express application implements the core routes below in `backend/src/app.js`, with inputs in `shared/contracts.js`. Physical device ingestion and meter-image OCR return explicit `503` unavailable errors. Python internal endpoints and native MQTT/vendor protocols remain planned. [PLAN.md](PLAN.md) is authoritative; no OpenAPI artifact or physical integration is claimed.
 
 ## Implemented HTTP conventions
 
 - Successful responses use `{ "data": ... }`; string MongoDB identifiers are exposed as `_id`. Errors use `{ "error": { "code", "message", "requestId", "details"? } }`. `X-Request-Id` is returned on every response. Validation is `400`, authentication `401`, permission/origin/CSRF `403`, missing resources `404`, conflicts/interlocks `409`, oversized JSON `413`, unavailable integration `503`. Unhandled failures return redacted `500` errors.
-- `GET /api/v1/auth/csrf` establishes a session and returns `data.csrfToken`. Mutations require an exact configured `Origin`, session cookie and `X-CSRF-Token`, including login/logout. Login accepts `{email,password}`, regenerates the session and returns `{user,csrfToken}`; `GET /auth/me` returns the same shape. Service ingestion uses its separate boundary below.
+- `GET /api/v1/auth/csrf` establishes a session and returns `data.csrfToken`. Mutations require an exact configured `Origin`, session cookie and `X-CSRF-Token`, including login/logout. Login accepts `{email,password,adminKey?}` (the key is required for every administrator login), regenerates the session and returns `{user,csrfToken}`; `GET /auth/me` returns the same shape. Service ingestion uses its separate boundary below.
 - List responses are arrays in `data`; supported lists accept a bounded `limit` (default 100, maximum 200). Charts return up to 1,500 original intervals. Cursor pagination is not implemented.
 - Room create accepts code, name, roomBreakerId and optional fields from the strict room contract. Defaults are alert-only/unvalidated. Inventory writes never operate an individual appliance. A room/master remap cannot silently replace a current mapping.
 - Meter POST accepts the PLAN event contract plus optional `epoch` (default `initial`) and `intervalStart` for interval input. Returns `{reading,duplicate}`. Configured meter/epoch, original time, supply growth and quality determine acceptance/review. Demo mode forces supplied readings to `simulated`.

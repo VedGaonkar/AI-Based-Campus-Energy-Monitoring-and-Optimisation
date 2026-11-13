@@ -1,5 +1,13 @@
 # Database design and consistency
 
+## Administrator setup extension (CE-009)
+
+- Singleton `settings/installation` now stores organisationName, contactEmail, address, buildingType and setupCompleted alongside energy settings. No extra building/tenant collection is introduced.
+- New `floors` records have stable UUIDs, unique code, editable name and order. Existing rooms retain their IDs and may remain unassigned until floorId is selected.
+- `rooms` additionally stores floorId, spaceType and cameraConfiguration. Renaming/moving preserves QR token, schedules, evidence and master mapping. Generated rooms each receive a separate simulator master; failed bulk insertions clean up only their own newly generated IDs.
+- `roomBreakers` adds editable name/manufacturer/model/nativeDeviceId/installationVerified metadata; metadata cannot enable physical transport or reset interlocks. Camera registration reuses `integrations` and scoped gateway authentication.
+- Sessions include server-only adminVerified after password/key verification. Invalid signup keys never persist a viewer fallback. Password hashes and root secrets remain excluded from responses; admin activation and setup changes are audited.
+
 **Status:** MongoDB/Mongoose schemas and indexes now exist in `backend/src/models/index.js`, with database/API verification. The catalogue follows [PLAN.md §14](PLAN.md#14-database-collections-and-consistency-rules). The additional `importBatches` collection stores durable preview/commit state. No production database deployment is claimed.
 
 ## Implemented storage conventions

@@ -43,11 +43,12 @@ export async function roomContext(models, room, config, now = new Date()) {
       expiresAt: { $gt: now },
     }).lean(),
   ]);
+  const availableSources = sources.filter((source) => source.type !== "camera" || !room.cameraConfiguration || room.cameraConfiguration === "installed");
   return {
     room,
     breaker,
     devices,
-    observed: occupancy(room, observations, sources, now, {
+    observed: occupancy(room, observations, availableSources, now, {
       confirmationMs: config.vacancyMs,
       demoMode: config.demoMode,
     }),

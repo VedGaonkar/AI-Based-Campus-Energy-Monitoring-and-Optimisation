@@ -41,6 +41,7 @@ import {
   Grid2X2,
 } from "lucide-react";
 import { api, post, patch } from "./services/api";
+import { Management, Profile } from "./Management.jsx";
 import "./styles.css";
 import "./stewardship.css";
 
@@ -233,7 +234,7 @@ function App() {
       setBusy(false);
     }
   }
-  const context = { user, version, busy, act, refresh, health };
+  const context = { user, version, busy, act, refresh, health, setUser };
   if (user === undefined)
     return (
       <div className="boot">
@@ -271,7 +272,7 @@ function App() {
                 ["/recommendations", Lightbulb, "Recommendations"],
                 ["/access", QrCode, "QR access"],
                 ...(user.role === "admin"
-                  ? [["/admin", Settings, "Administration"]]
+                  ? [["/admin", Settings, "Admin management"]]
                   : []),
               ].map(([path, Icon, label]) => (
                 <NavLink
@@ -301,8 +302,9 @@ function App() {
               <div className="profile">
                 <div className="avatar">{user.name[0]}</div>
                 <div>
-                  <strong>{user.name}</strong>
+                  <Link to="/profile" className="profile-link"><strong>{user.name}</strong></Link>
                   <small>{user.role}</small>
+                  <Link to="/profile" className="text-link">My profile</Link>
                 </div>
                 <button
                   className="signout-btn"
@@ -348,7 +350,7 @@ function App() {
                 </button>
                 <div className="topbar-user">
                   <div className="topbar-avatar">{user.name[0]}</div>
-                  <span className="topbar-name">{user.name}</span>
+                  <Link to="/profile" className="topbar-name">{user.name} / {user.role}</Link>
                   <button
                     className="topbar-signout"
                     onClick={() =>
@@ -392,6 +394,7 @@ function App() {
                 </div>
               )}
               <Routes>
+                <Route path="/profile" element={<Profile ui={managementUI} />} />
                 <Route path="/" element={<Overview />} />
                 <Route path="/rooms" element={<Rooms />} />
                 <Route path="/energy" element={<Energy />} />
@@ -401,10 +404,10 @@ function App() {
                 <Route path="/access" element={<Access />} />
                 <Route path="/access/:token" element={<Access />} />
                 <Route
-                  path="/admin"
+                  path="/admin/*"
                   element={
                     user.role === "admin" ? (
-                      <Admin />
+                      <Management ui={managementUI} />
                     ) : (
                       <Empty title="Administrator access required" />
                     )
@@ -528,8 +531,9 @@ function Login({ onLogin }) {
                 setError("");
                 setBusy(true);
                 try {
-                  const result = await post("/auth/login", { email, password });
+                  const result = await post("/auth/login", { email, password, ...(adminKey.trim() ? { adminKey: adminKey.trim() } : {}) });
                   onLogin(result.user);
+                  if (result.user.role === "admin" && !window.location.pathname.startsWith("/access/")) window.location.assign("/admin");
                 } catch (err) {
                   setError(err.message || "Sign-in failed. Check your credentials and the API connection.");
                 } finally {
@@ -554,6 +558,9 @@ function Login({ onLogin }) {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                 />
+              </Field>
+              <Field label="Admin invite key" hint="Required for administrator sign-in. Leave blank for a staff or viewer account.">
+                <input type="password" autoComplete="off" inputMode="numeric" pattern="[0-9]{8}" maxLength={8} value={adminKey} onChange={(e) => setAdminKey(e.target.value)} placeholder="8-digit administrator key" />
               </Field>
               <ErrorText>{error}</ErrorText>
               <button className="button" disabled={busy}>
@@ -593,6 +600,7 @@ function Login({ onLogin }) {
                   if (adminKey.trim()) body.adminKey = adminKey.trim();
                   const result = await post("/auth/register", body);
                   onLogin(result.user);
+                  if (result.user.role === "admin") window.location.assign("/admin");
                 } catch (err) {
                   setError(err.message || "Sign-up failed. Please try again.");
                 } finally {
@@ -641,9 +649,12 @@ function Login({ onLogin }) {
                 <input
                   type="password"
                   autoComplete="off"
+                  inputMode="numeric"
+                  pattern="[0-9]{8}"
+                  maxLength={8}
                   value={adminKey}
                   onChange={(e) => setAdminKey(e.target.value)}
-                  placeholder="Paste key to register as admin"
+                  placeholder="8-digit key to register as admin"
                 />
               </Field>
               <ErrorText>{error}</ErrorText>
@@ -3260,6 +3271,8 @@ function AddIntegrationForm({ rooms }) {
     </>
   );
 }
+
+const managementUI = { useApp, useData, PageHead, Field, Button, Badge, ErrorText, Empty, Modal, RoomDetail, Timetable, Access, Admin, date };
 
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>

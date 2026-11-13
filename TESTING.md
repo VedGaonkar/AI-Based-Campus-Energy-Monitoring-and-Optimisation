@@ -1,5 +1,14 @@
 # Validation and Acceptance Plan
 
+## CE-009 administrator architecture verification
+
+- `npm test`: 45 passed, zero failures in isolated MongoDB databases. Added coverage rejects invalid/missing/disabled admin keys without viewer fallback, verifies admin registration and login, audits password/key-based viewer activation, rotates sessions, prevents role/profile forgery and self-lockout, and rejects admin access from an unverified session after a role change.
+- Management cases verify persistent building details, immutable floor/space identity, duplicate codes, invalid floor mappings, room/master independence, bulk floor/space generation, camera/no-camera mapping, scoped one-time gateway tokens, simulator-only controller metadata and connected automation summaries.
+- `npm run test:admin-browser`: 14 isolated checks passed with zero runtime errors. Browser saves building details, generates floors/labs, renames a room, registers a camera, marks no-camera, saves/tests a controller, creates a timetable booking, generates a QR, updates automation, traverses ten admin routes plus profile, checks mobile layout, rejects bad signup keys and activates a viewer through profile. Uses a temporary database and generated credentials; existing user data/services are untouched. Evidence: `.local/admin-browser-verification.json` and `.local/screenshots/admin-management*.png` (ignored).
+- `npm run build` and `npm run check` passed; syntax coverage is now 28 JavaScript files. `git diff --check` passed. PLAN.md hash remains unchanged.
+- The first admin browser run passed the core flows but failed a test assumption that viewer registration redirects from `/rooms` to overview. The runner now explicitly navigates to overview after authenticating; the second full run passed. No browser runtime failure was observed.
+- Live-session rollout is pending replacement of an existing invalid short admin key and API restart. The real local database was inspected read-only: non-demo accounts are stored as viewers. No role was silently changed, no user configuration was overwritten, and physical hardware was not tested.
+
 **Status:** Application unit/API/database checks and a frontend build now exist. Executed results are recorded separately from the wider pending PLAN acceptance matrix. Tool tests under `.agents/skills/` remain unrelated. No physical hardware tests have been run.
 
 [PLAN.md section 21](PLAN.md#21-acceptance-checks) defines the authoritative acceptance matrix. This file separates executed application checks from broader pending acceptance work.

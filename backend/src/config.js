@@ -61,7 +61,8 @@ export function loadConfig(env = process.env) {
       NOTIFICATIONS_MODE: z.literal("in_app").default("in_app"),
       ADMIN_INVITE_KEY: z
         .string()
-        .min(16, "ADMIN_INVITE_KEY must be at least 16 characters or left empty to disable admin self-registration")
+        .trim()
+        .regex(/^\d{8}$/, "ADMIN_INVITE_KEY must be exactly 8 digits or left empty to disable admin access")
         .optional()
         .or(z.literal("").transform(() => undefined)),
     })

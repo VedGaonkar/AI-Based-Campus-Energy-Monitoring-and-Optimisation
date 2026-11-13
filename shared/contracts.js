@@ -9,12 +9,15 @@ export const id = z
 export const timestamp = z.iso.datetime({ offset: true });
 const text = z.string().trim().min(1).max(200);
 export const loginInput = z
-  .object({ email: z.email().max(200), password: z.string().min(1).max(200) })
+  .object({ email: z.email().max(200), password: z.string().min(1).max(200), adminKey: z.string().trim().max(500).optional() })
   .strict();
 export const roomInput = z
   .object({
     code: text.max(30),
     name: text,
+    floorId: id.nullable().default(null),
+    spaceType: z.enum(["classroom", "laboratory", "office", "meeting", "washroom", "corridor", "other"]).default("classroom"),
+    cameraConfiguration: z.enum(["installed", "planned", "none", "offline"]).default("none"),
     capacity: z.number().int().nonnegative().default(0),
     roomBreakerId: id,
     controlMode: z.enum(["alert_only", "simulated"]).default("alert_only"),

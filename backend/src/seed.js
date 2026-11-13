@@ -62,6 +62,7 @@ export async function seed(
           code,
           name: ["Lecture Hall", "Seminar Room", "Design Studio"][index],
           capacity: [60, 24, 36][index],
+          cameraConfiguration: index === 1 ? "none" : "installed",
           roomBreakerId: breakerId,
           controlMode: "alert_only",
           coverageValidated: index !== 1,

@@ -1,5 +1,23 @@
 # AI-Based Campus Energy Monitoring and Optimisation
 
+## Administrator access and setup
+
+Use your account password and `ADMIN_INVITE_KEY` from the local ignored `.env` to sign in as administrator. The key must contain exactly 8 digits and requires an API restart after changes. It is required for every admin login. Incorrect registration keys now return an error rather than creating viewer accounts.
+
+If your existing account shows Viewer, open **My profile** and verify your account password plus the valid key to activate admin access. You can also supply both during sign-in. The server audits the role change; the profile displays the role verified by `/auth/me`.
+
+**Admin management** at `/admin` has dedicated Building setup, Rooms & corridors, Camera mapping, Smart controllers, Timetable, Room QR & overrides, Automation & control logs, Users & permissions and Advanced settings pages. Building setup persists organisation details, generates floors and supports named spaces with stable identities. Existing rooms can be assigned to floors without replacing their records. Hardware transport remains simulated or unavailable until commissioned.
+
+To explicitly generate a new key while preserving other existing settings:
+
+```bash
+npm run setup -- --generate-admin-key
+```
+
+Read the generated key only from `.env`, restart the API, and sign in again. This command rotates the previous shared invite key. A fresh `npm run setup` also generates a key when creating a new `.env`; ordinary setup preserves an existing file.
+
+`npm run test:admin-browser` runs the admin registration/login/profile/building/floors/rooms/cameras/controllers/timetable/QR/automation workflow against an isolated temporary database with generated credentials and the built frontend. Run `npm run build` first; the check requires installed Chrome/Edge or `BROWSER_EXECUTABLE`.
+
 A local single-building energy prototype for a 24-hour hackathon. It combines building meter readings, room timetables and available occupancy evidence to identify avoidable use, assign action and track outcomes.
 
 [PLAN.md](PLAN.md) is the authoritative implementation plan. [PROGRESS.md](PROGRESS.md) and [HANDOFF.md](HANDOFF.md) record current implementation and session recovery details.
@@ -38,7 +56,7 @@ npm run setup
 npm run dev
 ```
 
-Open `http://localhost:5173`. Setup creates an ignored `.env` with generated secrets and a local `DEMO_PASSWORD`; existing configuration is preserved. Demo account names are `admin@campus.test`, `hod@campus.test`, `technician@campus.test`, `teacher@campus.test` and `viewer@campus.test`. Read the generated password locally; it is not published in documentation or embedded in browser code. Never commit `.env`.
+Open `http://localhost:5173`. Setup creates an ignored `.env` with generated secrets, an `ADMIN_INVITE_KEY` and a local `DEMO_PASSWORD`; existing configuration is preserved. Demo account names are `admin@campus.test`, `hod@campus.test`, `technician@campus.test`, `teacher@campus.test` and `viewer@campus.test`. Read the generated password locally; it is not published in documentation or embedded in browser code. Never commit `.env`.
 
 Development starts the API at `http://localhost:5000`, worker and Vite. The initial database is seeded once; subsequent starts preserve it. `npm run seed` idempotently adds missing synthetic records/accounts without resetting existing policies/passwords. Use `npm run stop` from another terminal for explicit owned-service cleanup, or Ctrl+C. A reachable existing local MongoDB is reused; an existing Campus Energy Vite server on port 5173 is also reused. Reused services are never stopped by the helper. Ignored `.local/dev-session.json` records process ownership; verify it rather than assuming all local listeners belong to this run.
 

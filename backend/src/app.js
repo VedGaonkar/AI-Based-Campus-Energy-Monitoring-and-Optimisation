@@ -49,6 +49,7 @@ import {
 } from "./services/energy.js";
 import { accessAllowed } from "./domain/policies.js";
 import { createRoomMaster } from "./adapters/room-master.js";
+import { registerManagement } from "./management.js";
 
 const admin = (user) => requireRole(user, ["admin"]);
 const staff = (user) =>
@@ -173,10 +174,22 @@ export function createApplication({ config, connection, models }) {
           .lean();
       if (!user || !(await bcrypt.compare(input.password, user.passwordHash)))
         fail(401, "INVALID_LOGIN", "Email or password is incorrect");
+      if (input.adminKey || user.role === "admin") {
+        if (!config.adminInviteKey)
+          fail(503, "ADMIN_ACCESS_DISABLED", "Admin key access is not configured. Set ADMIN_INVITE_KEY on the server and restart it.");
+        if (!input.adminKey || !equalSecret(input.adminKey, config.adminInviteKey))
+          fail(403, "INVALID_ADMIN_KEY", "A valid admin invite key is required for administrator sign-in.");
+        if (user.role !== "admin") {
+          await models.User.updateOne({ _id: user._id }, { $set: { role: "admin" } });
+          await audit(models, user._id, "auth.admin_access_granted", user._id, "Password and admin invite key verified");
+          user.role = "admin";
+        }
+      }
       await new Promise((resolve, reject) =>
         req.session.regenerate((err) => (err ? reject(err) : resolve())),
       );
       req.session.userId = user._id;
+      req.session.adminVerified = user.role === "admin";
       req.session.csrf = randomBytes(32).toString("hex");
       await new Promise((resolve, reject) =>
         req.session.save((err) => (err ? reject(err) : resolve())),
@@ -202,7 +215,7 @@ export function createApplication({ config, connection, models }) {
           name: z.string().min(1).max(200),
           email: z.email().max(200),
           password: z.string().min(8).max(200),
-          adminKey: z.string().optional(),
+          adminKey: z.string().trim().min(1).max(500).optional(),
         })
         .strict()
         .parse(req.body);
@@ -210,6 +223,10 @@ export function createApplication({ config, connection, models }) {
         email: input.email.toLowerCase(),
       }).lean();
       if (existing) fail(409, "EMAIL_TAKEN", "An account with that email already exists");
+      if (input.adminKey && !config.adminInviteKey)
+        fail(503, "ADMIN_ACCESS_DISABLED", "Admin registration is not configured. Set ADMIN_INVITE_KEY on the server and restart it.");
+      if (input.adminKey && !equalSecret(input.adminKey, config.adminInviteKey))
+        fail(403, "INVALID_ADMIN_KEY", "The admin invite key is incorrect. No account was created.");
       const isAdmin =
         input.adminKey &&
         config.adminInviteKey &&
@@ -225,6 +242,7 @@ export function createApplication({ config, connection, models }) {
         req.session.regenerate((err) => (err ? reject(err) : resolve())),
       );
       req.session.userId = user._id;
+      req.session.adminVerified = user.role === "admin";
       req.session.csrf = randomBytes(32).toString("hex");
       await new Promise((resolve, reject) =>
         req.session.save((err) => (err ? reject(err) : resolve())),
@@ -351,8 +369,11 @@ export function createApplication({ config, connection, models }) {
   );
   api.use((req, res, next) => {
     if (!req.user) fail(401, "AUTH_REQUIRED", "Sign in to continue");
+    if (req.user.role === "admin" && !req.session.adminVerified && req.path !== "/auth/logout")
+      fail(401, "ADMIN_KEY_REQUIRED", "Sign in again with your password and admin invite key.");
     next();
   });
+  registerManagement(api, { models, config });
   api.get("/auth/me", (req, res) =>
     res.json({ data: { user: req.user, csrfToken: req.session.csrf } }),
   );
@@ -422,6 +443,8 @@ export function createApplication({ config, connection, models }) {
       for (const roomId of input.permittedRoomIds)
         found(await models.Room.findById(roomId).lean());
     const target = found(await models.User.findById(req.params.id).lean());
+    if (target._id === req.user._id && (input.active === false || (input.role && input.role !== "admin")))
+      fail(409, "SELF_LOCKOUT", "Use another administrator account to change your own administrator role or deactivate this account.");
     await models.User.updateOne({ _id: target._id }, { $set: input });
     await audit(models, req.user._id, "user.update", target._id);
     const updated = await models.User.findById(target._id).lean();
@@ -444,6 +467,8 @@ export function createApplication({ config, connection, models }) {
   api.post("/rooms", async (req, res) => {
     admin(req.user);
     const input = roomInput.parse(req.body);
+    if (input.floorId && !(await models.Floor.exists({ _id: input.floorId })))
+      fail(400, "INVALID_FLOOR", "Select a registered floor");
     if (
       (await models.Breaker.exists({ _id: input.roomBreakerId })) ||
       (await models.Room.exists({ roomBreakerId: input.roomBreakerId }))
@@ -473,6 +498,8 @@ export function createApplication({ config, connection, models }) {
   api.patch("/rooms/:id", async (req, res) => {
     admin(req.user);
     const patch = parsePatch(roomInput, req.body);
+    if (patch.floorId && !(await models.Floor.exists({ _id: patch.floorId })))
+      fail(400, "INVALID_FLOOR", "Select a registered floor");
     const room = await withRoomLock(models, req.params.id, async (room) => {
       if (patch.roomBreakerId && patch.roomBreakerId !== room.roomBreakerId)
         fail(
@@ -515,6 +542,16 @@ export function createApplication({ config, connection, models }) {
             "INVALID_ASSIGNMENT",
             "Responder must be an active staff account",
           );
+      if (patch.cameraConfiguration) {
+        const cameras = await models.Integration.find({ roomId: room._id, type: "camera" }).lean();
+        const cameraIds = new Set(cameras.map((source) => source._id));
+        patch.requiredSourceIds = patch.cameraConfiguration === "installed"
+          ? [...new Set([...(patch.requiredSourceIds ?? room.requiredSourceIds), ...cameraIds])]
+          : (patch.requiredSourceIds ?? room.requiredSourceIds).filter((sourceId) => !cameraIds.has(sourceId));
+        patch.coverageValidated = false;
+        if (patch.cameraConfiguration !== "installed")
+          await models.Integration.updateMany({ roomId: room._id, type: "camera" }, { $set: { health: "unavailable" } });
+      }
       await models.Room.updateOne(
         { _id: room._id },
         { $set: patch, $inc: { policyVersion: 1 } },
@@ -1459,7 +1496,7 @@ export function createApplication({ config, connection, models }) {
         _id: socket.request.session?.userId,
         active: true,
       }).lean();
-      if (!user) return next(new Error("AUTH_REQUIRED"));
+      if (!user || (user.role === "admin" && !socket.request.session.adminVerified)) return next(new Error("AUTH_REQUIRED"));
       socket.data.user = user;
       next();
     } catch {
@@ -1489,7 +1526,7 @@ export function createApplication({ config, connection, models }) {
         })
           .lean()
           .catch(() => null);
-        if (!user) return socket.disconnect(true);
+        if (!user || (user.role === "admin" && !socket.request.session.adminVerified)) return socket.disconnect(true);
         socket.data.user = user;
         socket.emit("refresh", { serverTime: new Date().toISOString() });
       });

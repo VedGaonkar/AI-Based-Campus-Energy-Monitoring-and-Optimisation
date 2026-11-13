@@ -30,6 +30,11 @@ export function createModels(connection) {
   return {
     Settings: model("Settings", "settings", {
       installationName: { type: String, default: "North Academic Block" },
+      organisationName: String,
+      contactEmail: String,
+      address: String,
+      buildingType: String,
+      setupCompleted: { type: Boolean, default: false },
       timezone: { type: String, default: "Asia/Kolkata" },
       tariff: { type: Number, default: 8 },
       initialBaselineKwh: { type: Number, default: 5 },
@@ -53,6 +58,11 @@ export function createModels(connection) {
       monthlyMaintenanceCost: { type: Number, default: 0 },
       addedSystemCost: { type: Number, default: 0 },
     }),
+    Floor: model("Floor", "floors", {
+      name: { type: String, required: true },
+      code: { type: String, required: true },
+      order: { type: Number, default: 0 },
+    }, [[{ code: 1 }, { unique: true }]]),
     User: model(
       "User",
       "users",
@@ -78,6 +88,9 @@ export function createModels(connection) {
         code: { type: String, required: true },
         name: { type: String, required: true },
         capacity: Number,
+        floorId: { type: String, default: null },
+        spaceType: { type: String, default: "classroom" },
+        cameraConfiguration: { type: String, default: "none" },
         roomBreakerId: { type: String, required: true },
         controlMode: {
           type: String,
@@ -115,6 +128,10 @@ export function createModels(connection) {
         roomId: { type: String, required: true },
         adapter: { type: String, enum: ["simulator"], default: "simulator" },
         nativeDeviceId: String,
+        name: String,
+        manufacturer: String,
+        model: String,
+        installationVerified: { type: Boolean, default: false },
         feederCoverage: String,
         verifiedRatings: mixed,
         reportedSupply: {

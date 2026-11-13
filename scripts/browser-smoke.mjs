@@ -62,7 +62,10 @@ try {
   await page
     .getByLabel("Password", { exact: true })
     .fill(process.env.DEMO_PASSWORD);
+  await page.getByLabel("Admin invite key").fill(process.env.ADMIN_INVITE_KEY ?? "");
   await page.getByRole("button", { name: "Sign in to workspace" }).click();
+  await page.getByRole("heading", { name: "Your building. One control centre." }).waitFor();
+  await page.goto(base);
   await page
     .getByRole("heading", { name: "A clearer view of your energy." })
     .waitFor();
@@ -79,7 +82,7 @@ try {
     ["/incidents", "A signal. An owner. An outcome."],
     ["/recommendations", "Insights that lead somewhere."],
     ["/access", "Authorised access, made simple."],
-    ["/admin", "Configure with confidence."],
+    ["/admin/settings", "Configure with confidence."],
   ]) {
     await page.goto(`${base}${route}`);
     await page.getByRole("heading", { name: title }).waitFor();

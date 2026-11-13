@@ -1,5 +1,13 @@
 # Implementation Tasks
 
+## CE-009 — Administrator authentication and connected management panel
+
+- [x] Fix invalid admin key fallback; require password plus key for administrator login and allow verified recovery of viewer accounts.
+- [x] Add server-verified profile and distinct management routes for building, spaces, cameras, controllers, timetable, QR, users and automation logs.
+- [x] Bulk floor/space generation, persistent mappings and documentation completed.
+- [x] Final isolated regression: 45 tests passed. Build and 28 syntax checks passed. Dedicated admin browser run: 14 checks passed with no runtime errors.
+- [ ] Local-session rollout: replace invalid short admin key and restart API after the pending configuration choice; existing `.env` and services are preserved meanwhile.
+
 ## CE-008 — Stitch frontend redesign (13 November 2026)
 
 - [x] Apply the supplied Campus Energy Stewardship visual system across the login screen and all eight authenticated pages, preserving connected APIs and access restrictions.

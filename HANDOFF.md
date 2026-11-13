@@ -1,5 +1,18 @@
 # Session handoff
 
+## Latest checkpoint — CE-009 administrator authentication and architecture
+
+The code is implemented and independently verified; current local-service rollout awaits the user's response about replacing the invalid short admin invite key. Do not treat the older CE-008 snapshot below as current. PLAN.md remains unchanged; the one-building/simulator architecture is preserved.
+
+- Fixed silent viewer fallback: bad signup keys now reject creation. Admin login requires account password plus configured key; supplying both for an existing viewer grants an explicit audited admin role. Key-verified regenerated sessions gate HTTP and socket admin access. Old admin sessions without proof must reauthenticate; self-demotion/deactivation and profile role forgery are blocked.
+- `/profile` displays the server's actual role, supports name changes and password/key-based admin activation. Admin login opens `/admin`, a dedicated centre with building setup, floors/rooms/corridors, camera mapping/no-camera policy, room-master controllers, timetable, QR/overrides, automation/jobs/command/audit logs, users and advanced settings.
+- New sources: `backend/src/management.js`, `frontend/src/Management.jsx`, `tests/management.test.js`, `scripts/admin-browser-smoke.mjs`. Storage extends the installation settings, adds stable floors and floor/type/camera metadata to existing rooms; generated spaces each have a unique simulator master. Existing records/IDs are preserved. Gateway credentials are scoped and returned once; physical camera/controller transports remain unavailable.
+- Final verification: 45 isolated application tests passed; build and 28 syntax checks passed; 14 isolated admin browser checks passed without runtime errors. Ignored `.local/admin-browser-verification.json` and `.local/screenshots/admin-management*.png` contain evidence. The first browser run had a runner navigation expectation failure, corrected before a passing full repeat.
+- Existing local database inspected read-only: five non-demo accounts have role viewer. No account was silently promoted or password changed. Tests used temporary databases and generated credentials, and cleaned up their own servers/browsers/databases.
+- The existing `.env` ADMIN_INVITE_KEY is below the pre-existing 16-character minimum. Its value was not printed or edited. An asynchronous question asks whether to generate a replacement or let the user edit it. Do not overwrite it without that answer. Once authorised, `npm run setup -- --generate-admin-key` updates only that key and prints no credential; ordinary setup preserves existing configuration. New installations now generate a key by default.
+- Existing user dev services were not restarted/stopped. Old backend processes do not expose the new routes until restarted. After valid-key configuration, use the documented managed stop/dev lifecycle to restart; preserve MongoDB and existing records. The current frontend may already be hot-reloaded, but it must use the new backend for these flows.
+- No commits, pushes, deployment or publication. HEAD advanced externally to `7629c58` (design improved); preserve it. Supporting docs/API/security/storage/README/test instructions and continuity are updated.
+
 ## Latest checkpoint — CE-008 frontend redesign, 13 November 2026
 
 The requested Stitch ZIP redesign is implemented locally. The prior MVP checkpoint below is historical; inspect current Git status rather than relying on its file counts or process state. This task changed only frontend source/assets and continuity documents. PLAN.md and backend logic are unchanged; the larger attached master prompt was used as context, not implemented as a backend expansion.

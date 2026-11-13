@@ -1,5 +1,14 @@
 # Implementation progress
 
+## CE-009 — administrator identity and management architecture
+
+- Reproduced silent viewer fallback: invalid registration keys were not rejected; login never accepted/verified a key. Implemented explicit invalid/disabled-key errors, password+key admin login, authenticated viewer-to-admin activation and regenerated key-verified sessions. Profile shows the server role and provides profile editing/admin activation.
+- Added persistent organisation/building details, floor records, space floor/type/camera metadata, camera mapping, controller configuration and admin automation summaries. Dedicated `/admin/*` modules reuse existing timetable, QR, inventory, policy and command workflows.
+- Final code verification: production build and 28 syntax checks passed; 45 isolated application tests and 14 isolated admin browser checks passed with no browser runtime errors. Bulk floor/space generation, camera gateway credentials, controller settings and the complete dedicated admin UI were exercised. Desktop/mobile screenshots were inspected.
+- Browser runner first failed because it expected overview after registering a viewer while on `/rooms`; corrected the runner navigation expectation and repeated successfully. Current evidence: `.local/admin-browser-verification.json` and `.local/screenshots/admin-management*.png`.
+- Existing `.env` admin key fails the pre-existing 16-character minimum. An asynchronous clarification is pending about generating a strong replacement versus user editing it. Its value has not been printed or changed. Existing local services have not been restarted; tests use separate databases and generated test credentials.
+- Read-only inspection confirmed five existing non-demo accounts are saved as viewer; no account was silently promoted. Added explicit key-generation setup option and documented login/profile recovery; live-session rollout needs the pending key choice and backend restart. No physical integration, user-data mutation, commit or deployment performed.
+
 ## CE-008 — Frontend redesign checkpoint, 13 November 2026
 
 - Completed the user's ZIP-based frontend redesign. Read four reference screens and DESIGN.md; treated the larger pasted master prompt as context rather than authority to expand the backend or replace the single-building plan.

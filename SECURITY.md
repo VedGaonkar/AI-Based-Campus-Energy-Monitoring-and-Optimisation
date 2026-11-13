@@ -1,5 +1,13 @@
 # Security and Control Requirements
 
+## Administrator invite-key checks (CE-009)
+
+All administrator sign-ins require the account password plus server-configured `ADMIN_INVITE_KEY` (exactly 8 digits, per user configuration). Missing/incorrect keys reject login; invalid signup keys reject account creation instead of silently creating viewers. A valid key plus verified account password grants explicit, audited admin access to an existing account. This shared administrative enrollment credential is not per-user MFA; restrict and rotate it appropriately.
+
+Key-verified authentication regenerates/saves the session. Admin HTTP/socket access requires server-side adminVerified plus the current active database role. Old sessions must sign in again; a database role change alone cannot upgrade a session. Profile updates cannot assign roles. The acting admin cannot deactivate/demote their own account through user-management endpoints.
+
+Management APIs retain role, origin, CSRF, validation, room locks, audit and simulator boundaries. Gateway camera registration returns a scoped token once; list reads and logs exclude it. No raw camera passwords, public streams or physical transport have been added. Floor/room names remain display labels, not mutable database identities.
+
 **Status:** Core local controls are implemented in `backend/src/app.js`, `security/access.js`, `config.js` and the room-master service, with API/policy tests. Optional integrations and production hardening remain pending. [PLAN.md](PLAN.md) is authoritative; requirements below still apply beyond the verified subset.
 
 ## Implemented safeguards and current limits
