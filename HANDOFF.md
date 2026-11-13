@@ -1,5 +1,11 @@
 # Session handoff
 
+## Latest frontend update — user-provided palette
+
+Updated `frontend/src/stewardship.css` to centralize the requested sidebar/background/card/text/accent/border colors (#D5E6DF / #F4FAF7 / #FFFFFF / #20483C / #AD512F / #BED4CA). Chart SVG colors reference the same variables; the HTML theme color matches the background. Layout, behavior and authentication remain unchanged.
+
+Build and whitespace checks passed. Read-only Chrome verification confirmed exact computed colors, chart accent, admin rendering and 390px room layout with no runtime errors; screenshot of overview inspected. Ignored evidence: `.local/palette-verification.json`, `.local/screenshots/palette-*.png`. Existing app services remain running; no environment values changed.
+
 ## Current checkpoint — eight-digit admin key and live rollout
 
 The user explicitly requested an eight-digit numeric key instead of the previous 16-character minimum and authorised generating/saving it. Updated configuration validation to exactly eight digits (blank disables admin access), setup generation/rotation to cryptographically random eight-digit values, login/signup/profile input constraints, test credentials and current README/security/example guidance. Other password/session-secret requirements remain intact.

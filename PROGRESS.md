@@ -1,5 +1,10 @@
 # Implementation progress
 
+## Requested palette update — 13 November 2026
+
+- Applied the six user swatches through shared CSS variables: sidebar #D5E6DF, background #F4FAF7, cards #FFFFFF, primary text #20483C, accent #AD512F and borders #BED4CA. Updated components, charts and browser theme color; muted/hover states derive from this palette.
+- Production build and Git whitespace checks passed. Read-only browser verification confirmed all six computed colors, chart accent, administrator page and 390px layout with zero runtime errors. Evidence: ignored `.local/palette-verification.json` and `.local/screenshots/palette-*.png`. No backend, account or environment settings changed.
+
 ## Eight-digit admin key and rollout — 13 November 2026
 
 - User requested exactly eight numeric digits and authorised generating/saving the key. Updated config, generation/rotation, login/signup/profile inputs, fixtures and current docs. Generated key saved to ignored `.env`; value never printed and other settings preserved.

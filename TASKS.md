@@ -1,5 +1,7 @@
 # Implementation Tasks
 
+- [x] Apply the user's six-color mint/forest/terracotta palette across the frontend and charts; verify exact browser colors, admin rendering and mobile layout. Production build passed.
+
 ## CE-009 — Administrator authentication and connected management panel
 
 - [x] Fix invalid admin key fallback; require password plus key for administrator login and allow verified recovery of viewer accounts.
