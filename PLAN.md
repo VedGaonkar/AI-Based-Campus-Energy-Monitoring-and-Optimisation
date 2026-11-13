@@ -5,6 +5,8 @@
 **Implementation language:** JavaScript for the web application; Python only for computer vision and OCR.  
 **Agreed scope:** One college building, its rooms and selected common areas. Multiple-building operation, building comparisons, and expansion to facilities with different operating-hour policies are excluded from this implementation, as requested.
 
+**Confirmed control architecture:** One independently controlled Wi-Fi smart master circuit breaker for each room. It switches that room's mapped ordinary loads together, including lights, fans, sockets and AC where approved for this operating method. No per-button smart modules, per-appliance smart switches, smart plugs, or AC IR blaster are part of this design. Existing physical switches and appropriate downstream protection remain.
+
 ### Quick navigation
 
 | Read this for | Section |
@@ -30,14 +32,14 @@ The system must support the complete agreed workflow:
 4. Compare apparent equipment usage with occupancy, current bookings, upcoming classes, and staff overrides.
 5. Alert the assigned first responder.
 6. Escalate unresolved issues after 10 minutes to the assigned HOD or second responder.
-7. After a further 15 minutes, re-evaluate eligibility and optionally switch off approved equipment through supported hardware.
+7. After a further 15 minutes, re-evaluate eligibility and optionally open that room's approved Wi-Fi smart master breaker.
 8. Restore an automation-disabled supply through eligible occupancy detection, an authorised QR session, or a staff override.
 9. Collect building meter readings through CSV/manual entry, an optional meter-facing camera, or supported meter telemetry.
 10. Detect abnormal building consumption and investigate possible contributors without inventing room-level measurements.
 11. Recommend scheduling and efficiency fixes with estimated kWh and rupee benefits.
 12. Track incidents, human actions, command results, data quality, and measured or estimated outcomes.
 
-The admin panel includes staff assignments, escalation rules, room policies, equipment-to-controller mapping, schedules, authorised QR access, tariffs, installation-budget estimates, and integration health.
+The admin panel includes staff assignments, escalation rules, room policies, one room-to-master-breaker mapping, the inventory of loads behind it, schedules, authorised QR access, tariffs, installation-budget estimates, and integration health.
 
 ### 1.1 Required distinction between prototype and installation
 
@@ -56,10 +58,31 @@ The admin panel includes staff assignments, escalation rules, room policies, equ
 - Training a universal appliance detector within the hackathon.
 - Exact room-level electricity measurement from CCTV or one building meter.
 - Facial recognition, student identity recognition from video, or attendance monitoring.
-- Automatic shutdown of every electronic appliance.
+- Independent switching of individual lights, fans, sockets or ACs.
+- AC IR blasters, per-button retrofit modules, smart plugs and per-appliance actuators.
+- Blind shutdown of a room containing loads that have not been approved for a shared cutoff.
 - Automatic reset of a fault-tripped breaker or maintenance isolation.
 - A production payment/subscription checkout.
 - Requiring an LLM API or paid cloud service for core functionality.
+
+### 1.3 Authoritative room master design
+
+One master breaker controls the common supply to one room's approved ordinary loads. Different rooms have different master breakers and remain independently controllable.
+
+| Room | One control device | Loads behind it |
+| --- | --- | --- |
+| R101 | BRK-R101 | R101 lights, fans, approved sockets and approved AC supply |
+| R102 | BRK-R102 | R102 lights, fans, approved sockets and approved AC supply |
+
+The application sends one room-level ON/OFF request. Appliance inventory is for observation, estimates and shared-cutoff eligibility; it does not create independent device controls.
+
+“One circuit per room” means one controlled room feeder/master supply. It does not mean removing branch protection or putting AC and lighting wiring behind one oversized protective rating. An electrician must preserve appropriate downstream lighting, socket and AC protection.
+
+If the old installation supplies a room from multiple separate feeds, a suitable room feeder arrangement may require electrical changes. One smart breaker cannot control feeds that do not pass through it.
+
+Cameras, sensors, gateway/network equipment and emergency/essential circuits remain on a separately maintained supply. Cutting a room's ordinary supply must leave the system able to observe entry and restore eligible power.
+
+For an AC, removing its supply does remove its power. However, some manufacturers prohibit routine breaker switching during operation. No IR controller is added: the physical cutoff remains blocked until that AC's operating instructions allow the proposed method or authorised staff have completed the required stop procedure. This rule applies to the whole room master, since individual loads cannot be isolated by software in this design.
 
 ## 2. Alignment with the problem statement
 
@@ -87,8 +110,7 @@ CCTV, QR access, presence sensors, escalation, and optional control are supporti
 | Radar presence sensor | Presence indication within its tested detection zone | Exact person count, identity or guaranteed room-wide coverage |
 | Timetable | Expected authorised use | Proof that someone is physically present |
 | QR session | An authorised request for temporary supply | Proof that the room is occupied until expiry or empty afterwards |
-| Relay status | Controller-reported output position | Independently verified appliance consumption |
-| IR OFF command | An OFF request was transmitted | The AC actually received and obeyed it |
+| Room smart breaker status | Controller-reported room supply position | Independently verified operation/consumption of each appliance |
 | Rated watts multiplied by time | An equipment-based estimate | Metered room consumption or verified savings |
 
 Every reading, chart series, recommendation and outcome carries a source label:
@@ -150,13 +172,13 @@ All initial thresholds are configuration defaults to validate during a pilot, no
 3. Add a manual appliance inventory: device name, category, approximate rated watts, essential/nonessential flag and approved control policy.
 4. Map each camera view or sensor to its actual covered room/zone.
 5. Record known blind spots and validate coverage with someone seated in the least visible area.
-6. Map each controllable equipment item or circuit to the correct adapter and channel.
-7. Have an electrician identify whether a room has a dedicated feed, separate light/socket/AC feeds, or a circuit shared with other rooms.
+6. Map each room to exactly one smart master breaker and list all loads supplied behind it.
+7. Have an electrician establish the room feeder, preserve its downstream protection, and check whether existing separate/shared feeds require changes.
 8. Import schedules and assign responders.
 9. Configure tariffs and baselines.
 10. Test each source, run in alert-only mode, and enable only approved automatic actions after commissioning.
 
-A device recognised in an image is not automatically a registered or controllable appliance. An administrator confirms its identity and mapping.
+A device recognised in an image is not automatically a registered inventory item. An administrator confirms which room master supplies it. There is no independent software control for that appliance.
 
 ### 5.2 Occupancy and apparent waste detection
 
@@ -187,9 +209,9 @@ At every stage:
 2. Stop if the equipment is already OFF, a person arrives, a relevant booking starts, a valid QR session starts, a manual override applies, or evidence becomes unknown.
 3. Acknowledge does not mean resolved. A staff member can mark “inspecting,” apply a permitted time-limited snooze, or submit resolution evidence.
 4. A failed notification is recorded and routed to a configured backup; it does not silently skip the remaining checks.
-5. At t = 25, an unconnected or unsupported appliance remains an unresolved manual task. The app must not claim it switched it off.
-6. A physical command needs fresh evidence, an unexpired command deadline, the correct channel and no interlock.
-7. Request the resulting device state and record the level of verification.
+5. At t = 25, an unconnected room master or a downstream load incompatible with shared cutoff leaves the room as an unresolved manual task. The app must not claim a physical shutdown.
+6. A physical command needs fresh evidence, an unexpired command deadline, the correct room master breaker and no interlock. Any incompatible load or required stop procedure blocks the entire room cutoff.
+7. Request the resulting room-breaker state and record the level of verification.
 
 Simultaneous incidents for the same circuit must not produce conflicting commands. Reopening an issue creates a new incident episode with a new timeline.
 
@@ -198,7 +220,7 @@ Simultaneous incidents for the same circuit must not produce conflicting command
 1. A healthy, suitably illuminated camera detects entry/presence.
 2. Check whether the supply is OFF specifically because this automation previously disabled it.
 3. Check room access policy, operating hours, device health, manual lockout and restart delays.
-4. Restore the approved lighting/fan supply if eligible.
+4. Restore that room's complete approved master supply if eligible, including all downstream ordinary loads. Appliance restart behaviour still applies.
 5. Cancel obsolete OFF jobs and record the restoration reason.
 
 This restores electrical availability. It does not guarantee that every appliance will resume operation: physical switches may be OFF, and some electronics require their own ON command.
@@ -211,12 +233,12 @@ Never restore a supply marked fault-tripped, maintenance-locked, manually isolat
 2. Read the sensor through UART or the supported presence output; match the exact module’s voltage and pinout.
 3. Test detection of seated people and tune range/sensitivity for the actual room.
 4. With connectivity, submit timestamped presence events to the application.
-5. With no Wi-Fi, the ESP32 can run local presence and relay/contactor logic if designed and commissioned for that mode.
-6. Central alerts/dashboard updates require some communication path: shared Wi-Fi coverage, wired networking through a suitable gateway, or another separately designed link.
+5. With no Wi-Fi or other link, the ESP32 can still detect locally, but it cannot command the chosen Wi-Fi-only room breaker or send central alerts by itself.
+6. Connect the presence node through shared Wi-Fi coverage or an appropriately designed wired gateway/link. The master breaker needs connectivity at its actual location, which may be the electrical panel rather than inside the room.
 
-The bare LD2410 has no Wi-Fi. A Wi-Fi-only breaker cannot receive wireless commands where there is no network; a local wired relay/contactor path is required for the standalone option.
+The bare LD2410 has no Wi-Fi. This agreed architecture uses the ESP32 as a presence-data node, not a second mains actuator. Do not introduce an ESP32 relay or a separate room switch as an alternative control architecture.
 
-Important: the central 10-minute/15-minute staff-escalation workflow is unavailable during a completely disconnected standalone deployment. In the MVP, loss of the server connection suspends central automatic commands. A standalone local timeout is a separately configured operating policy, not an imitation of successfully delivered central alerts.
+Important: without a communication path, the central escalation and Wi-Fi-breaker control workflow is unavailable. Loss of connection suspends new central automatic commands. Local sensing alone must not be presented as a functioning full control installation.
 
 ### 5.6 QR access in rooms without cameras or presence sensors
 
@@ -224,7 +246,7 @@ Important: the central 10-minute/15-minute staff-escalation workflow is unavaila
 2. User scans it and signs in.
 3. Server checks role, permitted room, allowed hours, booking conflicts, requested duration and any lockout.
 4. Create a room-use lease with a server-controlled start and expiry.
-5. Enable only the approved supply through the control adapter.
+5. Enable that room's one approved master supply through its breaker adapter; QR access does not individually operate appliances.
 6. Warn the requesting user before expiry and offer an authorised extension.
 7. An active lease protects the room against vacancy-based shutdown.
 8. Expiry removes that protection; it does not change actual occupancy to vacant.
@@ -402,7 +424,7 @@ Do not call every normal AC start or busy event a fault. A consumption anomaly i
 | Lights observed ON in an unused room | Inspect and switch off eligible lighting; consider a vacancy policy | Fresh occupancy and equipment evidence |
 | Repeated unexplained overnight usage | Inspect always-on equipment and document essential loads | Meter history and inspection |
 | Several suitable rooms used sparsely in the same building | Review timetable consolidation within available room capacity | Timetable, capacity and staff review |
-| Repeated manual forgetfulness in one room | Compare a low-cost retrofit with estimated avoidable usage | Incident history and installed-cost quote |
+| Repeated manual forgetfulness in one room | Compare the room-master installation quote with estimated avoidable usage | Incident history and installed-cost quote |
 | Lighting apparently unnecessary in daylight | Review lighting zones or suitable daylight control | Calibrated observations; human confirmation |
 | Inefficient or excessive AC operation suspected | Request maintenance/settings review under the institution’s comfort policy | Equipment observations and maintenance review |
 
@@ -468,8 +490,8 @@ Keep the application small enough to complete and debug within 24 hours.
 | Vision/OCR service | Python, FastAPI, OpenCV, NumPy, Tesseract through pytesseract | Camera capture, ROI processing and meter-image OCR |
 | Person detection | A small pretrained model appropriate to its accepted licence | Person detection on approved footage |
 | Device messaging | MQTT.js and a private Mosquitto broker, optional | ESP32/gateway event and command transport |
-| Microcontroller firmware | ESPHome for LD2410/MQTT or a small dedicated ESP32 programme | Sensor integration and commissioned local rules |
-| Optional device gateway | Home Assistant | Bridge supported IR and smart-device integrations |
+| Microcontroller firmware | ESPHome for LD2410/MQTT or a small dedicated ESP32 sensing programme | Presence observations only; the Wi-Fi master breaker is the actuator |
+| Optional device gateway | Home Assistant | Bridge an explicitly supported room-breaker integration if its native API is unsuitable |
 | Verification | Node test runner or Vitest, Supertest, selected browser checks | Policy, calculations, imports and end-to-end flows |
 
 Node and frontend dependencies must be selected from currently supported versions and committed in lockfiles. Use an Active LTS Node version compatible with the installed Vite version; do not blindly copy an old runtime requirement from a tutorial.
@@ -496,7 +518,7 @@ Python inference, SMTP, MQTT, Home Assistant and physical devices are independen
 
 ## 10. Architecture and integration boundaries
 
-The backend is the policy authority. The browser never directly controls a relay, talks to a camera with embedded credentials, or decides to cut power.
+The backend is the policy authority. The browser never directly controls a room breaker, talks to a camera with embedded credentials, or decides to cut power.
 
 ```mermaid
 flowchart TD
@@ -531,135 +553,128 @@ flowchart TD
 - No separate Wi-Fi router is required for every classroom if an access point already provides sufficient coverage.
 - A temporary local network can work without internet. Cloud SMTP, external messaging and cloud-only devices may still be unavailable.
 
-## 11. Hardware choices and how each integrates
+## 11. Hardware choices and room master integration
 
-### 11.1 Equipment and capability matrix
+### 11.1 One breaker per room
 
-| Existing equipment | Practical control method | Minimum integration work |
-| --- | --- | --- |
-| Hardwired lights | Suitable retrofit relay or a controlled lighting circuit | Electrician mapping; supported device adapter |
-| Compatible ordinary fans | Rated relay for ON/OFF; separate compatible regulator for speed | Confirm motor/load rating and regulator compatibility |
-| AC with IR remote | Compatible IR controller for normal commands | Learn/test discrete OFF and model-specific settings |
-| Approved larger circuit/load | Small controller operating a correctly selected contactor, or a suitable remotely operated protective device | Electrician design, load/inrush checks, protection and manual override |
-| Plug-connected suitable equipment | Rated smart socket or mapped switched socket circuit | Confirm power, starting current and appliance restart behaviour |
-| Unsupported or essential equipment | Monitoring, warnings and assigned manual tasks | No automatic cutoff |
+Exactly one remotely controlled Wi-Fi smart master breaker operates each room's approved ordinary supply. Different rooms remain independently controllable.
 
-Do not infer suitability from an advertised “10A,” “16A,” or “63A” label alone. Lighting drivers, motors and other loads have different switching behaviour. A consumer relay’s resistive rating is not a universal equipment rating.
-
-### 11.2 Single room master control
-
-One controller can switch a room’s connected loads together only when the electrical arrangement supports it.
-
-- A room may have separate lighting, socket and AC supplies.
-- A circuit may also feed another room.
-- Existing MCB/RCCB/RCBO protection must remain suitable.
-- Some products marketed as “smart breakers” are principally remote switches. Verify the actual protective functions and installation requirements.
-- A genuine protective smart breaker needs verified characteristics appropriate to the circuit.
-- Repeated operational switching must be within the manufacturer’s allowed duty/endurance.
-- A room master OFF makes existing wall switches ineffective until supply is restored.
-- Restore controls and local overrides must be available without depending solely on a student’s phone.
-
-The application maps physical circuit coverage explicitly. A room name is never enough to establish what a breaker controls.
-
-### 11.3 Minimum information before purchasing
-
-| Item | Information to obtain |
+| Component | Quantity and role |
 | --- | --- |
-| Existing circuits | What each breaker actually supplies; whether neutral/space is available |
-| Loads | Running current, starting behaviour, essential functions and restart requirements |
-| Camera | Authorised RTSP/NVR access, stream format, low-light capability and coverage |
-| Smart controller | Exact model, protective/switching ratings, local/API support, feedback and manual operation |
-| Presence sensor | Exact LD2410 variant, pinout/supply, tested room coverage and required controller |
-| Meter | Register type, units, decimal resolution, multiplier, display cycle and cumulative/interval semantics |
-| Network | Coverage at actual controller locations, not just at the classroom entrance |
-| Installation | Electrician quote, enclosure, protection, override and commissioning |
+| Wi-Fi smart master breaker | One per controlled room |
+| Existing physical switches | Retained; work while the room supply is enabled |
+| Appropriate downstream protective devices | Retained or redesigned by the electrician |
+| Existing camera | Occupancy and visual observations; no mains switching |
+| LD2410 plus ESP32 | Optional presence-data node where there is no adequate camera |
+| Main-meter camera | One optional building-meter reading source |
+| AC IR blaster, smart plugs, per-button modules | Not included |
 
-### 11.4 Retrofit relay integration steps
+A master OFF removes supply from every load actually downstream. Software cannot selectively turn off an AC or a light while leaving the rest powered. A master ON restores supply; existing switches, appliance standby and restart behaviour determine what operates.
 
-1. Choose a device with a documented control API or a supported local gateway integration.
-2. Confirm the exact model’s supported functions; an app-only product is not automatically usable by the custom website.
-3. Have the electrician install it and retain suitable manual operation.
-4. Connect it to the relevant network and reserve a stable address where appropriate.
-5. Pair it through the manufacturer’s required process.
-6. Configure server-side credentials and an allowlisted endpoint.
-7. Add its adapter/channel mapping in the admin panel.
-8. Run a connection test and a supervised ON/OFF test with a known permitted load.
-9. Check reported state and, if fitted, meter telemetry.
-10. Keep alert-only mode until commissioning is complete.
+If one connected load cannot be interrupted, block the whole room cutoff until the issue is resolved. Software cannot exclude a downstream load without a corresponding physical supply arrangement.
 
-Tinxy/Sonoff products can be price references, but their mobile app compatibility does not establish a stable public control API for every model. Do not build a core dependency on an unverified private cloud endpoint.
+### 11.2 Electrical layout requirements
 
-### 11.5 Example supported relay API boundary
+- Establish a dedicated controllable room feeder.
+- Preserve appropriate lighting, socket and AC branch protection.
+- Select the master for complete connected load, starting currents, fault level, poles, switching duty and protective requirements.
+- Do not use an oversized upstream rating as the only protection for smaller lighting wires.
+- Do not join unrelated circuits, phases or shared feeds to achieve one button.
+- Keep cameras, sensors, gateway/network equipment and emergency/essential circuits on appropriate separately maintained supplies.
+- Provide local operation and maintenance isolation.
+- Record exactly which loads the master supplies.
 
-Shelly devices exposing the documented Switch component can use explicit Switch.Set and Switch.GetStatus calls. Power/energy fields are available only on models/components that actually meter them.
+“One circuit per room” means one controlled feeder/master supply, not removal of downstream protection. An electrician designs and commissions the actual arrangement. Separate/shared old feeds may require electrical changes.
 
-Illustrative manufacturer RPC payload for a supported Switch component:
+### 11.3 AC handling without IR hardware
 
-~~~json
-{
-  "id": 101,
-  "method": "Switch.Set",
-  "params": { "id": 0, "on": false }
-}
+An AC downstream of the master loses electrical supply when the master opens, along with the other approved room loads. The application does not need an IR sensor, IR blaster or independent AC switch for that supply-cutoff function. Temperature, speed and individual AC commands are outside this design.
+
+Routine interruption while running must be allowed by that exact AC model's instructions and installation assessment. Some manufacturer manuals require stopping the AC normally before opening a breaker.
+
+Record supplyInterruptionApproved, requiresNormalStopBeforeCutoff, stopProcedureConfirmedAt, restartDelaySeconds, restartBehaviourKnown, essentialStandbyRequirement and approvalNotes.
+
+When a normal stop is required, staff use the existing controls and confirm completion through an authenticated task. Invalidate that confirmation if the AC restarts or evidence becomes uncertain. Without an adequate confirmation, block the entire room cutoff.
+
+Supply restoration does not guarantee that the AC restarts. Respect its own protection and manufacturer restart requirements. No separate IR hardware is added to work around a failed commissioning check.
+
+### 11.4 Information to obtain before purchase
+
+| Item | Information required |
+| --- | --- |
+| Wiring | Dedicated feeder feasibility, branch protection and existing shared/separate feeds |
+| Loads | Total load, starting behaviour, safe-stop and standby requirements |
+| Smart breaker | Exact model, protective ratings, endurance, local override, fault/trip feedback |
+| Interface | Documented API or supported gateway for the exact model/firmware |
+| Observation sources | Camera/sensor coverage and independent power |
+| Network | Connectivity at breaker panel, presence node and gateway |
+| Installation | Electrician quote for feeder, enclosure, protection and commissioning |
+
+Mobile-app support is not proof that a custom website can integrate the product.
+
+### 11.5 Connection and commissioning steps
+
+1. Survey a pilot room and confirm all ordinary loads behind the proposed master.
+2. Review AC and sensitive-load interruption/stop/restart requirements.
+3. Choose one appropriate Wi-Fi smart breaker with supported integration.
+4. Have an electrician install and commission the room feeder and downstream protection.
+5. Pair the breaker using the manufacturer's process.
+6. Confirm connectivity where the breaker is installed; this may be the central electrical panel.
+7. Configure an allowlisted endpoint and server-side credentials.
+8. Map the room to exactly one master breaker in the admin panel.
+9. Test reported ON/OFF, manual isolation and fault/trip states.
+10. Supervise ON/OFF tests after every connected load passes eligibility.
+11. Test local override, restart behaviour and camera/sensor continuity.
+12. Remain alert-only until approved for automatic operation.
+
+Automatically restore only a supply the application deliberately opened. A fault trip or maintenance isolation blocks re-energisation.
+
+### 11.6 Room master adapter contract
+
+~~~text
+getCapabilities(roomBreakerId)
+getStatus(roomBreakerId)
+setSupply(roomBreakerId, on, requestId, expiresAt)
+getCommandResult(requestId)
 ~~~
 
-This is an example for a compatible relay component, not a universal smart-breaker command. A protective breaker may expose a different component and interlock behaviour. Its adapter must follow that exact model’s documentation.
+These are internal contracts. The adapter translates them into the selected manufacturer's documented API or supported gateway calls. Do not invent universal smart-breaker endpoints or copy a relay-only command onto a different protective device.
 
-Normalise manufacturer replies into the application’s command/result contract. Do not expose the manufacturer’s device address or credentials to the frontend.
+Normalised status includes reported supply, update time, connection health and any available fault/manual-lock state. If required interlock status cannot be established, use an approved manual procedure or block restoration.
 
-### 11.6 IR controller and AC integration
+The simulator implements this same room-master contract. Metering is optional; an ON/OFF-only breaker does not establish room kWh.
 
-Use a supported local integration, such as Home Assistant’s documented Broadlink integration for a compatible remote, if available.
+### 11.7 Presence sensors are observation devices
 
-1. Pair the IR controller and confirm it reaches the intended AC.
-2. Learn or configure the exact model’s commands.
-3. Prefer a discrete OFF command, not an ambiguous power toggle.
-4. Verify that commanding one AC does not affect an unintended unit.
-5. Send through a backend adapter or local gateway.
-6. Respect minimum restart/off periods and manufacturer operating requirements.
-7. Report “command transmitted” until actual state feedback or inspection confirms the result.
+An LD2410 and ESP32 provide occupancy data, not a second mains-control path.
 
-IR control does not require replacing the AC. It does require compatible codes, placement and a working command path. Do not use hard power cycling as the normal equivalent of an AC’s OFF command.
+- Match the purchased variant's documented supply, pinout and UART/output interface.
+- Use ESPHome's LD2410 component or a tested sensing programme.
+- Keep its power available when the room master is OFF.
+- Transmit timestamped presence and availability.
+- Test seated people, blind spots, fans, curtains and adjacent-area interference.
+- Add coverage only where testing requires it.
 
-### 11.7 LD2410 plus ESP32
+Do not attach per-appliance relay control or substitute a separate ESP32 room actuator in this agreed design.
 
-For an inexpensive presence prototype:
+### 11.8 Connectivity limits
 
-- Use the correct LD2410/LD2410B/LD2410C module and a compatible ESP32.
-- ESPHome already has an LD2410 component using UART.
-- Supply appropriate regulated low-voltage power and an enclosure.
-- Sensor-to-ESP32 communication is wired; Wi-Fi is an optional transport from the ESP32 to the server.
-- Use timestamped online/offline reports and conservative state handling.
-- A raw sensor board cannot switch mains.
-- A qualified installer selects and connects the relay interface/contactor for real loads.
-
-Classroom commissioning:
-
-- Test seated students in all relevant areas.
-- Test vacancy with fans, curtains and ventilation running.
-- Test a person behind furniture or outside the expected sensor angle.
-- Test whether movement outside the intended room creates false presence.
-- Test a sensor disconnect and reboot.
-- Add sensors if a single unit does not cover the room.
-
-A sensor’s advertised maximum range is not proof that it covers an entire classroom.
-
-### 11.8 No-network operating choices
-
-| Location condition | Supported behaviour |
+| Condition | Supported behaviour |
 | --- | --- |
-| Shared Wi-Fi available; no internet | Local API/gateway and local dashboard can work; cloud-only services may not |
-| No Wi-Fi; suitable wired network exists | Use an appropriate wired gateway/controller |
-| No networking at all | Standalone ESP32/sensor/relay logic only; no live central dashboard or central alert delivery |
-| Wi-Fi-only smart breaker with no network | No wireless command path; add coverage or use a different wired/local design |
+| Wi-Fi at the breaker panel | Room master can receive supported commands |
+| Classroom has no Wi-Fi; camera has a reachable wired feed | Camera observations can inform the network-connected room master |
+| Presence node has a suitable wired gateway/link | Presence can reach the application without classroom Wi-Fi |
+| Presence node has no communication path | Local detection only; no central alert/control from that node |
+| Wi-Fi-only breaker has no reachable network | No remote ON/OFF; use local manual operation |
+| Local network works without internet | Local API may work; cloud-only services may not |
 
-Do not present a central room QR webpage as operational in a place with no route to that webpage and controller.
+The central QR route also needs a reachable application and a working breaker-command path. A printed QR does not provide connectivity.
 
-### 11.9 Optional metering hardware
+Do not add a standalone ESP32 relay/contactor alternative. Full operation with no network would be a different hardware design requiring a separate decision.
 
-If existing hardware provides energy readings, integrate them through a separate meter adapter. A smart ON/OFF device does not necessarily measure energy.
+### 11.9 Optional energy readings
 
-Circuit/room meters are optional for substantiating room-level consumption; the required MVP works with the building meter. Do not add room meters to the prototype budget unless explicitly selected.
+Use room-breaker energy telemetry only if the exact model meters energy with known units and quality. Otherwise use the building meter and clearly labelled room estimates. No separate room meter is mandatory for the prototype.
 
 ## 12. Camera and OCR service implementation
 
@@ -684,7 +699,7 @@ It does not own users, room access, alert escalation, schedules or power decisio
 - Light brightness can be affected by daylight and camera exposure.
 - A still image is not a reliable proof that a fan stopped.
 - An AC’s appearance is not reliable power-consumption telemetry.
-- If a class cannot be observed reliably, return unknown.
+- If an equipment state cannot be observed reliably, return unknown.
 - Do not train and promise a universal appliance-state model in 24 hours.
 
 ### 12.3 Internal endpoints
@@ -714,7 +729,7 @@ All application routes use /api/v1. Use stable string IDs, explicit units, ISO 8
 | Auth | POST /auth/login; POST /auth/logout; GET /auth/me |
 | Installation settings | GET/PATCH /settings |
 | Rooms | GET/POST /rooms; GET/PATCH /rooms/:id; GET /rooms/:id/status |
-| Inventory | GET/POST /devices; PATCH /devices/:id |
+| Inventory | GET/POST /devices; PATCH /devices/:id (observation and load inventory only) |
 | Assignments | GET/PATCH /rooms/:id/assignments |
 | Timetable | GET/POST /schedules; PATCH /schedules/:id; POST /imports/timetable |
 | Utility data | POST /imports/meter-readings; POST /meter-readings; GET /meter-readings; POST /meter-images |
@@ -724,7 +739,7 @@ All application routes use /api/v1. Use stable string IDs, explicit units, ISO 8
 | QR access | GET /access/:publicToken; POST /rooms/:id/access-leases; POST /access-leases/:id/extend; POST /access-leases/:id/end |
 | Override | POST /rooms/:id/overrides; POST /overrides/:id/end |
 | Integrations | GET /integrations; POST /integrations/:id/test; PATCH /integrations/:id |
-| Commands | POST /devices/:id/commands; GET /commands/:id |
+| Commands | POST /rooms/:id/supply-commands; GET /commands/:id |
 | Ingestion | POST /ingest/observations; POST /ingest/device-events; POST /ingest/meter-readings |
 | Operations | GET /health; GET /ready; GET /audit-events |
 | Demo only | POST /demo/scenarios/:id/start; POST /demo/reset |
@@ -782,7 +797,8 @@ The backend decides accepted, needs_review or rejected. Incoming confidence does
 ~~~json
 {
   "requestId": "unique-command-id",
-  "deviceId": "LIGHTING-R101",
+  "roomId": "room-r101",
+  "roomBreakerId": "BRK-R101",
   "action": "off",
   "reason": "vacancy_escalation",
   "incidentId": "incident-id",
@@ -815,9 +831,9 @@ Use a private broker and an application-defined normalised protocol, for example
 | Topic | Purpose | Retained? |
 | --- | --- | --- |
 | energy/rooms/R101/presence | Timestamped presence state | May retain state; freshness is mandatory |
-| energy/devices/CTRL-R101/availability | Online/offline | Yes |
-| energy/devices/CTRL-R101/command | Explicit action, ID and expiry | No |
-| energy/devices/CTRL-R101/result | Command outcome | No |
+| energy/devices/BRK-R101/availability | Online/offline | Yes |
+| energy/devices/BRK-R101/command | Explicit action, ID and expiry | No |
+| energy/devices/BRK-R101/result | Command outcome | No |
 | energy/meters/MAIN-01/reading | Reading observation | No, or deduplicated state with original capture time |
 
 These are application topics, not claims about a manufacturer’s native topic names. Adapters translate actual device protocols.
@@ -832,8 +848,9 @@ Use one installation configuration. Do not implement multi-building/tenant hiera
 | --- | --- |
 | settings | Installation name, timezone, tariff configuration, default policies, data mode |
 | users | Name, email, password hash, role, department label, permitted room IDs, active flag |
-| rooms | Code, name, capacity if known, zone type, assigned users, occupancy policy, control policy, policyVersion |
-| devices | Room, category, ratedWatts, essential flag, adapter ID, physical channel, circuit coverage, capabilities |
+| rooms | Code, name, roomBreakerId, capacity if known, zone type, assignments, occupancy policy, shared-cutoff policy, policyVersion |
+| roomBreakers | Unique room ID, adapter, native device ID, feeder coverage, verified ratings, interlocks and supply state |
+| devices | Room, category, ratedWatts, controlledByRoomBreakerId, essential/standby flag, interruption approval, required stop and restart rules; no independent switching endpoint |
 | integrations | Source/adapter type, allowed endpoint, credential reference, capabilities, lastSeenAt, health |
 | schedules | Room, start/end, title, status, origin/import ID, timezone and cancellation details |
 | observations | Event/source IDs, room, capture/receipt times, occupancy/equipment observation, quality, data mode |
@@ -854,6 +871,8 @@ Use one installation configuration. Do not implement multi-building/tenant hiera
 
 - Unique event ID per integration/source.
 - Unique room code.
+- Unique room ID in roomBreakers: one active master per controlled room.
+- A master breaker cannot map to two independent rooms.
 - Unique command request ID.
 - Unique import identity for each source record.
 - Unique notification stage/incident/recipient/channel key.
@@ -929,7 +948,9 @@ An occupancy-driven automatic OFF must pass all of these:
 - Room is still confirmed vacant.
 - Required evidence remains fresh and usable.
 - No protected booking/preparation period, active QR lease or override.
-- Target circuit is mapped and does not include protected loads.
+- Exactly one room master is the target.
+- Every downstream load is approved for shared cutoff or has completed its required stop procedure.
+- Camera, sensor, network, emergency and protected supplies remain available.
 - Automatic control is explicitly enabled.
 - Adapter and device are healthy.
 - No maintenance lock, fault trip or incompatible device state.
@@ -971,7 +992,8 @@ Do not display a live instantaneous kW gauge from hourly readings. Label the der
 - Occupancy and freshness.
 - Current/next relevant schedule.
 - Active QR lease or override.
-- Registered devices and controller capabilities.
+- Appliance inventory and the one room master breaker.
+- One room-level supply ON/OFF control; no individual light/fan/AC controls.
 - Observed state versus controller-reported state.
 - Alert/escalation countdown based on server dueAt.
 - Manual action controls visible only to authorised roles.
@@ -1080,7 +1102,7 @@ No platform’s permanent free hosting allowance is assumed. Hosting, model runt
 | Vision model and weights | Download from the selected official project, record version/licence and test | Only for actual inference |
 | Tesseract executable | Install from the official project’s documented route | Only for the chosen OCR path |
 | MQTT broker credentials | Local private broker administrator | Only for MQTT integration |
-| Home Assistant URL/token | Local administrator provisions a restricted gateway connection | Only for supported HA adapters |
+| Home Assistant URL/token | Local administrator provisions a restricted gateway connection | Only if used for a supported room-breaker integration |
 | Controller credentials/model docs | Manufacturer pairing and documented integration route | Only for physical control |
 | SMTP host/user/credential | Institution or selected email provider | Only for external email |
 | LLM API key | Not required | No |
@@ -1141,7 +1163,7 @@ Use UTC for persisted timestamps and Asia/Kolkata for the pilot’s display/cale
 | backend/src/models/ | MongoDB/Mongoose schemas and indexes |
 | backend/src/policies/ | Occupancy, schedule protection and command eligibility |
 | backend/src/services/ | Meter ingestion, baselines, anomaly detection, recommendations and leases |
-| backend/src/adapters/ | Simulator, supported relay, breaker, MQTT, IR and notification adapters |
+| backend/src/adapters/ | Room-master simulator, supported smart-breaker/gateway, MQTT telemetry and notification adapters |
 | backend/src/workers/ | Persistent job and outbox processing |
 | backend/src/security/ | Sessions, roles, scoped ingestion and secret handling |
 | vision/app/ | FastAPI, capture workers, person detection, meter OCR and health |
@@ -1153,7 +1175,7 @@ Use UTC for persisted timestamps and Asia/Kolkata for the pilot’s display/cale
 
 ### 19.2 Setup procedure for the coding agent
 
-1. Read this plan and inspect any existing repository before scaffolding.
+1. Read this plan and inspect any existing repository before scaffolding. Use one Wi-Fi smart master breaker per room as the authoritative control design.
 2. Preserve unrelated files and any existing working integration.
 3. Confirm a compatible Active LTS Node version and Python environment.
 4. Create the frontend with the Vite React JavaScript template.
@@ -1165,7 +1187,7 @@ Use UTC for persisted timestamps and Asia/Kolkata for the pilot’s display/cale
 10. Add the persistent worker and policy tests.
 11. Wire the dashboard to the real backend.
 12. Add actual inference/OCR as separate adapters.
-13. Add optional MQTT/HA/physical adapters behind connection tests and disabled defaults.
+13. Add optional MQTT/HA integration and the one-room-master adapter behind connection tests and disabled defaults.
 14. Record installed dependency versions and model licences.
 15. Document exact start/build/seed/test commands that actually exist.
 
@@ -1230,8 +1252,12 @@ These tests target calculations and actions that could mislead users or cause an
 | QR lease expires without an occupancy source | Occupancy remains unknown; apply the separately configured expiry policy |
 | QR extension conflicts with booking | Reject or require appropriate approval |
 | Unauthorised QR/user control request | Denied server-side |
-| IR command transmitted without feedback | Command-only/unverified, not confirmed OFF |
-| Unsupported appliance | Manual task, not simulated physical success |
+| Room master command without feedback | Command-only/unverified, not confirmed OFF |
+| AC requires normal stop first | Block whole room cutoff until its approved stop procedure is confirmed |
+| Room master OFF | All mapped ordinary loads lose supply together |
+| Room master ON | Supply available; individual switches/restart rules still apply |
+| More than one master mapped to a room | Reject configuration for this agreed design |
+| Incompatible load or unapproved room master | Block shared cutoff and create manual task |
 | Breaker fault-tripped or maintenance-locked | No automatic restoration |
 | No Wi-Fi and no network route | Local-only mode indicated; central notifications not claimed |
 | Building spike without local metering | No fabricated room kWh or definite cause |
@@ -1262,46 +1288,51 @@ Show real model/OCR output only when it was actually produced from the selected 
 
 ## 23. Budget, purchasing and operating-cost plan
 
-### 23.1 Current reference device prices
+### 23.1 Hardware quantities and reference sensor prices
 
-Checked during planning on 13 November 2026. Prices/availability can change; these are device references, not installation quotes or endorsements for every load.
+The bill of materials follows the room-master design, not per-switch alternatives.
 
-| Item | Listed reference price | Qualification |
+| Item | Quantity/budget basis | Qualification |
 | --- | --- | --- |
-| Tinxy single-channel 10A module | ₹595 including GST | Exact load and custom-integration suitability must be verified |
-| Tinxy four-node module | ₹799 including GST | Manufacturer lists up to 500 W per node; not a heavy-load master breaker |
-| Tinxy six-node module | ₹1,049 including GST | Same need to check individual load and overall installation |
-| Sonoff MINIR4 | ₹1,161.01 before tax | Single relay; verify load and control interface |
-| Sonoff DUALR3 | ₹1,411.07 before tax | Two-channel example with model-specific functions |
-| Sonoff 4CHPROR3 | ₹3,254 before tax | Four-channel example; not equivalent to a protective MCB |
-| Hi-Link LD2410 bare module | ₹430.70 including GST | Referenced listing was out of stock; needs other parts |
-| Sonoff SNZB-06P presence sensor | ₹1,713.50 before tax | Requires compatible Zigbee hub and power |
-| Sonoff Zigbee Bridge Pro | ₹2,442.50 before tax | Can serve multiple compatible devices within a functioning network |
+| Appropriate Wi-Fi smart master breaker | One per controlled room; exact model quote required | Complete room load and software interface must be suitable |
+| Feeder/protection/enclosure changes | Electrician site quote | May be needed for separate/shared existing feeds |
+| LD2410 bare module | Reference ₹430.70 including GST | Listing was out of stock when checked; controller/power/enclosure extra |
+| DIY presence node | Rough parts allowance ₹800–₹1,500 per selected location | Assembly, installation and extra coverage excluded |
+| Sonoff SNZB-06P | Reference ₹1,713.50 before tax | Compatible Zigbee hub and power extra |
+| Sonoff Zigbee Bridge Pro | Reference ₹2,442.50 before tax | Only if that sensor route is selected |
+| Existing CCTV | Reuse authorised suitable feeds | Verify access and coverage |
+| Main-meter camera | One optional source; obtain quote | Mounting, power, calibration and maintenance extra |
+| Per-button modules, smart plugs, AC IR blasters | Zero | Outside the agreed architecture |
 
-Do not assume the cheapest listed switch can be driven by the custom application. Integration support is a purchasing criterion alongside electrical suitability.
+Reference prices were checked on 13 November 2026 and can change. No installed quote for the appropriate smart room master is established. Earlier ₹595/₹799 relay examples and lighting-only estimates are not quotes for an AC-capable protective room master.
 
-### 23.2 Planning allowances
+### 23.2 Whole-installation estimate
 
-| Scenario | Rough allowance | What it excludes |
-| --- | --- | --- |
-| Software-only hackathon using existing laptop/data | ₹0 additional hardware | Existing electricity, connectivity, hosting and any paid services |
-| DIY Wi-Fi presence node | ₹800–₹1,500 in parts | Assembly labour, installation and mains switching |
-| Simple approved lighting/fan room control | Approximately ₹1,000–₹2,000 installed | Major rewiring, unsuitable circuits, sensors and extra network coverage |
-| Larger-load room control with suitable switching hardware | Approximately ₹2,000–₹5,000+ | Complex distribution changes and model-specific protective smart-breaker quotes |
-| Presence node plus simple room control | Approximately ₹1,800–₹3,500 | Major wiring/network changes and extra sensors |
-| Meter-facing camera, power and mounting | Obtain a model-specific quote | OCR calibration and maintenance labour |
-| Genuine protective smart breaker | Obtain exact model and installation quote | Do not reuse the price of a basic remote relay as its quote |
+For N controlled rooms:
 
-These allowances are preliminary estimates, not verified local labour quotations. A mains pilot must be quoted after circuit/load inspection.
+~~~text
+totalInstalledBudget =
+  sum(eachRoomMasterBreakerQuote)
+  + sum(eachRoomFeederProtectionAndLabourQuote)
+  + selectedPresenceNodes
+  + optionalMeterCamera
+  + requiredNetworkChanges
+  + commissioningAndContingency
+~~~
 
-### 23.3 Lowest-cost rollout
+Count one breaker per room, not one per light, fan, socket or button. Do not add separate AC IR controllers.
 
-1. Start with utility/timetable imports, recommendations and assigned manual actions.
-2. Reuse authorised existing CCTV.
-3. Add one presence sensor only where useful and test its coverage.
-4. Add automatic control to one high-waste, suitable lighting/fan circuit.
-5. Expand control only when avoided energy and operating needs justify its installed cost.
-6. Do not buy per-appliance smart bulbs or a separate router for every room by default.
+The software prototype can use simulated room masters and existing computing equipment with zero additional switching-hardware spend. Existing power/connectivity and selected paid services remain separate. Quote physical rollout after inspecting the complete room supply and loads.
+
+### 23.3 Lowest-cost rollout consistent with this design
+
+1. Build analytics, timetables, recommendations and assigned manual tasks.
+2. Reuse authorised CCTV.
+3. Survey one suitable pilot room.
+4. Quote and commission one smart master breaker for its approved ordinary supply.
+5. Add a presence-data node only where useful and camera coverage is inadequate.
+6. Repeat the one-master-per-room pattern when avoided usage justifies cost.
+7. Retain existing physical buttons and suitable downstream protection.
 
 ### 23.4 Example payback sensitivity
 
@@ -1309,7 +1340,7 @@ Illustration only, using a hypothetical ₹8/kWh energy rate:
 
 - A 200 W lighting group left on for 3 unnecessary hours on 22 days consumes 13.2 avoidable kWh/month.
 - Energy-only saving would be approximately ₹105.60/month.
-- A ₹2,000 installation would take about 18.9 months to recover before software, maintenance, added system power or financing costs.
+- If a complete room installation were hypothetically quoted at ₹2,000, it would take about 18.9 months to recover before software, maintenance, added system power or financing costs. This is an arithmetic example, not a room-master price quote.
 
 This example explains why the product should prioritise the largest avoidable usage and useful low-cost actions. Automation is not automatically economical for every room.
 
@@ -1370,9 +1401,13 @@ Keep the system’s failure mode understandable to staff. Provide an accessible 
 - [ ] No-camera/no-sensor expiry does not pretend to establish vacancy.
 - [ ] Camera failure/staleness produces unknown.
 - [ ] At least one actual inference/OCR path is exercised or its fallback is honestly declared.
-- [ ] Device adapters expose capabilities and connection health.
+- [ ] Exactly one Wi-Fi master breaker maps to each controlled room.
+- [ ] Inventory creates no independent per-appliance controls.
+- [ ] No AC IR blaster, smart plug or per-button actuator is included.
+- [ ] Every AC/sensitive load has an approved shared-cutoff/stop policy.
+- [ ] Room master adapters expose capabilities and connection health.
 - [ ] Physical control is disabled by default and isolated from demo/replay.
-- [ ] Unsupported equipment generates manual work.
+- [ ] An incompatible downstream load blocks the whole room cutoff and generates manual work.
 - [ ] Fault/maintenance restoration is blocked.
 - [ ] Outcome verification levels and audit history are visible.
 - [ ] Budget, tariff and ROI assumptions are editable and disclosed.
@@ -1396,17 +1431,16 @@ Technical documentation and price references were consulted during planning on 1
 10. [Ultralytics documentation](https://docs.ultralytics.com/) and [licensing information](https://www.ultralytics.com/license).
 11. [ESPHome LD2410 integration](https://esphome.io/components/sensor/ld2410/) and [MQTT component](https://esphome.io/components/mqtt/).
 12. [Hi-Link LD2410B manufacturer information](https://www.hlktech.net/index.php?id=1094) — variant-specific presence sensing information; verify the actual purchased module.
-13. [Shelly Switch component API](https://shelly-api-docs.shelly.cloud/gen2/ComponentsAndServices/Switch/) and [MQTT configuration](https://shelly-api-docs.shelly.cloud/gen2/ComponentsAndServices/Mqtt/).
+13. [Shelly MQTT configuration documentation](https://shelly-api-docs.shelly.cloud/gen2/ComponentsAndServices/Mqtt/) — protocol reference only; actual room-breaker commands require the selected model's documentation.
 14. [Shelly Pro CB product documentation](https://www.shelly.com/products/shelly-pro-1cb-shelly-pro-2-cb-shelly-pro-3cb-shelly-pro-4cb) — protective breaker and remote-restoration constraints.
-15. [Shelly guidance on relay stress and contactors](https://support.shelly.cloud/en/support/solutions/articles/103000392781-sticking-relay-what-it-means-and-how-to-prevent-it).
-16. [Home Assistant Broadlink integration](https://www.home-assistant.io/integrations/broadlink/) and [MQTT integration](https://www.home-assistant.io/integrations/mqtt/).
+15. [Schneider Electric guidance on remotely operated breakers and switching endurance](https://www.se.com/in/en/faqs/FA165762/).
+16. [Home Assistant MQTT integration](https://www.home-assistant.io/integrations/mqtt/) — optional gateway reference, with no IR integration in this scope.
 17. [Node.js supported releases](https://nodejs.org/en/about/previous-releases).
 18. [Vite setup](https://vite.dev/guide/), [Tailwind with Vite](https://tailwindcss.com/docs/installation/using-vite), and [Express installation](https://expressjs.com/en/starter/installing/).
 19. [MongoDB unique indexes](https://www.mongodb.com/docs/manual/core/index-unique/).
-20. [Tinxy smart-switch price references](https://tinxy.in/smart-switches/) and [four-node model information](https://tinxy.in/product/tinxy-four-channel-smart-wifi-switch-compatible-with-alexa/).
-21. [Sonoff MINIR4 price reference](https://www.sonoff.in/shop/sonoff-mini-extreme-wi-fi-smart-switch-minir4-812), [DUALR3](https://www.sonoff.in/shop/sonoff-dualr3-804), and [4CHPROR3](https://www.sonoff.in/shop/sonoff-4chpror3-4-gang-wi-fi-smart-switch-for-home-automation-955).
-22. [LD2410 bare-module price reference](https://robosap.in/product/hi-link-hlk-ld2410-human-presence-detection-sensor/) — out of stock when checked.
-23. [Sonoff SNZB-06P price reference](https://www.sonoff.in/shop/sonoff-snzb-06p-zigbee-human-presence-sensor-933), [manufacturer manual](https://support.sonoff.tech/snzb-06p-usermanual/), and [Zigbee Bridge Pro price reference](https://www.sonoff.in/shop/sonoff-zigbee-bridge-pro-930).
+20. [LD2410 bare-module price reference](https://robosap.in/product/hi-link-hlk-ld2410-human-presence-detection-sensor/) — out of stock when checked.
+21. [Sonoff SNZB-06P price reference](https://www.sonoff.in/shop/sonoff-snzb-06p-zigbee-human-presence-sensor-933), [manufacturer manual](https://support.sonoff.tech/snzb-06p-usermanual/), and [Zigbee Bridge Pro price reference](https://www.sonoff.in/shop/sonoff-zigbee-bridge-pro-930).
+22. [Mitsubishi Electric split-system operating instructions](https://www.mitsubishi-electric.co.nz/materials/aircon/manuals/r32/m-series/msz_muz-ap/1_operation/om_msz-ap15-20vgd_dg79a06dh01.pdf) — example of a manufacturer requiring normal stopping before breaker switching; check the actual installed model.
 
 
 
