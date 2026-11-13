@@ -177,6 +177,47 @@ export function createApplication({ config, connection, models }) {
       res.json({ data: { user: publicUser, csrfToken: req.session.csrf } });
     },
   );
+  api.post(
+    "/auth/register",
+    rateLimit({
+      windowMs: 900000,
+      limit: 10,
+      standardHeaders: "draft-8",
+      legacyHeaders: false,
+    }),
+    async (req, res) => {
+      const input = z
+        .object({
+          name: z.string().min(1).max(200),
+          email: z.email().max(200),
+          password: z.string().min(8).max(200),
+        })
+        .strict()
+        .parse(req.body);
+      const existing = await models.User.findOne({
+        email: input.email.toLowerCase(),
+      }).lean();
+      if (existing) fail(409, "EMAIL_TAKEN", "An account with that email already exists");
+      const user = await models.User.create({
+        name: input.name,
+        email: input.email.toLowerCase(),
+        passwordHash: await bcrypt.hash(input.password, 12),
+        role: "viewer",
+        permittedRoomIds: [],
+      });
+      await new Promise((resolve, reject) =>
+        req.session.regenerate((err) => (err ? reject(err) : resolve())),
+      );
+      req.session.userId = user._id;
+      req.session.csrf = randomBytes(32).toString("hex");
+      await new Promise((resolve, reject) =>
+        req.session.save((err) => (err ? reject(err) : resolve())),
+      );
+      const { passwordHash, ...publicUser } = user.toObject();
+      await audit(models, user._id, "auth.register", user._id);
+      res.status(201).json({ data: { user: publicUser, csrfToken: req.session.csrf } });
+    },
+  );
   api.get("/access/:publicToken", async (req, res) => {
     const room = found(
       await models.Room.findOne({ publicToken: req.params.publicToken }).lean(),

@@ -423,9 +423,22 @@ function Login({ onLogin }) {
         .catch(() => setAccessRoom({ name: "Access URL unavailable" }));
   }, [accessToken]);
   const { act, busy } = useApp(),
-    [email, setEmail] = useState("admin@campus.test"),
+    [tab, setTab] = useState("login"),
+    [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
+    [name, setName] = useState(""),
+    [confirmPassword, setConfirmPassword] = useState(""),
     [error, setError] = useState("");
+
+  const switchTab = (t) => {
+    setTab(t);
+    setError("");
+    setEmail("");
+    setPassword("");
+    setName("");
+    setConfirmPassword("");
+  };
+
   return (
     <div className="login-page">
       <section className="login-story">
@@ -460,60 +473,165 @@ function Login({ onLogin }) {
       </section>
       <section className="login-form">
         <div className="eyebrow">CAMPUS ENERGY / OPERATIONS</div>
-        <h2>Welcome back</h2>
-        <p>
-          {accessRoom
-            ? `Room access: ${accessRoom.code ?? ""} ${accessRoom.name}. Sign in for server authorisation.`
-            : "Sign in to your building workspace."}
-        </p>
-        <form
-          onSubmit={async (e) => {
-            e.preventDefault();
-            setError("");
-            const result = await act(
-              () => post("/auth/login", { email, password }),
-              "Signed in",
-            );
-            if (result) onLogin(result.user);
-            else
-              setError(
-                "Sign-in failed. Check your credentials and the API connection.",
-              );
-          }}
-        >
-          <Field label="Email address">
-            <input
-              type="email"
-              autoComplete="username"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </Field>
-          <Field label="Password">
-            <input
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </Field>
-          <ErrorText>{error}</ErrorText>
-          <button className="button" disabled={busy}>
-            {busy ? "Signing in…" : "Sign in to workspace"}
-            <ArrowRight size={18} />
+        <div className="login-tabs">
+          <button
+            className={tab === "login" ? "login-tab active" : "login-tab"}
+            onClick={() => switchTab("login")}
+            type="button"
+          >
+            Sign in
           </button>
-        </form>
-        <div className="login-help">
-          <ShieldCheck size={20} />
-          <p>
-            Demo accounts use <strong>role@campus.test</strong>. Use the
-            generated local <code>DEMO_PASSWORD</code> from your ignored{" "}
-            <code>.env</code> file. Credentials are never embedded in the
-            website.
-          </p>
+          <button
+            className={tab === "signup" ? "login-tab active" : "login-tab"}
+            onClick={() => switchTab("signup")}
+            type="button"
+          >
+            Create account
+          </button>
         </div>
+        {tab === "login" ? (
+          <>
+            <h2>Welcome back</h2>
+            <p>
+              {accessRoom
+                ? `Room access: ${accessRoom.code ?? ""} ${accessRoom.name}. Sign in for server authorisation.`
+                : "Sign in to your building workspace."}
+            </p>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setError("");
+                const result = await act(
+                  () => post("/auth/login", { email, password }),
+                  "Signed in",
+                );
+                if (result) onLogin(result.user);
+                else
+                  setError(
+                    "Sign-in failed. Check your credentials and the API connection.",
+                  );
+              }}
+            >
+              <Field label="Email address">
+                <input
+                  type="email"
+                  autoComplete="username"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </Field>
+              <Field label="Password">
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </Field>
+              <ErrorText>{error}</ErrorText>
+              <button className="button" disabled={busy}>
+                {busy ? "Signing in…" : "Sign in to workspace"}
+                <ArrowRight size={18} />
+              </button>
+            </form>
+            <div className="login-help">
+              <ShieldCheck size={20} />
+              <p>
+                Demo accounts use <strong>role@campus.test</strong>. Use the
+                generated local <code>DEMO_PASSWORD</code> from your ignored{" "}
+                <code>.env</code> file. Credentials are never embedded in the
+                website.
+              </p>
+            </div>
+          </>
+        ) : (
+          <>
+            <h2>Create account</h2>
+            <p>New accounts start as viewers. An admin can assign rooms and roles.</p>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setError("");
+                if (password !== confirmPassword) {
+                  setError("Passwords do not match.");
+                  return;
+                }
+                if (password.length < 8) {
+                  setError("Password must be at least 8 characters.");
+                  return;
+                }
+                const result = await act(
+                  () => post("/auth/register", { name, email, password }),
+                  "Account created — welcome!",
+                );
+                if (result) onLogin(result.user);
+                else
+                  setError(
+                    "Sign-up failed. The email may already be in use.",
+                  );
+              }}
+            >
+              <Field label="Full name">
+                <input
+                  type="text"
+                  autoComplete="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                />
+              </Field>
+              <Field label="Email address">
+                <input
+                  type="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </Field>
+              <Field label="Password" hint="Minimum 8 characters">
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={8}
+                />
+              </Field>
+              <Field label="Confirm password">
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                />
+              </Field>
+              <ErrorText>{error}</ErrorText>
+              <button className="button" disabled={busy}>
+                {busy ? "Creating account…" : "Create account"}
+                <ArrowRight size={18} />
+              </button>
+            </form>
+            <div className="login-help">
+              <ShieldCheck size={20} />
+              <p>
+                Already have an account?{" "}
+                <button
+                  type="button"
+                  className="text-link"
+                  style={{ display: "inline", padding: 0 }}
+                  onClick={() => switchTab("login")}
+                >
+                  Sign in
+                </button>
+              </p>
+            </div>
+          </>
+        )}
       </section>
     </div>
   );

@@ -1236,6 +1236,31 @@ td .button {
 .login-form .field > input {
   min-height: 46px;
 }
+.login-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 2px solid #e5eddd;
+  margin-bottom: 28px;
+}
+.login-tab {
+  background: none;
+  border: none;
+  padding: 10px 18px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #839173;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+}
+.login-tab.active {
+  color: #176e57;
+  border-bottom-color: #176e57;
+  font-weight: 600;
+}
+.login-tab:hover:not(.active) {
+  color: #3f6b4f;
+}
 .login-help {
   display: flex;
   gap: 12px;
