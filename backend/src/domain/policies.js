@@ -135,6 +135,7 @@ export function supplyEligibility({
   config,
   policyVersion,
   expiresAt,
+  nativePrerequisites = [],
 }) {
   const blocked = (message) => ({ allowed: false, reason: message });
   if (
@@ -176,6 +177,7 @@ export function supplyEligibility({
   )
     return blocked("No commissioned physical adapter is installed");
   if (action === "off") {
+    if (nativePrerequisites.some((item) => !item.satisfied)) return blocked("A required native shutdown is unverified; room-wide fallback is blocked");
     if (
       devices.some(
         (d) =>

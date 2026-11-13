@@ -1,5 +1,29 @@
 # API and integration contracts
 
+## Existing smart equipment / Home Assistant (CE-010)
+
+All paths below are relative to `/api/v1`. Gateway setup/discovery/review/permission actions are admin-only. Device reads, refresh and commands require room scope; manual OFF additionally requires admin/HOD/technician. Writes retain CSRF/origin checks. Inputs in `shared/native-contracts.js` are strict; the frontend supplies an internal device ID and approved OFF request, never an arbitrary HA URL/domain/service/body.
+
+| Method/path | Behavior |
+| --- | --- |
+| `GET/POST /device-connections` | List safe metadata / create simulator or allowlisted HA connection; token write-only |
+| `PATCH /device-connections/:id` | Update name/URL/token or enabled flag; reset target permissions/tests and cancel work |
+| `POST /device-connections/:id/test` | Read-only authentication/health/version test |
+| `GET /device-connections/:id/entities` | Filtered state/capability/registry candidates; no command |
+| `POST /device-connections/:id/live-permission` | `{enabled}`; live gate requires non-demo server approval and tested healthy gateway |
+| `POST /device-connections/:id/simulation` | Demo-only exact fixture entity state/outcome; never live |
+| `GET/POST /connected-devices` | Room-scoped list / authenticated entity registration and explicit room/inventory binding |
+| `GET /connected-devices/:id` | Scoped details, state and review evidence |
+| `POST /connected-devices/:id/refresh` | Authenticated state/capability read and identity check |
+| `PATCH /connected-devices/:id/binding` | Explicit exact entity/room/inventory reconciliation; review/test permissions reset |
+| `PATCH /connected-devices/:id/review` | Classification, identity/capability review, manual test permission and notes; automatic permission/test reset |
+| `POST /connected-devices/:id/automation` | `{enabled}`; confirmed explicit current-mode/configuration test required |
+| `POST /connected-devices/:id/off` | `{requestId,action:"off",confirmed:true}`; durable command/job; returns 202 requested, not a physical-success claim |
+| `GET /connected-devices/:id/commands` | Scoped retained lifecycle/evidence history |
+| `POST /connected-devices/:id/unregister` | Disable target/cancel work; retain history |
+
+Provider errors are normalised AUTHENTICATION, AUTHORIZATION, UNSUPPORTED, UNAVAILABLE, RATE_LIMITED, TIMEOUT, TRANSPORT, DESTINATION, RESPONSE_LIMIT or IDENTITY_CHANGED; upstream bodies/tokens are never echoed. Gateway operations/control are rate-limited; routine safe metadata polling is separate. The simulator shares the provider interface without network requests. See [HOME_ASSISTANT.md](HOME_ASSISTANT.md) for gates, protocol/source versions and live prerequisites.
+
 ## Administrator authentication and management (CE-009)
 
 `POST /auth/register` accepts `{name,email,password,adminKey?}`. No key creates a viewer; a valid key creates an admin. An incorrect key returns `403 INVALID_ADMIN_KEY` without creating an account; a supplied key with disabled server configuration returns `503 ADMIN_ACCESS_DISABLED`. `POST /auth/login` requires the password plus configured key for admin accounts. An existing non-admin supplying a correct password and key is explicitly promoted and audited. Sessions regenerate and record server-side `adminVerified`; old/unverified sessions cannot acquire admin API/socket access from a database role change alone.

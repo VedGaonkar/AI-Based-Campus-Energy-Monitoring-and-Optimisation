@@ -14,13 +14,15 @@ const fixtures = [
 const services = ["light", "fan", "switch"].map((domain) => ({ domain, services: { turn_off: {} } })).concat({ domain: "climate", services: { set_hvac_mode: {} } });
 export function createNativeSimulator(connection, models, { onState = async () => {} } = {}) {
   const haState = (row) => ({ entity_id: row.entityId, state: row.state, attributes: row.attributes, last_updated: row.providerUpdatedAt?.toISOString() });
-  const seed = async () => {
+  const initialise = async () => {
     for (const [entityId, name, attributes, outcome] of fixtures)
       await models.SimulatedEntity.updateOne({ connectionId: connection._id, entityId }, { $setOnInsert: {
         connectionId: connection._id, entityId, attributes: { friendly_name: name, ...attributes },
         state: outcome === "unavailable" ? "unavailable" : entityId.startsWith("climate.") ? "cool" : "on", providerUpdatedAt: new Date(), outcome,
       } }, { upsert: true });
   };
+  let seeded;
+  const seed = () => seeded ??= initialise().catch((error) => { seeded = undefined; throw error; });
   async function row(entityId) {
     await seed(); const result = await models.SimulatedEntity.findOne({ connectionId: connection._id, entityId }).lean();
     if (!result) throw new ProviderError("IDENTITY_CHANGED"); return result;

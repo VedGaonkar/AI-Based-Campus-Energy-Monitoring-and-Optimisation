@@ -1,5 +1,19 @@
 # Security and Control Requirements
 
+## Native equipment OFF extension (CE-010)
+
+The approved optional scope permits OFF through reviewed existing HA entities while retaining the one-room-master boundary. Inventory labels alone are non-executable. Admin-only connection/entity registration, strict shared contracts, room scope, CSRF/origin checks, bounded/rate-limited gateway operations and exact target resolution prevent arbitrary browser-supplied services/targets. Scripts/scenes/groups/locks/alarms and detected masters/protected loads are excluded.
+
+HA tokens are write-only and encrypted with AES-256-GCM using random nonces, connection-bound AAD and a purpose-specific HKDF key derived from the server-only SESSION_SECRET outside MongoDB. Normal responses omit ciphertext/pins; logs/errors/audits do not echo tokens or raw upstream bodies. Rotating the root secret requires re-entering HA tokens; disconnecting does not revoke a token inside HA. URL changes require an authorised replacement token for a different origin.
+
+Gateway destinations must match deployment-controlled exact origins; credentials in URLs, unexpected ports/paths, redirects, metadata/link-local and mapped-IPv6 bypasses are blocked. IPs are resolved/pinned on save, revalidated and injected into actual HTTP/WS socket lookup. HTTP is separately opt-in for trusted private LANs; loopback is separately disabled by default. TLS validation remains enabled. Overall request deadlines, bounded messages/responses, heartbeat and bounded reconnect backoff prevent unbounded gateway work.
+
+Simulation makes zero live requests and cannot fall through to HA. Live native OFF additionally requires non-demo server enablement, a tested healthy connection with live permission, genuine live occupancy, reviewed exact ordinary target and explicit current-mode test before automatic permission. Changing/disconnecting/rebinding resets permissions and cancels work. The room-master physical gate stays disabled.
+
+Persistent native jobs use leases, room locks, current revisions and fixed expiry. Outage backlog is not replayed; recovered dispatched work is read/reconciled rather than re-sent. Bookings/QR/overrides/new occupancy invalidate pending work. Unknown/unavailable/optimistic states never prove OFF, and already-dispatched cancellation remains unverified. Native failure never initiates breaker fallback; required native prerequisites block dependent room cutoff. Reported OFF is not independently measured consumption or savings.
+
+The browser verification exposed an existing Socket.IO origin issue: same-origin polling can omit Origin. Such requests now require a configured Host and absent/same-origin fetch-site; provided origins must still match exactly. Application socket sessions/roles/room checks remain mandatory. Hostile origin/fetch-site regressions are covered.
+
 ## Administrator invite-key checks (CE-009)
 
 All administrator sign-ins require the account password plus server-configured `ADMIN_INVITE_KEY` (exactly 8 digits, per user configuration). Missing/incorrect keys reject login; invalid signup keys reject account creation instead of silently creating viewers. A valid key plus verified account password grants explicit, audited admin access to an existing account. This shared administrative enrollment credential is not per-user MFA; restrict and rotate it appropriately.

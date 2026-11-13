@@ -23,6 +23,7 @@
     "check": "node scripts/check.mjs",
     "test:browser": "node scripts/browser-smoke.mjs",
     "test:admin-browser": "node scripts/admin-browser-smoke.mjs",
+    "test:devices-browser": "node scripts/connected-devices-browser.mjs",
     "stop": "node scripts/stop-dev.mjs"
   },
   "devDependencies": {

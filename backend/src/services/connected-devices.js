@@ -35,8 +35,11 @@ function createService(models, config) {
   async function cancelTargets(query, reason) {
     const targets = await models.ConnectedDevice.find(query).select("_id").lean(), ids = targets.map((d) => d._id);
     await models.Job.updateMany({ kind: "native_off", targetId: { $in: ids }, status: { $in: ["pending", "leased"] } }, { $set: { status: "cancelled", errorCode: reason } });
-    await models.NativeCommand.updateMany({ deviceId: { $in: ids }, status: { $in: pendingStates } }, {
+    await models.NativeCommand.updateMany({ deviceId: { $in: ids }, status: "requested" }, {
       $set: { status: "cancelled", errorCode: reason }, $push: { timeline: { at: new Date(), status: "cancelled", code: reason } },
+    });
+    await models.NativeCommand.updateMany({ deviceId: { $in: ids }, status: { $in: ["dispatched", "accepted"] } }, {
+      $set: { status: "unverified", errorCode: `${reason}_AFTER_DISPATCH` }, $push: { timeline: { at: new Date(), status: "unverified", code: reason } },
     });
   }
   async function observeState(connectionId, entityId, next, deleted = false) {
@@ -52,8 +55,9 @@ function createService(models, config) {
     if (!newerObservation(current.lastState, next)) return;
     // The conditional write protects against concurrent API/worker snapshots.
     const ordered = current.lastState ? { $or: [
-      { "lastState.providerUpdatedAt": { $lt: next.providerUpdatedAt } },
-      { "lastState.providerUpdatedAt": next.providerUpdatedAt, "lastState.observedAt": { $lte: next.observedAt } },
+      { "lastState.providerOrder": { $lt: next.providerOrder } },
+      { "lastState.providerOrder": next.providerOrder, "lastState.observedAt": { $lte: next.observedAt } },
+      { "lastState.providerOrder": { $exists: false }, "lastState.providerUpdatedAt": { $lte: next.providerUpdatedAt } },
     ] } : { lastState: { $exists: false } };
     const updated = await models.ConnectedDevice.updateOne({ _id: current._id, ...ordered }, { $set: { lastState: next } });
     if (!updated.matchedCount) return;
@@ -66,6 +70,7 @@ function createService(models, config) {
     const breaker = room && await models.Breaker.findById(room.roomBreakerId).lean();
     if (!breaker || breaker.reportedSupply !== "on" || breaker.faultTripped || breaker.maintenanceLocked || breaker.manuallyIsolated) return;
     for (const cmd of await models.NativeCommand.find({ deviceId: current._id, status: { $in: ["dispatched", "accepted", "unverified"] } }).lean()) {
+      if (cmd.connectionRevision !== conn.revision || cmd.deviceRevision !== current.revision || current.identityStatus !== "reviewed") continue;
       if (cmd.mode !== next.mode || at(next.observedAt) < at(cmd.dispatchedAt) || at(next.providerUpdatedAt) < at(cmd.evidence?.before?.providerUpdatedAt)) continue;
       await transition(cmd._id, "confirmed", { verification: conn.mode === "simulated" ? "simulated" : "provider_reported_off", evidence: { before: cmd.evidence?.before, after: next, label: "Reported OFF; not independently measured", late: cmd.status === "unverified" } }, ["dispatched", "accepted", "unverified"]);
       if (cmd.reason === "manual_test") await models.ConnectedDevice.updateOne({ _id: current._id, revision: cmd.deviceRevision }, { $set: {
@@ -77,6 +82,7 @@ function createService(models, config) {
   }
   async function provider(id) {
     const conn = await connection(id, true);
+    if ((conn.provider === "simulator") !== (conn.mode === "simulated")) fail(409, "MODE_MISMATCH", "Provider mode is inconsistent; reconcile the connection");
     if (!conn.enabled) fail(409, "CONNECTION_DISABLED", "Connection is disconnected");
     const existing = clients.get(id);
     if (existing?.revision === conn.revision) return { client: existing.client, conn };
@@ -116,6 +122,8 @@ function createService(models, config) {
     if (!target.enabled || !conn.enabled || !target.manualOffAllowed || !target.identityReviewed || !target.capabilityReviewed || target.classification !== "ordinary" || target.identityStatus !== "reviewed") fail(409, "DEVICE_BLOCKED", "Review the exact entity, ordinary load and native OFF capability before control");
     if (!target.capabilities?.canOff || target.capabilities.optimistic) fail(409, "UNSUPPORTED", "Native OFF or non-optimistic state feedback is unavailable");
     if (conn.mode === "live" && (config.demoMode || !config.allowNativeControl || !conn.liveControlEnabled)) fail(409, "LIVE_DISABLED", "Live native control is disabled by server or connection policy; simulation cannot authorise it");
+    if ((conn.provider === "simulator") !== (conn.mode === "simulated")) fail(409, "MODE_MISMATCH", "Provider mode is inconsistent");
+    if (target.instanceKey !== conn.instanceKey) fail(409, "IDENTITY_CHANGED", "Gateway instance changed. Reconcile this entity binding before control");
     if (conn.mode === "simulated" && !config.demoMode) fail(409, "SIMULATION_DISABLED", "Simulation requires demo mode");
     if (conn.health !== "online" || (conn.mode === "live" && (conn.socketHealth !== "online" || Date.now() - at(conn.lastSeenAt) > 45000))) fail(409, "PROVIDER_UNAVAILABLE", "Gateway is degraded, disconnected or stale");
     if (reason === "vacancy_escalation" && (!target.automaticOffAllowed || room.nativeOffMode !== conn.mode || !validTest(target, conn))) fail(409, "AUTOMATION_DISABLED", "Automatic OFF requires room permission and a successful explicit test in the same mode/configuration");
@@ -176,7 +184,7 @@ function createService(models, config) {
         await transition(command._id, "unverified", { errorCode: "RESTART_UNCERTAINTY" }); return;
       }
       await transition(command._id, "dispatched", { dispatchedAt: new Date(), evidence: { before } }, ["requested"]);
-      await client.requestOff(target.entityId, { beforeDispatch: async () => {
+      await client.requestOff(target.entityId, { verifyDescription: (description) => suspendChangedIdentity(target, description), beforeDispatch: async () => {
         const latest = await device(target._id), latestConnection = await connection(conn._id);
         const currentRoom = record(await models.Room.findOne({ _id: room._id, commandLockOwner: lockOwner, commandLockUntil: { $gt: new Date() } }).lean());
         await eligibility(latest, latestConnection, currentRoom, command.reason, new Date(), command);
@@ -232,6 +240,7 @@ function createService(models, config) {
       if (input.enabled !== undefined) fields.enabled = input.enabled;
       if (current.provider === "home_assistant" && input.baseUrl) {
         const destination = await validateDestination(input.baseUrl, config);
+        if (destination.origin !== current.baseUrl && !input.token) fail(400, "CREDENTIAL_REQUIRED", "Changing gateway origin requires a replacement authorised token");
         fields.baseUrl = destination.origin; fields.pinnedAddresses = destination.addresses;
         fields.instanceKey = createHash("sha256").update(destination.origin).digest("hex");
       }
@@ -282,6 +291,37 @@ function createService(models, config) {
       await audit(models, actorId, "native.entity_registered", created._id, candidate.capabilities.canOff ? "Unreviewed OFF candidate" : "Inventory/read-only");
       return created.toObject();
     },
+    async rebind(id, input, actorId) {
+      const current = await device(id), conn = await connection(input.connectionId);
+      record(await models.Room.findById(input.roomId).lean());
+      const { client } = await provider(conn._id), candidate = await client.describeCapabilities(input.entityId);
+      if (await models.ConnectedDevice.exists({ _id: { $ne: id }, connectionId: conn._id, entityId: input.entityId })) fail(409, "DUPLICATE_ENTITY", "This entity already has a campus binding");
+      if (candidate.endpointFingerprint && await models.ConnectedDevice.exists({ _id: { $ne: id }, endpointFingerprint: candidate.endpointFingerprint, enabled: true })) fail(409, "ENDPOINT_RECONCILIATION", "This physical endpoint has another binding");
+      if (candidate.physicalDeviceId && await models.ConnectedDevice.exists({ _id: { $ne: id }, instanceKey: conn.instanceKey, physicalDeviceId: candidate.physicalDeviceId, enabled: true })) fail(409, "ENDPOINT_RECONCILIATION", "This physical device has another binding");
+      if (input.inventoryId) {
+        const inventory = record(await models.Device.findById(input.inventoryId).lean());
+        if (inventory.roomId !== input.roomId) fail(409, "INVENTORY_SCOPE", "Inventory belongs to another room");
+      }
+      await withRoomLock(models, current.roomId, async () => {
+        await cancelTargets({ _id: id }, "BINDING_CHANGED");
+        await models.ConnectedDevice.updateOne({ _id: id }, { $set: {
+          connectionId: conn._id, instanceKey: conn.instanceKey, entityId: candidate.entityId,
+          roomId: input.roomId, name: input.name ?? candidate.name, domain: candidate.domain,
+          physicalDeviceId: candidate.physicalDeviceId, registryId: candidate.registryId,
+          endpointFingerprint: candidate.endpointFingerprint, areaSuggestion: candidate.areaSuggestion,
+          capabilities: candidate.capabilities, lastState: candidate.lastState,
+          enabled: true, identityStatus: "unreviewed", identityReviewed: false, capabilityReviewed: false,
+          manualOffAllowed: false, automaticOffAllowed: false, lastTest: null, completedVacancyOff: false,
+          classification: "unreviewed", verification: "unknown", updatedBy: actorId,
+          suspendReason: "Binding changed. Review and test before enabling control.",
+          ...(input.inventoryId ? { inventoryId: input.inventoryId } : {}),
+        }, ...(!input.inventoryId ? { $unset: { inventoryId: "" } } : {}), $inc: { revision: 1 } });
+        await cancelRoomWork(models, current.roomId, "Native binding changed");
+        if (input.roomId !== current.roomId) await cancelRoomWork(models, input.roomId, "Native binding assigned");
+      });
+      await audit(models, actorId, "native.entity_rebound", id, "Permissions reset; exact identity re-registration");
+      return device(id);
+    },
     async review(id, input, actorId) {
       const target = await device(id);
       return withRoomLock(models, target.roomId, async () => {
@@ -304,7 +344,7 @@ function createService(models, config) {
       const conn = await connection(id);
       if (enabled && (conn.mode !== "live" || config.demoMode || !config.allowNativeControl || conn.health !== "online" || conn.socketHealth !== "online" || !conn.lastTestedAt)) fail(409, "LIVE_DISABLED", "Live OFF requires server enablement outside demo mode and a healthy authenticated gateway");
       await models.DeviceConnection.updateOne({ _id: id }, { $set: { liveControlEnabled: enabled, updatedBy: actorId } });
-      if (!enabled) { await cancelTargets({ connectionId: id }, "LIVE_DISABLED"); await models.ConnectedDevice.updateMany({ connectionId: id }, { $set: { automaticOffAllowed: false } }); }
+      if (!enabled) { await cancelTargets({ connectionId: id }, "LIVE_DISABLED"); await models.ConnectedDevice.updateMany({ connectionId: id }, { $set: { automaticOffAllowed: false, manualOffAllowed: false, lastTest: null, suspendReason: "Live permission disabled; review and test again before re-enabling" } }); }
       await audit(models, actorId, "native.live_permission", id, enabled ? "Enabled" : "Disabled"); return publicConnection(await connection(id));
     },
     async unregister(id, actorId) {
@@ -349,7 +389,10 @@ function createService(models, config) {
       for (const command of await models.NativeCommand.find({ status: { $in: pendingStates } }).lean()) await ensureJob(command);
       // Persist cancellation even if cancelRoomWork cancelled a leased job while
       // a worker was down. Dispatched work stays uncertain, never gets replayed.
-      for (const job of await models.Job.find({ kind: "native_off", status: "cancelled" }).select("commandId").lean()) await transition(job.commandId, "cancelled", { errorCode: "POLICY_CANCELLED" });
+      for (const job of await models.Job.find({ kind: "native_off", status: "cancelled" }).select("commandId").lean()) {
+        await transition(job.commandId, "cancelled", { errorCode: "POLICY_CANCELLED" }, ["requested"]);
+        await transition(job.commandId, "unverified", { errorCode: "POLICY_CANCELLED_AFTER_DISPATCH" }, ["dispatched", "accepted"]);
+      }
       for (let index = 0; index < 20; index++) {
         const job = await models.Job.findOneAndUpdate({ kind: "native_off", dueAt: { $lte: now }, $or: [{ status: "pending" }, { status: "leased", leaseUntil: { $lte: now } }] },
           { $set: { status: "leased", leaseOwner: workerId, leaseUntil: new Date(at(now) + 30000) }, $inc: { attempts: 1 } }, { sort: { dueAt: 1 }, returnDocument: "after" }).lean();

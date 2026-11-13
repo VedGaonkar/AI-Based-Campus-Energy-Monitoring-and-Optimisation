@@ -1,5 +1,13 @@
 # AI-Based Campus Energy Monitoring and Optimisation
 
+## Existing smart equipment
+
+**Connected devices** now supports an isolated simulator and a server-side Home Assistant connector for reviewed existing light/fan/switch/climate native OFF targets. Configure a connection, test it read-only, discover/map exact entities, review the load, conduct an explicit OFF test and then permit automation. The existing persistent escalation and room protections remain authoritative; a failed native OFF never triggers room-master fallback. No appliance ON restoration, universal brand/assistant support or measured savings is implied.
+
+Follow [HOME_ASSISTANT.md](HOME_ASSISTANT.md) for exact setup, supported routes, token encryption/revocation, network allowlists, per-target/live gates, simulator demonstration, versions/licences and remaining physical acceptance work. Home Assistant is not installed automatically. Live OFF is disabled by default; physical room-master controls remain uncommissioned.
+
+Validation for this feature: `npm test`, `npm run check`, `npm run build`, then `npm run test:devices-browser`. The device browser runner uses temporary databases/credentials and isolated simulation, not a saved live gateway.
+
 ## Administrator access and setup
 
 Use your account password and `ADMIN_INVITE_KEY` from the local ignored `.env` to sign in as administrator. The key must contain exactly 8 digits and requires an API restart after changes. It is required for every admin login. Incorrect registration keys now return an error rather than creating viewer accounts.
@@ -40,7 +48,7 @@ Building meter readings do not establish unmetered room consumption. Camera obse
 
 Physical installation is outside the hackathon deliverable. A qualified electrician must approve the feeder, downstream protection and every connected load before physical operation. Cameras, sensors, networking and essential supplies remain available when ordinary room supply is OFF. AC stop/restart requirements can block the entire room cutoff.
 
-The scope excludes multiple-building operation/comparisons, per-appliance switching, smart plugs, per-button modules, AC IR blasters, facial recognition and attendance monitoring. Core functionality requires neither an LLM nor paid cloud services. See [scope and exclusions](PLAN.md#1-product-objective-and-agreed-decisions).
+The scope excludes multiple-building operation/comparisons, new per-appliance actuators, smart-plug purchases, per-button modules, AC IR blasters, facial recognition and attendance monitoring. The approved optional Home Assistant extension permits native OFF for reviewed existing smart appliances; room-master controls remain independent. Core functionality requires neither an LLM nor paid cloud services. See [scope and exclusions](PLAN.md#1-product-objective-and-agreed-decisions).
 
 ## Local setup and startup
 

@@ -316,10 +316,20 @@ footer span { color: var(--text-muted); }
 .camera-policy-row .field { margin: 0; min-width: 220px; }
 .camera-policy-row small { color: var(--muted); margin-top: 5px; font-family: var(--mono); font-size: 9px; overflow-wrap: anywhere; }
 .profile-link:hover { text-decoration: underline; }
+.native-connection-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; }
+.native-device-card { display: flex; flex-direction: column; }
+.native-device-card > .button { margin-top: auto; }
+.native-entity { font-family: var(--mono); font-size: 11px; overflow-wrap: anywhere; }
+.native-guides { display: flex; flex-wrap: wrap; gap: 12px; margin: 18px 0; }
+.native-guides a { color: var(--accent); border-bottom: 1px solid var(--border); padding: 8px 0; font-size: 12px; }
+.native-demo { padding: 18px; background: var(--background); border: 1px solid var(--border); }
+.native-connection-grid .action-row { gap: 8px; flex-wrap: wrap; }
+.native-connection-grid .button { margin-top: 6px; }
 .profile .text-link { padding: 0; margin: 2px 0; font-size: 10px; }
 td select { max-width: 240px; padding: 8px; border: 1px solid var(--border); background: var(--background); border-radius: 2px; }
 @media (max-width: 1200px) { .management-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .space-editor { grid-template-columns: 1fr 2fr 1.5fr; } }
 @media (max-width: 720px) {
+  .native-connection-grid { grid-template-columns: 1fr; }
   .management-grid { grid-template-columns: 1fr; }
   .management-nav { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; padding-bottom: 14px; }
   .management-nav a { flex-shrink: 0; min-height: 44px; }

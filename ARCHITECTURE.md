@@ -1,5 +1,15 @@
 # Architecture
 
+## Approved native-OFF extension (CE-010)
+
+The existing single-building room-master design now has an optional, separate native-device OFF path for reviewed existing equipment. `connected-device-routes.js`, `services/connected-devices.js`, the HA/simulator adapters and `shared/native-contracts.js` own setup, discovery/binding, permission gates, command lifecycle and state reconciliation. See [HOME_ASSISTANT.md](HOME_ASSISTANT.md) for current protocols, configuration, source versions/licences and remaining physical acceptance work.
+
+The existing worker still creates first/second/final escalation jobs. At the final stage, an enabled native room policy plans explicit appliance OFF jobs in the same collection with `kind: native_off`; the legacy room-master job consumer excludes that kind. A native attempt never initiates breaker fallback. Native jobs use room locks, atomic leases, current policy/device/connection revisions, short fixed expiry and durable command records. Restarted dispatched work is read/reconciled rather than blindly re-sent. Required native inventory prerequisites also block dependent master OFF.
+
+Connection/device allowlists and source/room protection live on the server. Default simulation makes no live calls. Read-only HA setup is allowed independently; actual native OFF requires the new server gate outside demo mode, connection permission, reviewed target/load, a successful explicit test and per-device/room automatic permission. Physical room-master controls remain uncommissioned. Encrypted bearer credentials stay server-side, gateway sockets use approved DNS pins, and reconnect snapshots cannot overwrite newer state events. Provider-reported OFF is not physical/metred verification or measured savings.
+
+The UI has a dedicated Connected Devices route and admin module for connections, candidates, room/inventory mapping, manual ID registration, review, explicit OFF tests, automatic permission, history, simulation and disconnect. No extra database or home-automation installation is introduced; direct assistant/mobile/cloud adapters remain deferred.
+
 **Status:** Local prototype implemented in JavaScript, aligned with [PLAN.md](PLAN.md). React/Vite, Express, Mongoose/MongoDB and a separate Node worker now exist. Physical devices, live vision/OCR and external transports remain unavailable. The implementation has not been deployed or electrically commissioned; see PROGRESS.md and HANDOFF.md for current checks.
 
 ## Implemented source map

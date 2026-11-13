@@ -44,10 +44,23 @@ export async function roomContext(models, room, config, now = new Date()) {
     }).lean(),
   ]);
   const availableSources = sources.filter((source) => source.type !== "camera" || !room.cameraConfiguration || room.cameraConfiguration === "installed");
+  const nativePrerequisites = [];
+  for (const load of devices.filter((item) => item.nativeOffRequired)) {
+    const target = await models.ConnectedDevice.findOne({ inventoryId: load._id, roomId: room._id, enabled: true }).lean();
+    const command = target && await models.NativeCommand.findOne({ deviceId: target._id }).sort({ createdAt: -1 }).lean();
+    const nativeConnection = target && await models.DeviceConnection.findById(target.connectionId).lean();
+    nativePrerequisites.push({ inventoryId: load._id, satisfied: !!(target && command && target.lastState?.state === "off" &&
+      ["confirmed", "already_off"].includes(command.status) && nativeConnection?.enabled && nativeConnection.health === "online" &&
+      command.connectionRevision === nativeConnection.revision &&
+      target.lastState?.optimistic !== true && target.identityStatus === "reviewed" && target.manualOffAllowed &&
+      command.deviceRevision === target.revision && now - new Date(target.lastState.observedAt) <= 30000 &&
+      command.verification === "simulated" && config.demoMode), reason: "A required native OFF needs fresh matching confirmation before any dependent room cutoff" });
+  }
   return {
     room,
     breaker,
     devices,
+    nativePrerequisites,
     observed: occupancy(room, observations, availableSources, now, {
       confirmationMs: config.vacancyMs,
       demoMode: config.demoMode,
@@ -80,6 +93,13 @@ export async function getSettings(models) {
   return settings;
 }
 export async function cancelRoomWork(models, roomId, reason, now = new Date()) {
+  await models.NativeCommand.updateMany({ roomId, status: "requested" }, {
+    $set: { status: "cancelled", errorCode: "ROOM_POLICY_CANCELLED" }, $push: { timeline: { at: now, status: "cancelled", reason } },
+  });
+  await models.NativeCommand.updateMany({ roomId, status: { $in: ["dispatched", "accepted"] } }, {
+    $set: { status: "unverified", errorCode: "ROOM_POLICY_CANCELLED_AFTER_DISPATCH" }, $push: { timeline: { at: now, status: "unverified", reason } },
+  });
+  await models.Job.updateMany({ roomId, kind: "native_off", status: { $in: ["pending", "leased"] } }, { $set: { status: "cancelled" } });
   const incidents = await models.Incident.find({
     roomId,
     active: true,

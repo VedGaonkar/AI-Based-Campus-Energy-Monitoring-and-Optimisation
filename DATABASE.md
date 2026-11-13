@@ -1,5 +1,16 @@
 # Database design and consistency
 
+## Connected equipment extension (CE-010)
+
+- `deviceConnections`: provider/mode, name, configured-origin instance fingerprint, validated origin/IP pins, excluded AES-GCM token ciphertext, enabled/live permission, configuration revision, REST/socket health, version/last-seen/error and audit actors. Normal API responses omit ciphertext and DNS pins; tokens are write-only.
+- `connectedDevices`: immutable campus ID, connection/instance/entity/registry/physical identities and optional endpoint fingerprint, explicit campus room and optional existing inventory binding, capabilities/evidence, classification/review, manual/automatic permission, revisions, last observed provider state, explicit test evidence, verification and audit fields. Unique connection/entity; active physical identity/fingerprint and inventory indexes prevent ambiguous bindings where evidence exists. Rebinding resets permissions rather than guessing names.
+- `nativeCommands`: unique request ID, exact resolved target/action OFF, room/connection/incident and actor, policy/device/connection revisions, issue/dispatch/accept/expiry times, status, mode, verification, before/after evidence and retained timeline. Accepted/unavailable is not confirmed OFF; late matching evidence may reconcile an unverified command without erasing its history.
+- `simulatedEntities`: persistent isolated fixture state/outcome per simulator connection/entity; no live adapter fallback.
+- Existing `jobs` adds kind, targetId, commandId, expiry and device/connection revisions. Native jobs are claimed separately from legacy alert/master jobs. Missing jobs reconcile from durable commands; expired/dispatched work is not blindly replayed.
+- `rooms.nativeOffMode` defaults alert-only and is independent of master mode. `devices.nativeOffRequired` optionally blocks dependent master OFF until fresh matching native confirmation. Inventory alone remains non-executable. New occupancy, schedules, QR, overrides and policy changes cancel native intent through the existing room-work invalidation helper.
+
+As elsewhere, this is at-least-once document/row persistence with conditional writes, unique indexes and compensation, not cross-collection transaction guarantees. Connection disablement is authoritative immediately; dependent permission/job cleanup completes before its API response returns. Source timestamps plus observed times order state writes across API/worker processes.
+
 ## Administrator setup extension (CE-009)
 
 - Singleton `settings/installation` now stores organisationName, contactEmail, address, buildingType and setupCompleted alongside energy settings. No extra building/tenant collection is introduced.

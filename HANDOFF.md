@@ -1,5 +1,19 @@
 # Session handoff
 
+## CE-010 complete for software/simulation — existing smart equipment / Home Assistant
+
+The optional native-OFF scope is implemented and explicitly recorded in PLAN.md. This supersedes older blanket per-appliance exclusions only for existing compatible smart equipment; one building and one simulated room master per room remain intact. No physical gateway/equipment was supplied or operated. Do not reset the repository: user/external HEAD advanced from `3074304` to `c512252` during implementation and captured part of this work.
+
+Implemented server adapters (`home-assistant.js`, `native-simulator.js`, `native-security.js`, `native-capabilities.js`), `services/connected-devices.js`, strict `shared/native-contracts.js` and `connected-device-routes.js`; extended models/config, context/policies and existing persistent worker. Added ConnectedDevices.jsx, management/navigation integration and palette-compatible CSS. Connections have write-only authenticated encryption, exact deployment origins/DNS pins, bounded REST/WebSocket transports, explicit identity/load review and separate manual/automatic gates. Persistent native OFF commands record acceptance versus reported state, cancellation/expiry and restart reconciliation. Native failure never triggers room-master fallback, and no appliance ON restoration exists.
+
+HOME_ASSISTANT.md covers installation/onboarding/token/network requirements, simulator demonstration, supported capabilities, versions/licences and deferred connectors. API.md, DATABASE.md, SECURITY.md, ARCHITECTURE.md, README.md, PLAN.md, TASKS.md and PROGRESS.md are updated. Actual `.env` and user accounts/data have not been edited by this increment.
+
+Final verification: **70 application tests passed**, **40 syntax checks passed**, production build passed, **9 Connected Devices browser checks** and **14 existing admin browser checks** passed with zero runtime errors. Desktop/mobile screenshots inspected. The first final full suite passed 69/70 due to a session-store initialisation/teardown race in the socket regression; persisted CSRF/session setup fixed it and the complete repeat passed. Latest evidence: `.local/native-final-tests.log`, `.local/connected-devices-browser-verification.json`, `.local/admin-browser-verification.json`.
+
+Managed `npm run stop` / `npm run dev` restart succeeded; API, worker and frontend now use this implementation at http://localhost:5173/connected-devices. Existing external MongoDB/user data preserved. Retained dev tool session **57577**, run `535b85ea-0074-45ee-a90e-8b7b0de3388f`; consult `.local/dev-session.json` for current ownership. Initial frontend proxy requests briefly preceded API readiness, then **7 local runtime checks passed**: seeded admin password/key login, both new authenticated lists, building API, frontend deep link, disabled physical/native live gates and logout. No fixtures or user-account promotions performed; evidence `.local/native-runtime-verification.json`. Services left running for the user.
+
+Next task: configure one eligible HA gateway read-only following HOME_ASSISTANT.md, then conduct an explicit supervised OFF test. Physical acceptance requires an always-on reachable HA host/version/origin/token, exact ordinary model/firmware/entity/load and genuine validated occupancy. Live native control remains false by default, room-master hardware control remains unavailable. No commit, push or deployment authorised/performed.
+
 ## Latest frontend update — user-provided palette
 
 Updated `frontend/src/stewardship.css` to centralize the requested sidebar/background/card/text/accent/border colors (#D5E6DF / #F4FAF7 / #FFFFFF / #20483C / #AD512F / #BED4CA). Chart SVG colors reference the same variables; the HTML theme color matches the background. Layout, behavior and authentication remain unchanged.

@@ -2,11 +2,12 @@
 
 ## CE-010 — Existing smart equipment through Home Assistant
 
-- [ ] Add encrypted, destination-restricted Home Assistant connection and isolated simulator adapters; verify REST/WebSocket protocols and ordering.
-- [ ] Add persisted entity binding/capability review, per-target permission/test gates and native OFF command lifecycle.
-- [ ] Integrate native jobs with existing escalation, cancellation and breaker prerequisite checks; prevent fallback and outage backlog execution.
-- [ ] Add Connected Devices setup/discovery/details/commands UI, scoped APIs and simulator demonstrations.
-- [ ] Run protocol-mock, policy/API, browser and regression verification; update setup guide/contracts/continuity with actual evidence and live blockers.
+- [x] Add encrypted, destination-restricted Home Assistant connection and isolated simulator adapters; verify REST/WebSocket protocols and ordering.
+- [x] Add persisted entity binding/capability review, per-target permission/test gates and native OFF command lifecycle.
+- [x] Integrate native jobs with existing escalation, cancellation and breaker prerequisite checks; prevent fallback and outage backlog execution.
+- [x] Add Connected Devices setup/discovery/details/commands UI, scoped APIs and simulator demonstrations. Nine isolated browser workflow checks passed.
+- [x] Complete final full regression (70 tests), 40 syntax checks, production build, existing admin browser repeat (14 checks), managed local rollout and 7 read-only/runtime authentication checks. Setup guide and final continuity updated; app left running at localhost:5173.
+- [ ] Separate physical acceptance: supply an always-on reachable HA host/version/origin/token, exact ordinary model/firmware/entity/load and genuine occupancy, then complete supervised OFF review/test before enabling live automation. No real equipment was supplied or operated.
 
 - [x] Apply the user's six-color mint/forest/terracotta palette across the frontend and charts; verify exact browser colors, admin rendering and mobile layout. Production build passed.
 

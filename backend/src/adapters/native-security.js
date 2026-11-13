@@ -40,7 +40,7 @@ export function openToken(encrypted, secret, connectionId) {
 }
 function forbiddenIp(address, config) {
   const ip = address.toLowerCase();
-  if (ip.startsWith("::ffff:")) return forbiddenIp(ip.slice(7), config);
+  if (ip.startsWith("::ffff:")) return true;
   if (ip === "::" || ip === "0.0.0.0" || ip.startsWith("169.254.") || ip.startsWith("fe80:") || ip.startsWith("ff") || ip.startsWith("fd00:ec2:")) return true;
   if (ip === "::1" || ip.startsWith("127.")) return !config.haAllowLoopback;
   if (isIP(ip) === 4 && (+ip.split(".")[0] >= 224 || ip.startsWith("0."))) return true;
@@ -54,16 +54,21 @@ export async function validateDestination(baseUrl, config, pins, resolve = looku
   const hostname = url.hostname.replace(/^\[|\]$/g, "");
   if (["metadata.google.internal", "metadata", "instance-data"].includes(hostname.toLowerCase())) throw new ProviderError("DESTINATION");
   let addresses;
-  try { addresses = isIP(hostname) ? [hostname] : (await resolve(hostname, { all: true })).map((entry) => entry.address); }
+  let dnsTimeout;
+  try { addresses = isIP(hostname) ? [hostname] : (await Promise.race([resolve(hostname, { all: true }), new Promise((_, reject) => { dnsTimeout = setTimeout(() => reject(new ProviderError("TIMEOUT")), 5000); })])).map((entry) => entry.address); }
   catch { throw new ProviderError("UNAVAILABLE"); }
+  finally { clearTimeout(dnsTimeout); }
   if (!addresses.length || addresses.some((ip) => forbiddenIp(ip, config)) || (pins && addresses.some((ip) => !pins.includes(ip)))) throw new ProviderError("DESTINATION");
+  const trustedLan = (ip) => ip === "::1" || ip.startsWith("127.") || ip.startsWith("10.") || ip.startsWith("192.168.") ||
+    (ip.startsWith("172.") && +ip.split(".")[1] >= 16 && +ip.split(".")[1] <= 31) || /^(fc|fd)/i.test(ip);
+  if (url.protocol === "http:" && addresses.some((ip) => !trustedLan(ip))) throw new ProviderError("DESTINATION");
   return { origin: url.origin, addresses: [...new Set(addresses)].sort() };
 }
 // DNS is validated on every connection and the chosen address is injected into
 // the actual socket lookup. A second implicit lookup cannot rebind the request.
 export async function pinnedOptions(connection, config) {
   const { addresses } = await validateDestination(connection.baseUrl, config, connection.pinnedAddresses);
-  const address = addresses[0], family = isIP(address);
+  const address = addresses.find((ip) => isIP(ip) === 4) ?? addresses[0], family = isIP(address);
   return { lookup: (_hostname, options, callback) => {
     if (typeof options === "function") { callback = options; options = {}; }
     callback(null, options?.all ? [{ address, family }] : address, family);
@@ -71,6 +76,7 @@ export async function pinnedOptions(connection, config) {
 }
 export async function gatewayRequest(connection, config, token, path, body, timeoutMs = 5000) {
   if (!/^\/api\/(?:$|config$|states(?:\/[a-z0-9_]+\.[a-z0-9_]+)?$|services(?:\/(?:light|fan|switch|climate)\/(?:turn_off|set_hvac_mode))?$)/.test(path)) throw new ProviderError("UNSUPPORTED");
+  if (body && !path.startsWith("/api/services/")) throw new ProviderError("UNSUPPORTED");
   const options = await pinnedOptions(connection, config);
   return new Promise((resolve, reject) => {
     const url = new URL(path, connection.baseUrl), transport = url.protocol === "https:" ? httpsRequest : httpRequest;

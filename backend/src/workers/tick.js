@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { roomContext, cancelRoomWork, audit } from "../services/context.js";
 import { withRoomLock } from "../security/access.js";
 import { createRoomMaster } from "../adapters/room-master.js";
+import { getConnectedDeviceService } from "../services/connected-devices.js";
 
 export async function ensureIncidentJobs(models, incident, config) {
   const stages = [
@@ -18,6 +19,7 @@ export async function ensureIncidentJobs(models, incident, config) {
           roomId: incident.roomId,
           stage,
           dueAt: new Date(new Date(incident.openedAt).getTime() + delay),
+          ...(stage === "final" ? { expiresAt: new Date(new Date(incident.openedAt).getTime() + delay + 30000) } : {}),
           policyVersion: incident.policyVersion,
           status: "pending",
         },
@@ -117,6 +119,8 @@ export async function tick(
   workerId = randomUUID(),
 ) {
   const adapter = createRoomMaster(models, config);
+  const connectedDevices = getConnectedDeviceService(models, config);
+  await connectedDevices.sync();
   await fixtureHeartbeat(models, config, now);
   const rooms = await models.Room.find().lean();
   for (const initial of rooms) {
@@ -167,6 +171,7 @@ export async function tick(
             return;
           }
           const issueKey = `vacancy:${room._id}`;
+          if (await connectedDevices.nativeRoomDemand(room) === false) return;
           const incident = await models.Incident.findOneAndUpdate(
             { issueKey, active: true },
             {
@@ -213,6 +218,7 @@ export async function tick(
   for (let count = 0; count < 50; count++) {
     const job = await models.Job.findOneAndUpdate(
       {
+        kind: { $ne: "native_off" },
         dueAt: { $lte: now },
         $or: [
           { status: "pending" },
@@ -248,7 +254,7 @@ export async function tick(
           if (incident.snoozedUntil && incident.snoozedUntil > now) {
             await models.Job.updateOne(
               { _id: job._id, leaseOwner: workerId },
-              { $set: { status: "pending", dueAt: incident.snoozedUntil } },
+              { $set: { status: "pending", dueAt: incident.snoozedUntil, ...(job.stage === "final" ? { expiresAt: new Date(+incident.snoozedUntil + 30000) } : {}) } },
             );
             return;
           }
@@ -288,6 +294,10 @@ export async function tick(
               },
             );
           } else {
+            if (await connectedDevices.planIncident(incident, job, room, now)) {
+              await models.Job.updateOne({ _id: job._id, leaseOwner: workerId }, { $set: { status: "completed" } });
+              return;
+            }
             try {
               const command = await adapter.setSupply(
                 room._id,
@@ -362,6 +372,7 @@ export async function tick(
       );
     }
   }
+  await connectedDevices.processJobs(now, workerId);
   for (const lease of await models.AccessLease.find({ endedAt: null }).lean()) {
     if (
       lease.expiresAt > now &&

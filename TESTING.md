@@ -1,5 +1,23 @@
 # Validation and Acceptance Plan
 
+## CE-010 — Home Assistant / existing native OFF equipment
+
+Verified 13 November 2026 against the current working tree:
+
+- `npm test`: **70 passed, 0 failed** using isolated MongoDB and protocol-faithful local HA HTTP/WebSocket mocks. Includes token rejection/redaction, role/room scope, encrypted credentials, destination/DNS/redirect/timeout/size protections, exact OFF actions, unsupported/group/master exclusions, duplicate/renamed bindings, timestamp ordering/reconnect, all live gates, zero gateway traffic in simulation, durable restart/expiry, booking/QR/override/occupancy protection, required native shutdown prerequisites and failure without breaker fallback.
+- `npm run check`: **40** server/shared/script/test JavaScript files passed. Frontend JSX verified by production build.
+- `npm run build`: passed; main JavaScript approximately 447 KB, lazy chart approximately 381 KB, no large-chunk warning.
+- `npm run test:devices-browser`: **9** isolated Chrome checks passed, zero runtime errors. Creates a simulator, discovers/maps/reviews a target, performs explicit OFF, enables automation, exercises first/HOD/final escalation and reported-state confirmation, cancels on occupancy, retains unverified/unavailable results without breaker fallback, checks 390px layout and disconnect cleanup.
+- `npm run test:admin-browser`: **14** isolated Chrome checks passed, zero runtime errors, after the connected-device/navigation/socket changes. Uses temporary data and generated credentials.
+- `git diff --check`: passed (Git's LF/CRLF notices are line-ending information).
+- Managed local restart and **7 runtime checks** passed: existing seeded admin password/key login, authenticated connection/device/building routes, frontend deep link, both live-control gates disabled and logout. External MongoDB preserved; no demonstration fixtures were added to the user's database. App left running at localhost:5173; evidence `.local/native-runtime-verification.json`.
+
+The first final full suite passed 69/70 because the new socket-only regression closed MongoDB before asynchronous session-store initialisation completed. Setup now exercises a persisted CSRF/session request; the complete repeat passed 70/70. Earlier browser failures and fixes are recorded in PROGRESS.md rather than counted as successes.
+
+Evidence is ignored under `.local/`: `native-final-tests.log`, `native-final-check.log`, `native-final-build.log`, `connected-devices-browser-verification.json`, `admin-browser-verification.json` and `screenshots/connected-device*.png`. Desktop and mobile screenshots inspected. No user database fixtures or real gateway credentials were used by these isolated tests.
+
+These checks establish software/protocol behaviour only. Mock provider-reported OFF and simulated OFF are not physical verification, measured zero power or measured savings. No HA host, authorised token, exact model/firmware/entity or genuine field occupancy source was supplied. Follow [HOME_ASSISTANT.md](HOME_ASSISTANT.md) for live prerequisites and supervised acceptance; live automation remains disabled by default. Other vendor/assistant adapters remain deferred.
+
 ## Eight-digit key follow-up
 
 User-authorised numeric-key update: `npm test` passed 46 tests, including exact eight-digit validation (leading zeros accepted, wrong length/nonnumeric values rejected, blank disables admin access). Build, 28 syntax checks and 14 isolated admin browser checks passed with zero browser runtime errors. Live local admin login using the saved key, management API authorization, frontend readiness and logout passed. Managed restart preserved MongoDB and existing records. Earlier 16-character rollout blocker notes below are historical; the configured key has been replaced with the requested eight-digit value without printing it.

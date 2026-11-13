@@ -30,13 +30,21 @@ export function describeEntity(state, services = [], registry = {}, deviceRegist
 }
 export function normaliseState(state, observedAt = new Date(), mode = "live") {
   const parsed = Date.parse(state?.last_updated ?? state?.last_changed);
-  return { state: typeof state?.state === "string" ? state.state.slice(0, 100) : "unavailable",
-    providerUpdatedAt: Number.isFinite(parsed) ? new Date(parsed) : new Date(0),
+  const validTime = Number.isFinite(parsed) && parsed >= 0 && parsed <= Date.now() + 5000;
+  const timestamp = state?.last_updated ?? state?.last_changed ?? "";
+  // HA emits sub-millisecond timestamps. Preserve that precision when ordering
+  // events/snapshots instead of letting JavaScript Date truncate it away.
+  const fraction = (timestamp.match(/\.(\d+)(?:Z|[+-]\d{2}:\d{2})$/)?.[1] ?? "").padEnd(9, "0").slice(3, 9);
+  const providerOrder = (validTime ? BigInt(parsed) * 1000000n + BigInt(fraction || "0") : 0n).toString().padStart(20, "0");
+  return { state: typeof state?.state === "string" && validTime ? state.state.slice(0, 100) : "unavailable",
+    providerUpdatedAt: validTime ? new Date(parsed) : new Date(0), providerOrder,
+    providerTimestamp: typeof timestamp === "string" ? timestamp.slice(0, 50) : null,
     observedAt: new Date(observedAt), source: mode === "live" ? "home_assistant" : "simulator", mode,
     optimistic: state?.attributes?.assumed_state === true };
 }
 export function newerObservation(previous, next) {
   if (!previous) return true;
+  if (previous.providerOrder && next.providerOrder && previous.providerOrder !== next.providerOrder) return next.providerOrder > previous.providerOrder;
   const before = +new Date(previous.providerUpdatedAt), after = +new Date(next.providerUpdatedAt);
   return after > before || (after === before && +new Date(next.observedAt) >= +new Date(previous.observedAt));
 }

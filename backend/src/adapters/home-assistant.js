@@ -7,6 +7,7 @@ import { describeEntity, normaliseState, ENTITY_ID } from "./native-capabilities
 export function createHomeAssistantProvider(connection, config, token, { onState = async () => {}, onHealth = async () => {} } = {}) {
   let socket, stopped = false, reconnectTimer, heartbeat, attempts = 0, sequence = 0, authenticated = false;
   const pending = new Map();
+  let generation = 0;
   const request = (path, body) => gatewayRequest(connection, config, token, path, body);
   const command = (type, fields = {}) => new Promise((resolve, reject) => {
     if (!socket || socket.readyState !== WebSocket.OPEN || !authenticated) return reject(new ProviderError("UNAVAILABLE"));
@@ -24,7 +25,8 @@ export function createHomeAssistantProvider(connection, config, token, { onState
   async function discoverEntities() {
     const [states, services, registry] = await Promise.all([request("/api/states"), request("/api/services"), registries()]);
     if (!Array.isArray(states) || !Array.isArray(services)) throw new ProviderError("TRANSPORT");
-    return states.slice(0, 5000).map((state) => {
+    if (states.length > 5000) throw new ProviderError("RESPONSE_LIMIT");
+    return states.map((state) => {
       const entry = registry.entities.find((item) => item.entity_id === state.entity_id) ?? {};
       return describeEntity(state, services, entry, registry.devices.find((item) => item.id === entry.device_id) ?? {});
     });
@@ -32,12 +34,14 @@ export function createHomeAssistantProvider(connection, config, token, { onState
   async function describeCapabilities(entityId) {
     if (!ENTITY_ID.test(entityId)) throw new ProviderError("UNSUPPORTED");
     const [state, services, registry] = await Promise.all([request(`/api/states/${entityId}`), request("/api/services"), registries()]);
+    if (state?.entity_id !== entityId) throw new ProviderError("IDENTITY_CHANGED");
     const entry = registry.entities.find((item) => item.entity_id === entityId) ?? {};
     return describeEntity(state, services, entry, registry.devices.find((item) => item.id === entry.device_id) ?? {});
   }
   const handle = (operation) => { Promise.resolve(operation).catch(() => {}); };
   async function connect() {
     if (stopped) return;
+    const currentGeneration = ++generation;
     let options;
     try { options = await pinnedOptions(connection, config); }
     catch (error) { handle(onHealth("degraded", providerError(error).code)); scheduleReconnect(); return; }
@@ -47,6 +51,7 @@ export function createHomeAssistantProvider(connection, config, token, { onState
     socket = new WebSocket(url, { ...options, followRedirects: false, maxPayload: 2 * 1024 * 1024, handshakeTimeout: 5000, perMessageDeflate: false });
     const authTimeout = setTimeout(() => socket?.terminate(), 6000);
     socket.on("message", (raw) => {
+      if (stopped || generation !== currentGeneration) return;
       let message;
       try { message = JSON.parse(raw.toString()); } catch { socket.terminate(); return; }
       if (message.type === "auth_required") socket.send(JSON.stringify({ type: "auth", access_token: token }));
@@ -60,7 +65,11 @@ export function createHomeAssistantProvider(connection, config, token, { onState
           // timestamps so an older snapshot cannot overwrite a newer event.
           await command("subscribe_events", { event_type: "state_changed" });
           const snapshot = await command("get_states");
-          for (const state of snapshot ?? []) await onState(state.entity_id, normaliseState(state), state === null);
+          for (const state of snapshot ?? []) {
+            if (stopped || generation !== currentGeneration || socket.readyState !== WebSocket.OPEN) return;
+            await onState(state.entity_id, normaliseState(state), state === null);
+          }
+          if (stopped || generation !== currentGeneration || socket.readyState !== WebSocket.OPEN) return;
           attempts = 0; await onHealth("online");
           heartbeat = setInterval(() => command("ping").catch(() => socket?.terminate()), 15000);
           heartbeat.unref();
@@ -78,6 +87,7 @@ export function createHomeAssistantProvider(connection, config, token, { onState
     });
     socket.on("error", () => { handle(onHealth("degraded", "TRANSPORT")); });
     socket.on("close", () => {
+      if (generation !== currentGeneration) { clearTimeout(authTimeout); return; }
       authenticated = false; clearTimeout(authTimeout); clearInterval(heartbeat);
       for (const item of pending.values()) { clearTimeout(item.timer); item.reject(new ProviderError("UNAVAILABLE")); }
       pending.clear();
@@ -96,10 +106,11 @@ export function createHomeAssistantProvider(connection, config, token, { onState
       return { health: "online", mode: "live", version: typeof info.version === "string" ? info.version : "unknown", identityEvidence: "configured_origin" };
     },
     discoverEntities, describeCapabilities,
-    async readState(entityId) { if (!ENTITY_ID.test(entityId)) throw new ProviderError("UNSUPPORTED"); return normaliseState(await request(`/api/states/${entityId}`)); },
+    async readState(entityId) { if (!ENTITY_ID.test(entityId)) throw new ProviderError("UNSUPPORTED"); const state = await request(`/api/states/${entityId}`); if (state.entity_id !== entityId) throw new ProviderError("IDENTITY_CHANGED"); return normaliseState(state); },
     async requestOff(entityId, context) {
       const description = await describeCapabilities(entityId), action = description.capabilities.action;
       if (!action || description.capabilities.optimistic) throw new ProviderError("UNSUPPORTED");
+      await context.verifyDescription?.(description);
       // The service owns the allowlist and rechecks policy immediately before
       // this adapter call. No arbitrary URL/service/body enters this interface.
       await context.beforeDispatch?.();

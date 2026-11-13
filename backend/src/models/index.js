@@ -52,6 +52,8 @@ export function createModels(connection) {
       completedVacancyOff: { type: Boolean, default: false }, createdBy: String, updatedBy: String,
     }, [[{ connectionId: 1, entityId: 1 }, { unique: true }],
       [{ inventoryId: 1 }, { unique: true, partialFilterExpression: { inventoryId: { $type: "string" } } }],
+      [{ endpointFingerprint: 1 }, { unique: true, partialFilterExpression: { endpointFingerprint: { $type: "string" }, enabled: true } }],
+      [{ instanceKey: 1, physicalDeviceId: 1 }, { unique: true, partialFilterExpression: { physicalDeviceId: { $type: "string" }, enabled: true } }],
       [{ roomId: 1 }, {}]]),
     NativeCommand: model("NativeCommand", "nativeCommands", {
       requestId: { type: String, required: true }, deviceId: String, connectionId: String, roomId: String,

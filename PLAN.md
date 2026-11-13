@@ -184,7 +184,7 @@ All initial thresholds are configuration defaults to validate during a pilot, no
 9. Configure tariffs and baselines.
 10. Test each source, run in alert-only mode, and enable only approved automatic actions after commissioning.
 
-A device recognised in an image is not automatically a registered inventory item. An administrator confirms which room master supplies it. There is no independent software control for that appliance.
+A device recognised in an image is not automatically a registered inventory item. An administrator confirms which room master supplies it. Inventory alone creates no independent control; the approved optional native-OFF extension requires a separate authenticated entity binding, review and test.
 
 ### 5.2 Occupancy and apparent waste detection
 
@@ -497,7 +497,7 @@ Keep the application small enough to complete and debug within 24 hours.
 | Person detection | A small pretrained model appropriate to its accepted licence | Person detection on approved footage |
 | Device messaging | MQTT.js and a private Mosquitto broker, optional | ESP32/gateway event and command transport |
 | Microcontroller firmware | ESPHome for LD2410/MQTT or a small dedicated ESP32 sensing programme | Presence observations only; the Wi-Fi master breaker is the actuator |
-| Optional device gateway | Home Assistant | Bridge an explicitly supported room-breaker integration if its native API is unsuitable |
+| Optional existing-device gateway | Home Assistant | Native OFF for reviewed existing compatible appliance entities; the room-master path retains its own controller/interlocks |
 | Verification | Node test runner or Vitest, Supertest, selected browser checks | Policy, calculations, imports and end-to-end flows |
 
 Node and frontend dependencies must be selected from currently supported versions and committed in lockfiles. Use an Active LTS Node version compatible with the installed Vite version; do not blindly copy an old runtime requirement from a tutorial.
@@ -999,7 +999,7 @@ Do not display a live instantaneous kW gauge from hourly readings. Label the der
 - Current/next relevant schedule.
 - Active QR lease or override.
 - Appliance inventory and the one room master breaker.
-- One room-level supply ON/OFF control; no individual light/fan/AC controls.
+- One room-level supply ON/OFF control. Reviewed native appliance OFF actions are separate under Connected Devices; no appliance ON restoration.
 - Observed state versus controller-reported state.
 - Alert/escalation countdown based on server dueAt.
 - Manual action controls visible only to authorised roles.
@@ -1073,7 +1073,7 @@ The UI should use clear colours with text labels, keyboard-accessible actions, r
 ### 17.1 Simulation isolation
 
 - DEMO_MODE and ALLOW_PHYSICAL_CONTROL are enforced on the server and gateway.
-- When demonstration mode is on, real switching adapters cannot be instantiated.
+- In demonstration mode, real room-master switching adapters cannot be instantiated. Home Assistant clients may connect read-only, but all live native OFF is blocked by the separate server/connection/target gates.
 - Accelerated time, replayed clips and fixture observations cannot authorise physical action.
 - Demo notification recipients are test/in-app recipients; do not seed real staff email addresses.
 - Use separate demo MQTT topics or a separate broker if necessary.
@@ -1108,7 +1108,7 @@ No platform’s permanent free hosting allowance is assumed. Hosting, model runt
 | Vision model and weights | Download from the selected official project, record version/licence and test | Only for actual inference |
 | Tesseract executable | Install from the official project’s documented route | Only for the chosen OCR path |
 | MQTT broker credentials | Local private broker administrator | Only for MQTT integration |
-| Home Assistant URL/token | Local administrator provisions a restricted gateway connection | Only if used for a supported room-breaker integration |
+| Home Assistant URL/token | Local administrator provisions an exact allowlisted origin and authorised server-held token (broad HA authority; campus target allowlist is enforced in this backend) | Only for the approved optional existing-device connector |
 | Controller credentials/model docs | Manufacturer pairing and documented integration route | Only for physical control |
 | SMTP host/user/credential | Institution or selected email provider | Only for external email |
 | LLM API key | Not required | No |

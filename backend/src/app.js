@@ -50,6 +50,7 @@ import {
 import { accessAllowed } from "./domain/policies.js";
 import { createRoomMaster } from "./adapters/room-master.js";
 import { registerManagement } from "./management.js";
+import { registerConnectedDevices } from "./connected-device-routes.js";
 
 const admin = (user) => requireRole(user, ["admin"]);
 const staff = (user) =>
@@ -111,6 +112,7 @@ export function createApplication({ config, connection, models }) {
         status: "ok",
         demoMode: config.demoMode,
         physicalControl: false,
+        nativeControl: config.allowNativeControl && !config.demoMode,
         timeScale: config.timeScale,
         serverTime: new Date().toISOString(),
       },
@@ -374,6 +376,7 @@ export function createApplication({ config, connection, models }) {
     next();
   });
   registerManagement(api, { models, config });
+  const connectedDevices = registerConnectedDevices(api, { models, config });
   api.get("/auth/me", (req, res) =>
     res.json({ data: { user: req.user, csrfToken: req.session.csrf } }),
   );
@@ -1486,8 +1489,13 @@ export function createApplication({ config, connection, models }) {
   app.use(errorHandler);
   const io = new Server(server, {
     cors: { origin: [...origins], credentials: true },
-    allowRequest: (req, callback) =>
-      callback(null, origins.has(req.headers.origin)),
+    allowRequest: (req, callback) => {
+      // Same-origin browser polling GETs can omit Origin. Match their Host and
+      // fetch-site instead; cross-origin requests still need an exact origin.
+      const hostAllowed = [...origins].some((origin) => new URL(origin).host === req.headers.host);
+      const sameSite = !req.headers["sec-fetch-site"] || req.headers["sec-fetch-site"] === "same-origin";
+      callback(null, req.headers.origin ? origins.has(req.headers.origin) : hostAllowed && sameSite);
+    },
   });
   io.engine.use(sessions);
   io.use(async (socket, next) => {
@@ -1539,6 +1547,7 @@ export function createApplication({ config, connection, models }) {
     store,
     close: async () => {
       clearInterval(interval);
+      await connectedDevices.close();
       await new Promise((resolve) => io.close(resolve));
     },
   };
