@@ -53,6 +53,12 @@ The admin panel includes staff assignments, escalation rules, room policies, one
 
 ### 1.2 Explicit exclusions
 
+**Approved optional extension, 13 November 2026:** The user authorised Home Assistant as the first gateway for existing compatible smart appliances, plus an isolated simulator. Native OFF for individually reviewed light/fan/switch/climate entities is now permitted in addition to the unchanged one-master-per-room design. This supersedes the per-appliance exclusion only for equipment already exposing a supported native OFF interface; no IR, per-button hardware or smart-plug purchases are added. See [HOME_ASSISTANT.md](HOME_ASSISTANT.md) for protocol, deployment and verification details.
+
+Campus policies remain authoritative: persistent first alert, +10-minute escalation and +15-minute final recheck; fresh vacancy, booking/QR/override protection, per-target permissions and safety reviews. Native jobs/commands have fixed expiry, allowlisted targets, reported-state verification and cancellation. A failed/unverified native OFF never triggers breaker fallback; required native shutdown prerequisites also block dependent breaker operations. No appliance ON restoration is introduced.
+
+Simulation is the default and makes no live calls. Live native controls need a separate server gate, non-demo evidence, reviewed connection/device permissions and a successful live test. Room-master physical enablement remains rejected. Credentials are encrypted with a server-held key, gateway origins/IPs are deployment-controlled and pinned, and WebSocket snapshots/events preserve ordering. Other assistant/mobile/direct-cloud connectors remain deferred. No physical connection or savings is claimed without corresponding evidence.
+
 - Multiple-building or multiple-campus management and comparisons.
 - A hostel/laboratory/office policy expansion programme or cross-building class consolidation.
 - Training a universal appliance detector within the hackathon.

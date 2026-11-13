@@ -33,6 +33,10 @@ export function loadConfig(env = process.env) {
       PUBLIC_APP_URL: z.url().default("http://localhost:5000"),
       DEMO_MODE: bool.default(true),
       ALLOW_PHYSICAL_CONTROL: bool.default(false),
+      ALLOW_NATIVE_DEVICE_CONTROL: bool.default(false),
+      HA_ALLOWED_ORIGINS: z.string().default(""),
+      HA_ALLOW_HTTP: bool.default(false),
+      HA_ALLOW_LOOPBACK: bool.default(false),
       DEVICE_ADAPTER: z.literal("simulator").default("simulator"),
       DEMO_TIME_SCALE: z.coerce.number().min(1).max(60).default(60),
       VACANCY_CONFIRMATION_MINUTES: z.coerce
@@ -83,6 +87,10 @@ export function loadConfig(env = process.env) {
     publicAppUrl: parsed.PUBLIC_APP_URL,
     demoMode: parsed.DEMO_MODE,
     allowPhysicalControl: parsed.ALLOW_PHYSICAL_CONTROL,
+    allowNativeControl: parsed.ALLOW_NATIVE_DEVICE_CONTROL,
+    haAllowedOrigins: parsed.HA_ALLOWED_ORIGINS.split(",").map((value) => value.trim()).filter(Boolean),
+    haAllowHttp: parsed.HA_ALLOW_HTTP,
+    haAllowLoopback: parsed.HA_ALLOW_LOOPBACK,
     deviceAdapter: parsed.DEVICE_ADAPTER,
     timeScale: parsed.DEMO_MODE ? parsed.DEMO_TIME_SCALE : 1,
     vacancyMs:

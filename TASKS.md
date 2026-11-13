@@ -1,5 +1,13 @@
 # Implementation Tasks
 
+## CE-010 — Existing smart equipment through Home Assistant
+
+- [ ] Add encrypted, destination-restricted Home Assistant connection and isolated simulator adapters; verify REST/WebSocket protocols and ordering.
+- [ ] Add persisted entity binding/capability review, per-target permission/test gates and native OFF command lifecycle.
+- [ ] Integrate native jobs with existing escalation, cancellation and breaker prerequisite checks; prevent fallback and outage backlog execution.
+- [ ] Add Connected Devices setup/discovery/details/commands UI, scoped APIs and simulator demonstrations.
+- [ ] Run protocol-mock, policy/API, browser and regression verification; update setup guide/contracts/continuity with actual evidence and live blockers.
+
 - [x] Apply the user's six-color mint/forest/terracotta palette across the frontend and charts; verify exact browser colors, admin rendering and mobile layout. Production build passed.
 
 ## CE-009 — Administrator authentication and connected management panel

@@ -1,5 +1,11 @@
 # Implementation progress
 
+## CE-010 in progress — Home Assistant native OFF connector
+
+- Clean starting worktree, user/external HEAD `3074304` (updated the palette). Existing single-building JavaScript/Mongo/React application and persistent worker preserved. User explicitly approved the optional native-OFF scope extension; recorded it in PLAN.md without changing the room-master architecture.
+- Read current official HA REST/WebSocket/auth/climate documentation and tagged 2026.11.1 registry source; Context7 resolved HA developers and fetched protocol interactions. The existing `ws` installation is 8.21.3, MIT; a direct pinned server dependency will be declared. No live HA instance, token or equipment supplied.
+- Implementation underway: encrypted connection credentials, exact deployment allowlists/DNS pins, simulation adapter, explicit target review and persistent native jobs/commands integrated with the existing final escalation. No live integration or physical test is claimed.
+
 ## Requested palette update — 13 November 2026
 
 - Applied the six user swatches through shared CSS variables: sidebar #D5E6DF, background #F4FAF7, cards #FFFFFF, primary text #20483C, accent #AD512F and borders #BED4CA. Updated components, charts and browser theme color; muted/hover states derive from this palette.
