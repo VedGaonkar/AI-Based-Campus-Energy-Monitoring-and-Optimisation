@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomInt } from "node:crypto";
 import { startDatabase } from "./database.mjs";
 import { launchChrome } from "./chrome-driver.mjs";
 import { connectDatabase } from "../backend/src/models/index.js";
@@ -27,7 +27,7 @@ try {
   const probe = createServer(); await new Promise(resolve => probe.listen(0, "127.0.0.1", resolve));
   const port = probe.address().port; await new Promise(resolve => probe.close(resolve)); const base = `http://localhost:${port}`;
   db = await startDatabase(); ({ connection, models } = await connectDatabase(db.getUri("phone_browser")));
-  const password = randomBytes(18).toString("hex"), key = "12345678";
+  const password = randomBytes(18).toString("hex"), key = randomInt(10000000, 100000000).toString();
   const config = loadConfig({ NODE_ENV: "test", MONGODB_URI: db.getUri("phone_browser"), SESSION_SECRET: randomBytes(32).toString("hex"), SERVICE_INGEST_TOKEN: randomBytes(32).toString("hex"), ADMIN_INVITE_KEY: key, PUBLIC_APP_URL: base, FRONTEND_ORIGIN: base, DEMO_MODE: "true" });
   await seed(models, config, { password }); runtime = createApplication({ models, connection, config });
   await new Promise(resolve => runtime.server.listen(port, "127.0.0.1", resolve));

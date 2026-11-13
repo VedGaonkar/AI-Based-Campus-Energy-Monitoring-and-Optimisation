@@ -8,7 +8,7 @@ import { refreshAnalytics, readingKey } from "./services/energy.js";
 export async function seed(
   models,
   config,
-  { password = process.env.DEMO_PASSWORD, now = new Date() } = {},
+  { password = config.demoPassword, now = new Date() } = {},
 ) {
   if (!config.demoMode || config.env === "production")
     throw new Error(

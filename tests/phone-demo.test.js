@@ -2,7 +2,7 @@ import { before, beforeEach, after, test } from "node:test";
 import assert from "node:assert/strict";
 import request from "supertest";
 import QRCode from "qrcode";
-import { randomBytes, randomUUID } from "node:crypto";
+import { randomBytes, randomUUID, randomInt } from "node:crypto";
 import { startDatabase } from "../scripts/database.mjs";
 import { connectDatabase } from "../backend/src/models/index.js";
 import { loadConfig } from "../backend/src/config.js";
@@ -27,7 +27,7 @@ async function auth(email) {
 }
 before(async () => {
   db = await startDatabase(); ({ connection, models } = await connectDatabase(db.getUri("phone_demo_test")));
-  config = loadConfig({ NODE_ENV: "test", SESSION_SECRET: randomBytes(32).toString("hex"), SERVICE_INGEST_TOKEN: randomBytes(32).toString("hex"), ADMIN_INVITE_KEY: "12345678", PUBLIC_APP_URL: origin, DEMO_MODE: "true" });
+  config = loadConfig({ NODE_ENV: "test", SESSION_SECRET: randomBytes(32).toString("hex"), SERVICE_INGEST_TOKEN: randomBytes(32).toString("hex"), ADMIN_INVITE_KEY: randomInt(10000000, 100000000).toString(), PUBLIC_APP_URL: origin, DEMO_MODE: "true" });
   await seed(models, config, { password }); runtime = createApplication({ models, connection, config }); service = createPhoneDemoService(models, config);
   ({ agent: admin, token: csrf } = await auth("admin@campus.test"));
 });

@@ -1,5 +1,13 @@
 # Validation and Acceptance Plan
 
+## CE-012 - environment-authoritative admin key, 14 November 2026
+
+Existing `npm run test:admin-browser` repeat passed **14/14** with zero runtime errors. Its first attempt passed auth/profile/building but timed out on an unrelated camera-policy save; the complete repeat passed. Evidence `.local/admin-key-browser.log` and `.local/admin-browser-verification.json`. No real accounts were used or changed.
+
+`npm test`: **89 passed, 0 failed**. New isolated environment/rotation checks cover fresh file reads without process mutation, explicit process-over-file precedence, blank/missing configuration, old/new configured key behavior across fresh app instances, unchanged existing-user room scope and inactive-account denial. Missing configuration rejects enrollment with actionable 503 while active existing admin password login works. Registration throttling applies on localhost. Stored legacy settings key cannot override configuration or appear in normal auth/settings/room/health/audit responses.
+
+After the full suite, targeted rotation tests passed **2/2** again with duplicate-key rejection enabled. `npm run check`: **58** files passed; production dashboard and phone build/assets passed. `npm run check:client-secrets` passed for **12** built frontend/demo assets against actual configured server secrets without printing them. No actual account/environment edits or live credential rotation were performed. Test keys/passwords were generated and isolated; fixed numeric shape-validation examples are not application credentials. Evidence: ignored `.local/admin-key-full-tests.log`, `admin-key-final-targeted.log`, `admin-key-build.log`. Existing browser/UI and local restart results are recorded in PROGRESS/HANDOFF once completed.
+
 ## CE-011 - two-phone software demonstration (13-14 November 2026)
 
 - Final `npm test`: **86 passed, 0 failed**, including all prior 70 application/HA checks and 16 new phone-demo tests. Actual QR pixels, foreign-session/role/command isolation, one-use expiry/revocation/re-pair generations, configured-origin CORS, MIME/size/timestamp/sequence/processing bounds, HOG unknown/injection separation, room-lock contention, persistent stages and API/database-client restart, booking/QR/override/occupancy cancellation, missing ACK/expiry/reconnect, all-load effective OFF and original load/restoration/live gates were exercised in isolated MongoDB.

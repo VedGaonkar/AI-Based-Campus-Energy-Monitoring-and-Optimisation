@@ -1,7 +1,7 @@
 import { before, after, test } from "node:test";
 import assert from "node:assert/strict";
 import request from "supertest";
-import { randomBytes, createHmac } from "node:crypto";
+import { randomBytes, createHmac, randomInt } from "node:crypto";
 import { startDatabase } from "../scripts/database.mjs";
 import { connectDatabase } from "../backend/src/models/index.js";
 import { loadConfig } from "../backend/src/config.js";
@@ -24,7 +24,7 @@ before(async () => {
     DEMO_TIME_SCALE: "60",
     ALLOW_PHYSICAL_CONTROL: "false",
     PUBLIC_APP_URL: origin,
-    ADMIN_INVITE_KEY: "12345678",
+    ADMIN_INVITE_KEY: randomInt(10000000, 100000000).toString(),
   });
   await seed(models, config, { password });
   runtime = createApplication({ config, connection, models });

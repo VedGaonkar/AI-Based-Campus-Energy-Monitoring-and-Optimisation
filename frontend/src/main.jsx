@@ -565,7 +565,7 @@ function Login({ onLogin }) {
                   required
                 />
               </Field>
-              <Field label="Admin invite key" hint="Required for administrator sign-in. Leave blank for a staff or viewer account.">
+              <Field label="Admin invite key" hint="Required for administrator sign-in when configured on the server. Leave blank for ordinary login; the server checks enrollment and access.">
                 <input type="password" autoComplete="off" inputMode="numeric" pattern="[0-9]{8}" maxLength={8} value={adminKey} onChange={(e) => setAdminKey(e.target.value)} placeholder="8-digit administrator key" />
               </Field>
               <ErrorText>{error}</ErrorText>

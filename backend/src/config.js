@@ -1,13 +1,24 @@
-import { config as dotenv } from "dotenv";
+import { parse } from "dotenv";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 
-dotenv({
-  path: fileURLToPath(new URL("../../.env", import.meta.url)),
-  quiet: true,
-});
+// Do not populate process.env: dev launcher children must read their own fresh
+// file rather than inherit a stale copy loaded by their parent. Deployment-set
+// environment variables explicitly take precedence over the local file.
+export function readServerEnvironment(env = process.env, path = fileURLToPath(new URL("../../.env", import.meta.url))) {
+  let file = {};
+  try {
+    const contents = readFileSync(path, "utf8");
+    if ((contents.match(/^\s*(?:export\s+)?ADMIN_INVITE_KEY\s*=/gm) ?? []).length > 1)
+      throw new Error("Duplicate ADMIN_INVITE_KEY entries in server .env. Keep exactly one entry and restart the backend; values withheld.");
+    file = parse(contents);
+  }
+  catch (error) { if (error.code !== "ENOENT") throw error; }
+  return { ...file, ...env };
+}
 const bool = z.enum(["true", "false"]).transform((v) => v === "true");
-export function loadConfig(env = process.env) {
+export function loadConfig(env = readServerEnvironment()) {
   const parsed = z
     .object({
       NODE_ENV: z
@@ -112,5 +123,6 @@ export function loadConfig(env = process.env) {
       (parsed.QR_EXPIRY_WARNING_MINUTES * 60000) /
       (parsed.DEMO_MODE ? parsed.DEMO_TIME_SCALE : 1),
     adminInviteKey: parsed.ADMIN_INVITE_KEY ?? null,
+    demoPassword: env.DEMO_PASSWORD,
   };
 }

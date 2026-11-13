@@ -86,7 +86,9 @@ export async function audit(models, actorId, action, target, summary = "") {
   await models.AuditEvent.create({ actorId, action, target, summary });
 }
 export async function getSettings(models) {
-  const settings = await models.Settings.findById("installation").lean();
+  // Only declared installation fields may leave storage. Legacy/foreign secret
+  // fields in Mongo must neither configure authentication nor appear in APIs.
+  const settings = await models.Settings.findById("installation").select(Object.keys(models.Settings.schema.paths).join(" ")).lean();
   if (!settings)
     throw new HttpError(
       503,

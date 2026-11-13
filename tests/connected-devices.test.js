@@ -1,7 +1,7 @@
 import { before, beforeEach, after, test } from "node:test";
 import assert from "node:assert/strict";
 import request from "supertest";
-import { randomBytes, randomUUID } from "node:crypto";
+import { randomBytes, randomUUID, randomInt } from "node:crypto";
 import { startDatabase } from "../scripts/database.mjs";
 import { connectDatabase } from "../backend/src/models/index.js";
 import { loadConfig } from "../backend/src/config.js";
@@ -26,7 +26,7 @@ async function vacancy(mode = "simulated") {
 }
 before(async () => {
   database = await startDatabase(); ({ connection, models } = await connectDatabase(database.getUri("native_test")));
-  config = loadConfig({ NODE_ENV: "test", SESSION_SECRET: randomBytes(32).toString("hex"), SERVICE_INGEST_TOKEN: randomBytes(32).toString("hex"), ADMIN_INVITE_KEY: "12345678", DEMO_MODE: "true", DEMO_TIME_SCALE: "60", PUBLIC_APP_URL: origin });
+  config = loadConfig({ NODE_ENV: "test", SESSION_SECRET: randomBytes(32).toString("hex"), SERVICE_INGEST_TOKEN: randomBytes(32).toString("hex"), ADMIN_INVITE_KEY: randomInt(10000000, 100000000).toString(), DEMO_MODE: "true", DEMO_TIME_SCALE: "60", PUBLIC_APP_URL: origin });
   await seed(models, config, { password }); runtime = createApplication({ config, connection, models }); service = getConnectedDeviceService(models, config);
   const login = await auth("admin@campus.test"); admin = login.agent; csrf = login.token;
 });

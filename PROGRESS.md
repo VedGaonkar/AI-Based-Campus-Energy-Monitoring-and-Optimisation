@@ -1,5 +1,19 @@
 # Implementation progress
 
+## Admin key saved after startup - 14 November 2026
+
+- Reproduced user's continuing mismatch cause via timestamps: .env key edit occurred after the recorded backend launch. Read-only flags confirm valid eight-digit key, no inherited override and fresh config/file agreement. No actual values printed. Managed stack restarted to load saved configuration, preserving external MongoDB/accounts/.env; API/frontend readiness passed. Retained tool session 93847. Rotation tests repeated 2/2 passed; no extra source changes. Reinforce required full restart after each environment edit, then fresh login/signup.
+
+## CE-012 complete - administrator key environment/rotation
+
+- Managed full stack restart succeeded; existing external MongoDB/data preserved. Dev tool session 45174 retained, ownership `.local/dev-session.json`. Current API readiness/frontend 200, unauthenticated auth/me 401, config matches effective environment without printing values. Main app left running. Actual key, accounts/passwords/roles untouched; no real login/rotation attempted. Required future restart: `npm run stop` then `npm run dev`; explicit shell/process-manager overrides must be changed/removed separately. All requested software verification complete; no commit/push/deployment.
+
+- Verification: full suite **89/89**, final targeted rotation/environment/duplicate checks **2/2**, **58** syntax files, production/buildless build and configured-secret scan of **12** frontend/demo assets passed. Admin browser repeat **14/14**, no runtime errors. First browser attempt passed auth/profile/building but timed out on an unrelated camera-policy save; full repeat passed, and the failure is not counted as success. Evidence `.local/admin-key-*.log` and existing admin browser report. Managed local rollout now follows; no actual key/account changed.
+
+- Clean starting tree at user commit `fcedd7a`; read current continuity/security/auth/config/setup. Key is already compared server-side, not persisted by seed. Found module-level dotenv mutated process.env so dev child processes inherited file snapshots; explicit process values also override edited files. Refactored non-mutating readServerEnvironment; loadConfig reads fresh startup snapshots, process overrides documented, duplicate key definitions rejected. Existing demo seed/browser password reads now use explicit server config, not dotenv side effects.
+- Kept eight-digit contract; no actual `.env`/account writes. Missing key now disables enrollment/activation with actionable error but permits existing active admin password-only login. Preserved configured-key admin login, active/session/room checks and single-institution scope; no cross-institution joining model exists. Login/registration accept no institution/membership role override. Removed localhost enrollment throttling bypass; generated temporary test keys replace hardcoded fixture values.
+- New rotation/non-mutating environment tests passed 2/2 against real isolated Mongo and fresh application instances. Planted legacy settings secret exposed a response gap; getSettings now projects declared schema fields only. Added client asset secret scan command; full regression/build/check currently running. Docs updated for authority/precedence, duplicate entries and required managed restart. No test result or actual secret printed; no deployment/commit/account changes.
+
 ## Room dropdown repair - 14 November 2026
 
 - Root cause verified read-only: all nine existing rooms lack nativeOffMode in Mongo; lean reads bypass schema defaults. Missing policy now means alert_only as intended. Shared availability checks drive both the admin room-options API and session creation; UI lists available rooms only and explains exclusions separately. Current available rooms R101/R102/R103; others need infrastructure review. Actual room data/.env/accounts unchanged.

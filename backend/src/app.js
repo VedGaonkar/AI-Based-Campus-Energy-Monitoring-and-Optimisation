@@ -180,7 +180,7 @@ export function createApplication({ config, connection, models }) {
           .lean();
       if (!user || !(await bcrypt.compare(input.password, user.passwordHash)))
         fail(401, "INVALID_LOGIN", "Email or password is incorrect");
-      if (input.adminKey || user.role === "admin") {
+      if (input.adminKey || (user.role === "admin" && config.adminInviteKey)) {
         if (!config.adminInviteKey)
           fail(503, "ADMIN_ACCESS_DISABLED", "Admin key access is not configured. Set ADMIN_INVITE_KEY on the server and restart it.");
         if (!input.adminKey || !equalSecret(input.adminKey, config.adminInviteKey))
@@ -213,7 +213,6 @@ export function createApplication({ config, connection, models }) {
       standardHeaders: "draft-8",
       legacyHeaders: false,
       handler: authRateLimitHandler,
-      skip: (req) => config.demoMode && req.ip === "127.0.0.1",
     }),
     async (req, res) => {
       const input = z

@@ -1,5 +1,11 @@
 # Implementation Tasks
 
+## CE-012 - environment-authoritative administrator enrollment
+
+- [x] Trace UI/backend/config/seed/settings path; remove parent-process dotenv mutation and test-fixture key constants, preserve explicit deployment variable precedence and existing account scope.
+- [x] Missing key disables enrollment/activation while existing-user login remains available; remove demo-localhost enrollment throttling bypass and filter legacy undeclared settings from responses.
+- [x] Full suite 89/89, targeted final rotation/duplicate checks 2/2, admin browser 14/14, 58 syntax checks, build and 12-asset secret scan passed. Actual `.env`/accounts unchanged; managed rollout recorded in HANDOFF/PROGRESS.
+
 - [x] Repair demo room selection for legacy missing native policy; server-checked available-room options only, excluded reasons, matching creation checks. 17 demo tests and production/buildless build passed.
 
 ## CE-011 — Two-phone camera and acknowledged room-master demonstration

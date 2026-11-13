@@ -12,7 +12,18 @@ Validation for this feature: `npm test`, `npm run check`, `npm run build`, then 
 
 ## Administrator access and setup
 
-Use your account password and `ADMIN_INVITE_KEY` from the local ignored `.env` to sign in as administrator. The key must contain exactly 8 digits and requires an API restart after changes. It is required for every admin login. Incorrect registration keys now return an error rather than creating viewer accounts.
+`ADMIN_INVITE_KEY` is the only server-side invitation/enrollment key, currently exactly eight digits. Set it in the repository-root ignored `.env` (the folder containing package.json), or in the backend's deployment environment. An explicitly set process variable takes precedence over `.env`, including an empty value. No database setting, seed value, frontend constant or Vite variable overrides it. Duplicate `.env` key entries are rejected with a configuration error. `.env.example` contains a placeholder; `npm run setup` generates a random key only for a new file and preserves existing configuration.
+
+When configured, administrator login requires the account password plus the current key. Wrong keys reject signup/activation instead of silently creating viewers. If missing/blank, invitation-based admin registration and viewer-to-admin activation return `ADMIN_ACCESS_DISABLED` with setup instructions; existing active users, including administrators, can still log in using their password without submitting an invitation key. This shared enrollment secret is not per-user MFA.
+
+Editing `.env` does **not** change a running backend or existing authenticated session. Stop/restart the full managed stack after changing it:
+
+```bash
+npm run stop
+npm run dev
+```
+
+For separately supervised services, restart both `npm start` and `npm run worker`. If a stale value was set in PowerShell, remove that process override with `Remove-Item Env:ADMIN_INVITE_KEY -ErrorAction SilentlyContinue` before starting again; also check your process manager's environment. Never print the key or put it in a `VITE_*` variable. A frontend rebuild alone does not rotate server configuration. Sign out and test a new sign-in: the new key must work and the previous key must fail.
 
 If your existing account shows Viewer, open **My profile** and verify your account password plus the valid key to activate admin access. You can also supply both during sign-in. The server audits the role change; the profile displays the role verified by `/auth/me`.
 
@@ -24,7 +35,7 @@ To explicitly generate a new key while preserving other existing settings:
 npm run setup -- --generate-admin-key
 ```
 
-Read the generated key only from `.env`, restart the API, and sign in again. This command rotates the previous shared invite key. A fresh `npm run setup` also generates a key when creating a new `.env`; ordinary setup preserves an existing file.
+Read the generated key only from `.env`, restart the managed stack, and sign in again. This command replaces duplicate key entries with a single newly generated value; it does not change accounts/passwords. Explicit deployment process variables still take precedence. Verify a built frontend with `npm run build` followed by `npm run check:client-secrets`; the scan prints only results, never secret values.
 
 `npm run test:admin-browser` runs the admin registration/login/profile/building/floors/rooms/cameras/controllers/timetable/QR/automation workflow against an isolated temporary database with generated credentials and the built frontend. Run `npm run build` first; the check requires installed Chrome/Edge or `BROWSER_EXECUTABLE`.
 

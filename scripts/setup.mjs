@@ -8,7 +8,8 @@ const generateAdminKey = () => randomInt(10000000, 100000000).toString();
 if (existsSync(target)) {
   if (process.argv.includes("--generate-admin-key")) {
     const existing = readFileSync(target, "utf8"), line = `ADMIN_INVITE_KEY=${generateAdminKey()}`;
-    writeFileSync(target, /^ADMIN_INVITE_KEY=.*$/m.test(existing) ? existing.replace(/^ADMIN_INVITE_KEY=.*$/m, line) : `${existing}\n${line}\n`, { mode: 0o600 });
+    const retained = existing.replace(/^\s*(?:export\s+)?ADMIN_INVITE_KEY\s*=.*\r?\n?/gm, "");
+    writeFileSync(target, `${retained.trimEnd()}\n${line}\n`, { mode: 0o600 });
     console.log("Generated a new ADMIN_INVITE_KEY in the ignored .env. Other settings preserved. Restart the API and use the key from that file; its value was not printed.");
   } else console.log("Existing .env preserved. Review its configuration locally. To generate a new admin key explicitly: npm run setup -- --generate-admin-key");
 } else {
