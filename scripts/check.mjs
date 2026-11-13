@@ -13,7 +13,7 @@ async function files(directory) {
   ).flat();
 }
 const paths = (
-  await Promise.all(["backend", "shared", "scripts", "tests"].map(files))
+  await Promise.all(["backend", "shared", "scripts", "tests", "demo"].map(files))
 )
   .flat()
   .filter((p) => p.endsWith(".js") || p.endsWith(".mjs"));

@@ -28,6 +28,26 @@ export function createModels(connection) {
     return connection.model(name, schema, collection);
   };
   return {
+    DemoSession: model("DemoSession", "demoSessions", {
+      roomId: { type: String, required: true }, active: { type: Boolean, default: true },
+      createdBy: String, stoppedBy: String, expiresAt: Date, endedAt: Date,
+      visionMode: { type: String, enum: ["instrumented", "camera_inference", "scenario_injection"], required: true },
+      visionVersion: String,
+      vacancyConfirmationMs: Number, firstEscalationMs: Number, finalAdditionalMs: Number,
+      coverageReviewed: Boolean, allowManualControl: Boolean, sourceId: String, previousRoom: mixed,
+      scene: mixed, markerEpoch: { type: Number, default: 1 }, markerDataUrl: String,
+      latestObservation: mixed, lastFrameAt: Date, lastFrameSequence: Number, processedFrames: { type: Number, default: 0 },
+      frameBusyUntil: Date, frameOwner: String, thumbnail: { type: Buffer, select: false }, thumbnailType: String,
+      thumbnailExpiresAt: Date, lastError: String,
+    }, [[{ roomId: 1 }, { unique: true, partialFilterExpression: { active: true } }]]),
+    DemoClient: model("DemoClient", "demoClients", {
+      sessionId: String, roomId: String, role: { type: String, enum: ["camera", "classroom", "presenter"] },
+      codeHash: { type: String, select: false }, codeExpiresAt: Date,
+      tokenHash: { type: String, select: false }, expiresAt: Date, pairedAt: Date,
+      lastSeenAt: Date, offlineAt: Date, lastSequence: { type: Number, default: -1 },
+      captureActive: { type: Boolean, default: false },
+      generation: { type: Number, default: 0 },
+    }, [[{ codeHash: 1 }, { unique: true, sparse: true }], [{ sessionId: 1, role: 1 }, { unique: true }], [{ tokenHash: 1 }, { unique: true, sparse: true }]]),
     DeviceConnection: model("DeviceConnection", "deviceConnections", {
       name: String, provider: { type: String, enum: ["simulator", "home_assistant"], required: true },
       mode: { type: String, enum: ["simulated", "live"], required: true },
@@ -155,6 +175,7 @@ export function createModels(connection) {
         commandLockUntil: Date,
         demoScenario: String,
         demoUntil: Date,
+        demoSessionId: String,
       },
       [
         [{ code: 1 }, { unique: true }],
@@ -259,6 +280,7 @@ export function createModels(connection) {
         quality: mixed,
         dataMode: mode,
         modelVersion: String,
+        equipment: mixed, evidenceSource: String, demoSessionId: String,
       },
       [
         [{ sourceId: 1, eventId: 1 }, { unique: true }],
@@ -361,6 +383,7 @@ export function createModels(connection) {
         acknowledgedBy: String,
         resolution: mixed,
         timeline: { type: [mixed], default: [] },
+        demoSessionId: String, timing: mixed,
       },
       [
         [
@@ -447,6 +470,8 @@ export function createModels(connection) {
         expiresAt: Date,
         state: String,
         result: mixed,
+        demoSessionId: String, sentAt: Date, acknowledgedAt: Date,
+        timeline: { type: [mixed], default: [] },
       },
       [[{ requestId: 1 }, { unique: true }]],
     ),

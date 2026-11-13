@@ -43,6 +43,7 @@ import {
 import { api, post, patch } from "./services/api";
 import { Management, Profile } from "./Management.jsx";
 import { ConnectedDevices } from "./ConnectedDevices.jsx";
+import { PhoneDemo, PhoneDemoSummary } from "./PhoneDemo.jsx";
 import "./styles.css";
 import "./stewardship.css";
 
@@ -273,6 +274,7 @@ function App() {
                 ["/recommendations", Lightbulb, "Recommendations"],
                 ["/access", QrCode, "QR access"],
                 ["/connected-devices", PlugZap, "Connected devices"],
+                ...(user.role === "admin" ? [["/phone-demo", Camera, "Two-phone demo"]] : []),
                 ...(user.role === "admin"
                   ? [["/admin", Settings, "Admin management"]]
                   : []),
@@ -397,6 +399,7 @@ function App() {
               )}
               <Routes>
                 <Route path="/connected-devices" element={<ConnectedDevices ui={managementUI} />} />
+                <Route path="/phone-demo" element={<PhoneDemo ui={managementUI} />} />
                 <Route path="/profile" element={<Profile ui={managementUI} />} />
                 <Route path="/" element={<Overview />} />
                 <Route path="/rooms" element={<Rooms />} />
@@ -701,6 +704,7 @@ function BuildingLabel() {
   return <span>{settings?.installationName ?? "Building workspace"}</span>;
 }
 function Overview() {
+  const { user } = useApp();
   const [summary, error] = useData("/analytics/summary"),
     [intervals, intervalError] = useData("/analytics/intervals"),
     [incidents, incidentError] = useData("/incidents"),
@@ -744,6 +748,7 @@ function Overview() {
         </span>
       </PageHead>
       <ErrorText>{error}</ErrorText>
+      <PhoneDemoSummary user={user} />
       <div className="metric-grid">
         {[
           [

@@ -1,5 +1,15 @@
 # Architecture
 
+## Two-phone demonstration (CE-011)
+
+`demo/cctv-camera/` uploads sampled video-only pixels; `demo/circuit-board/` illustrates loads and acts as the existing room-master simulator's visible endpoint. PhoneDemo.jsx provides admin session/evidence/command controls. `phone-demo-routes.js`, `services/phone-demo.js` and shared phone contracts use existing Express/Mongo/auth/Socket.IO. No second database, auth provider, policy engine or scheduler is introduced.
+
+`adapters/demo-vision.js` runs bounded local Python `vision/demo_worker.py`: OpenCV QR pixels for instrumented demo, positive-only HOG people detection otherwise unknown. Explicit injection is separate. Captured/source/quality/versioned observations remain simulated and enter existing temporal roomContext. Signed markers prevent accidental cross-session binding; they are demonstration conventions, not camera attestation. Presenter scenario selection never directly supplies a camera result.
+
+Admin sessions temporarily assign one dedicated demo source, separate vacancy confirmation and persisted 10s/+15s timing. Existing bookings, leases, overrides, inventory/AC/critical/native prerequisites, faults and restoration checks remain authoritative. The same worker/job collection escalates. Native room policy must be alert-only; demo paths never select a live adapter.
+
+`adapters/demo-classroom.js` extends the existing simulator with created/sent/application-acknowledged/expired/unverified commands; `simulated-supply.js` shares durable supply application with the original simulator. Policy is checked at queue, delivery and ACK. Backend supply changes only after valid classroom ACK; effective loads follow master AND local switch. Later camera OFF pixels are separate evidence. Reconnect resynchronises state, expired work is not replayed and stopping never automatically energises supply. See [DEMO_SETUP.md](DEMO_SETUP.md) for commands/HTTPS and physical checks still required.
+
 ## Approved native-OFF extension (CE-010)
 
 The existing single-building room-master design now has an optional, separate native-device OFF path for reviewed existing equipment. `connected-device-routes.js`, `services/connected-devices.js`, the HA/simulator adapters and `shared/native-contracts.js` own setup, discovery/binding, permission gates, command lifecycle and state reconciliation. See [HOME_ASSISTANT.md](HOME_ASSISTANT.md) for current protocols, configuration, source versions/licences and remaining physical acceptance work.
@@ -10,7 +20,7 @@ Connection/device allowlists and source/room protection live on the server. Defa
 
 The UI has a dedicated Connected Devices route and admin module for connections, candidates, room/inventory mapping, manual ID registration, review, explicit OFF tests, automatic permission, history, simulation and disconnect. No extra database or home-automation installation is introduced; direct assistant/mobile/cloud adapters remain deferred.
 
-**Status:** Local prototype implemented in JavaScript, aligned with [PLAN.md](PLAN.md). React/Vite, Express, Mongoose/MongoDB and a separate Node worker now exist. Physical devices, live vision/OCR and external transports remain unavailable. The implementation has not been deployed or electrically commissioned; see PROGRESS.md and HANDOFF.md for current checks.
+**Status:** Local prototype implemented in JavaScript, aligned with [PLAN.md](PLAN.md). React/Vite, Express, Mongoose/MongoDB and a separate Node worker now exist. Physical room hardware, general CCTV/RTSP/OCR and external transports remain uncommissioned; the separate phone-demo pixel pipeline is implemented. The implementation has not been deployed or electrically commissioned; see PROGRESS.md and HANDOFF.md for current checks.
 
 ## Implemented source map
 
@@ -110,10 +120,10 @@ Live cameras and breakers need an authorised reachable local gateway. A cloud da
 
 ## Implementation structure and open decisions
 
-[PLAN.md section 19.1](PLAN.md#191-suggested-repository-layout) proposes the wider layout. `frontend/`, `backend/`, `shared/`, `fixtures/`, `tests/` and `scripts/` now exist. `vision/`, `firmware/` and `docs/` have not been created; existing root documents remain the entry points.
+[PLAN.md section 19.1](PLAN.md#191-suggested-repository-layout) proposes the wider layout. `frontend/`, `backend/`, `shared/`, `fixtures/`, `tests/`, `scripts/`, `vision/` and `demo/` exist. `firmware/` and a separate `docs/` tree remain absent. Vision implements the bounded phone demo, not general RTSP/OCR deployment.
 
 Installed dependency versions are pinned in manifests/lockfile. API gaps were resolved for import commit, inspection/reassignment, recommendation scheduling/outcome review, user creation and the in-app inbox without changing approved product scope. Import previews use the additional `importBatches` collection; in-app inbox state lives in `notificationOutbox`. Shared room locks serialize policy mutations and simulated commands; jobs use atomic leasing and deterministic IDs, with reconciliation for partial incident/job creation. Operations are at-least-once row/document writes, not cross-collection transactions. Room creation has bounded compensating cleanup; multi-process transaction/lock hardening remains future work.
 
-Manual meter review, reset-epoch configuration and staff normal-stop confirmation are implemented with retained evidence. Still pending: real input/tariff validation, model/licence selection, image/vision/OCR processing, exact breaker/firmware/gateway, physical coverage/commissioning, external transports and installed quotes. Socket.IO sends authenticated refresh signals without room payloads; clients refetch scoped HTTP data. The API validates room subscriptions and active sessions. [TASKS.md](TASKS.md) and [TESTING.md](TESTING.md) distinguish completed checks from remaining acceptance work.
+Manual meter review, reset-epoch configuration and staff normal-stop confirmation are implemented with retained evidence. Still pending: real input/tariff validation, field model/coverage validation, general RTSP/OCR processing, exact breaker/firmware/gateway, physical coverage/commissioning, external transports and installed quotes. Socket.IO sends authenticated refresh signals without room payloads; clients refetch scoped HTTP data. The API validates room subscriptions and active sessions. [TASKS.md](TASKS.md) and [TESTING.md](TESTING.md) distinguish completed checks from remaining acceptance work.
 
 Operational follow-up includes source uptime, OCR review/gaps, false-alert reviews, response times, command verification, recommendation outcomes and baseline age. Revalidate coverage/mappings after room or wiring changes. Commercial subscriptions, savings-performance contracts and ESG reporting in the plan describe future evaluation; they do not expand this single-building MVP.

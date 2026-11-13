@@ -257,7 +257,10 @@ test("one room/master mapping and booking edits enforce contracts", async () => 
   assert.equal(roomPatch.body.data.independentInfrastructure, true);
   assert.equal(roomPatch.body.data.allowedStartHour, 0);
 });
-test("QR lookup has no control effect; lease extension invalidates old work and expiry stays unknown", async () => {
+test("QR lookup has no control effect; lease extension invalidates old work and expiry stays unknown", async (context) => {
+  // Freeze at a full minute safely before the wall clock so a two-second demo
+  // lease cannot cross local midnight while testing extension/expiry semantics.
+  context.mock.timers.enable({ apis: ["Date"], now: Math.floor((Date.now() - 300000) / 60000) * 60000 });
   const room = await models.Room.findById("room-r102").lean();
   const before = await models.Command.countDocuments();
   assert.equal(

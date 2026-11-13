@@ -1,7 +1,9 @@
 import { occupancy, protection } from "../domain/policies.js";
 import { HttpError } from "../security/access.js";
+import { activePhoneDemo } from "./demo-session-state.js";
 
 export async function roomContext(models, room, config, now = new Date()) {
+  const demoSession = await activePhoneDemo(models, room, config, now);
   const since = new Date(
     now.getTime() - Math.max(config.vacancyMs + 120000, 240000),
   );
@@ -43,7 +45,7 @@ export async function roomContext(models, room, config, now = new Date()) {
       expiresAt: { $gt: now },
     }).lean(),
   ]);
-  const availableSources = sources.filter((source) => source.type !== "camera" || !room.cameraConfiguration || room.cameraConfiguration === "installed");
+  const availableSources = sources.filter((source) => (!room.demoSessionId || (demoSession && source._id === demoSession.sourceId)) && (source.type !== "camera" || !room.cameraConfiguration || room.cameraConfiguration === "installed"));
   const nativePrerequisites = [];
   for (const load of devices.filter((item) => item.nativeOffRequired)) {
     const target = await models.ConnectedDevice.findOne({ inventoryId: load._id, roomId: room._id, enabled: true }).lean();
@@ -61,8 +63,9 @@ export async function roomContext(models, room, config, now = new Date()) {
     breaker,
     devices,
     nativePrerequisites,
+    demoSession,
     observed: occupancy(room, observations, availableSources, now, {
-      confirmationMs: config.vacancyMs,
+      confirmationMs: demoSession?.vacancyConfirmationMs ?? config.vacancyMs,
       demoMode: config.demoMode,
     }),
     protectedBy: protection(
@@ -93,6 +96,10 @@ export async function getSettings(models) {
   return settings;
 }
 export async function cancelRoomWork(models, roomId, reason, now = new Date()) {
+  for (const state of ["pending", "sent"]) await models.Command.updateMany({ roomId, demoSessionId: { $exists: true }, action: "off", reason: "vacancy_escalation", state }, {
+    $set: { state: state === "sent" ? "unverified" : "cancelled", result: { verification: "unknown", dataMode: "simulated", reason } },
+    $push: { timeline: { at: now, event: state === "sent" ? "unverified_after_cancellation" : "cancelled", reason } },
+  });
   await models.NativeCommand.updateMany({ roomId, status: "requested" }, {
     $set: { status: "cancelled", errorCode: "ROOM_POLICY_CANCELLED" }, $push: { timeline: { at: now, status: "cancelled", reason } },
   });

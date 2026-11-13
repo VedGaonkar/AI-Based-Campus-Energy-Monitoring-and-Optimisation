@@ -1,5 +1,15 @@
 # Implementation Tasks
 
+- [x] Repair demo room selection for legacy missing native policy; server-checked available-room options only, excluded reasons, matching creation checks. 17 demo tests and production/buildless build passed.
+
+## CE-011 — Two-phone camera and acknowledged room-master demonstration
+
+- [x] Scoped admin sessions/pairing, bounded camera transport and actual Python pixels (signed QR instrumented mode; positive-only HOG, unknown/injection kept distinct).
+- [x] Extend existing room-master simulator with durable delivery/application ACK, expiry/reconnect and existing protections/persistent scheduler; no native fallback/live actuation.
+- [x] Independent `demo/cctv-camera/` and `demo/circuit-board/` entry points/start commands, seven scenes/lock/local/master state, dashboard session/evidence/timeline/ACK panel.
+- [x] 86 isolated application tests, 10 three-browser workflow checks, 14 existing admin browser checks, production/buildless build and 55 syntax checks passed. DEMO_SETUP.md/HTTPS example and affected contracts updated; current local rollout verification is recorded in HANDOFF.md/PROGRESS.md.
+- [ ] Separate physical rehearsal: two phones, trusted reachable HTTPS/CA/firewall path, display focus/glare/moire/background/network-loss checks and consenting real teammate HOG test. These inputs were not supplied; no physical two-phone/electrical demonstration claimed.
+
 ## CE-010 — Existing smart equipment through Home Assistant
 
 - [x] Add encrypted, destination-restricted Home Assistant connection and isolated simulator adapters; verify REST/WebSocket protocols and ordering.

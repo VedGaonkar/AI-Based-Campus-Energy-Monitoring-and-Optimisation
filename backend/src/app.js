@@ -51,6 +51,8 @@ import { accessAllowed } from "./domain/policies.js";
 import { createRoomMaster } from "./adapters/room-master.js";
 import { registerManagement } from "./management.js";
 import { registerConnectedDevices } from "./connected-device-routes.js";
+import { createPhoneDemoService } from "./services/phone-demo.js";
+import { registerDemoPhoneRoutes, registerDemoAdminRoutes, registerDemoSockets } from "./phone-demo-routes.js";
 
 const admin = (user) => requireRole(user, ["admin"]);
 const staff = (user) =>
@@ -106,6 +108,8 @@ export function createApplication({ config, connection, models }) {
     new URL(config.publicAppUrl).origin,
   ]);
   const api = express.Router();
+  const phoneDemo = createPhoneDemoService(models, config);
+  registerDemoPhoneRoutes(api, { models, config, service: phoneDemo, origins });
   api.get("/health", (req, res) =>
     res.json({
       data: {
@@ -377,6 +381,7 @@ export function createApplication({ config, connection, models }) {
   });
   registerManagement(api, { models, config });
   const connectedDevices = registerConnectedDevices(api, { models, config });
+  registerDemoAdminRoutes(api, { models, service: phoneDemo });
   api.get("/auth/me", (req, res) =>
     res.json({ data: { user: req.user, csrfToken: req.session.csrf } }),
   );
@@ -1474,6 +1479,7 @@ export function createApplication({ config, connection, models }) {
   });
   app.use("/api/v1", api);
   app.use("/api", (req, res) => fail(404, "NOT_FOUND", "API route not found"));
+  app.use("/demo", express.static(fileURLToPath(new URL("../../demo/", import.meta.url)), { dotfiles: "deny", setHeaders: res => { res.setHeader("Referrer-Policy", "no-referrer"); res.setHeader("Cache-Control", "no-store"); } }));
   const frontend = fileURLToPath(
     new URL("../../frontend/dist/", import.meta.url),
   );
@@ -1488,15 +1494,17 @@ export function createApplication({ config, connection, models }) {
   app.use((req, res) => fail(404, "NOT_FOUND", "Route not found"));
   app.use(errorHandler);
   const io = new Server(server, {
-    cors: { origin: [...origins], credentials: true },
+    cors: { origin: [...origins, ...(config.demoPhoneOrigins ?? [])], credentials: true },
     allowRequest: (req, callback) => {
       // Same-origin browser polling GETs can omit Origin. Match their Host and
       // fetch-site instead; cross-origin requests still need an exact origin.
-      const hostAllowed = [...origins].some((origin) => new URL(origin).host === req.headers.host);
+      const socketOrigins = new Set([...origins, ...(config.demoPhoneOrigins ?? [])]);
+      const hostAllowed = [...socketOrigins].some((origin) => new URL(origin).host === req.headers.host);
       const sameSite = !req.headers["sec-fetch-site"] || req.headers["sec-fetch-site"] === "same-origin";
-      callback(null, req.headers.origin ? origins.has(req.headers.origin) : hostAllowed && sameSite);
+      callback(null, req.headers.origin ? socketOrigins.has(req.headers.origin) : hostAllowed && sameSite);
     },
   });
+  const closeDemoSockets = registerDemoSockets(io, { models, config, service: phoneDemo });
   io.engine.use(sessions);
   io.use(async (socket, next) => {
     try {
@@ -1547,6 +1555,8 @@ export function createApplication({ config, connection, models }) {
     store,
     close: async () => {
       clearInterval(interval);
+      closeDemoSockets();
+      await phoneDemo.close();
       await connectedDevices.close();
       await new Promise((resolve) => io.close(resolve));
     },

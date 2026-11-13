@@ -1,5 +1,7 @@
 # Existing equipment through Home Assistant
 
+The separate [two-phone demonstration](DEMO_SETUP.md) uses only the existing simulated room master and simulated observations. It never calls HA for control, never satisfies a live native test gate and cannot turn native failure into breaker fallback. Stop/disable native room policy before temporarily assigning that room to a phone demo; HA connection data and reviewed device bindings remain intact.
+
 Documentation/access checked: **13 November 2026**. Protocol/reference baseline: Home Assistant **2026.11.1** documentation and tagged core source; no real Home Assistant instance or physical equipment has been connected for this increment. Local protocol mocks and the campus simulator are software tests, not commissioned devices.
 
 ## What this increment implements
