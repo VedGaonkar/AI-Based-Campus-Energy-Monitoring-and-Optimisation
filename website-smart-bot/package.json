@@ -1,0 +1,22 @@
+{
+  "name": "website-smart-bot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Role-aware Gemini assistant for the Campus Energy website. Runs as a separate service and reaches the site only through its existing API.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "check:model": "node scripts/check-model.js",
+    "test": "node --test --test-concurrency=1 \"test/*.test.js\"",
+    "check:ui": "node scripts/ui-check.mjs"
+  },
+  "dependencies": {
+    "@google/genai": "^3.3.0",
+    "express": "^5.3.0",
+    "zod": "^4.6.7"
+  }
+}
