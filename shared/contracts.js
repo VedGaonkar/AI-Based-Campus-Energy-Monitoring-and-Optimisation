@@ -21,6 +21,7 @@ export const roomInput = z
     capacity: z.number().int().nonnegative().default(0),
     roomBreakerId: id,
     controlMode: z.enum(["alert_only", "simulated"]).default("alert_only"),
+    nativeOffMode: z.enum(["alert_only", "simulated", "live"]).default("alert_only"),
     coverageValidated: z.boolean().default(false),
     independentInfrastructure: z.boolean().default(false),
     requiredSourceIds: z.array(id).max(20).default([]),
@@ -49,6 +50,7 @@ export const deviceInput = z
     restartBehaviourKnown: z.boolean().default(false),
     essentialStandbyRequirement: z.boolean().default(false),
     approvalNotes: z.string().max(1000).default(""),
+    nativeOffRequired: z.boolean().default(false),
   })
   .strict();
 export const scheduleInput = z

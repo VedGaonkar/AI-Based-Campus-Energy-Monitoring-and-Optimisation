@@ -1,0 +1,11 @@
+import { z } from "zod";
+import { id } from "./contracts.js";
+export const entityId = z.string().min(3).max(200).regex(/^[a-z][a-z0-9_]*\.[a-z0-9_]+$/);
+const text = z.string().trim().min(1).max(200);
+export const connectionInput = z.object({ name: text, provider: z.enum(["simulator", "home_assistant"]), baseUrl: z.string().url().max(500).optional(), token: z.string().min(10).max(4096).optional() }).strict();
+export const connectionPatch = z.object({ name: text.optional(), baseUrl: z.string().url().max(500).optional(), token: z.string().min(10).max(4096).optional(), enabled: z.boolean().optional() }).strict();
+export const entityInput = z.object({ connectionId: id, entityId, roomId: id, name: text.optional(), inventoryId: id.optional() }).strict();
+export const reviewInput = z.object({ classification: z.enum(["unreviewed", "ordinary", "critical", "room_master", "protected_infrastructure"]), identityReviewed: z.boolean(), capabilityReviewed: z.boolean(), manualOffAllowed: z.boolean(), reviewNotes: z.string().trim().min(5).max(1000) }).strict();
+export const permissionInput = z.object({ enabled: z.boolean() }).strict();
+export const nativeOffInput = z.object({ requestId: id, action: z.literal("off"), confirmed: z.literal(true) }).strict();
+export const simulationInput = z.object({ entityId, state: z.enum(["on", "off", "cool", "unknown", "unavailable"]).optional(), outcome: z.enum(["confirm", "unverified", "unavailable", "transport_error"]).optional() }).strict();

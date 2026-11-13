@@ -2,12 +2,15 @@ import { randomUUID } from "node:crypto";
 import { roomContext, cancelRoomWork, audit } from "../services/context.js";
 import { withRoomLock } from "../security/access.js";
 import { createRoomMaster } from "../adapters/room-master.js";
+import { getConnectedDeviceService } from "../services/connected-devices.js";
+import { reconcileClassroomCommands } from "../adapters/demo-classroom.js";
+import { stopPhoneDemo } from "../services/phone-demo.js";
 
 export async function ensureIncidentJobs(models, incident, config) {
   const stages = [
     ["first", 0],
-    ["second", config.firstEscalationMs],
-    ["final", config.firstEscalationMs + config.finalAdditionalMs],
+    ["second", incident.timing?.firstEscalationMs ?? config.firstEscalationMs],
+    ["final", (incident.timing?.firstEscalationMs ?? config.firstEscalationMs) + (incident.timing?.finalAdditionalMs ?? config.finalAdditionalMs)],
   ];
   for (const [stage, delay] of stages)
     await models.Job.updateOne(
@@ -18,6 +21,7 @@ export async function ensureIncidentJobs(models, incident, config) {
           roomId: incident.roomId,
           stage,
           dueAt: new Date(new Date(incident.openedAt).getTime() + delay),
+          ...(stage === "final" ? { expiresAt: new Date(new Date(incident.openedAt).getTime() + delay + 30000) } : {}),
           policyVersion: incident.policyVersion,
           status: "pending",
         },
@@ -117,6 +121,11 @@ export async function tick(
   workerId = randomUUID(),
 ) {
   const adapter = createRoomMaster(models, config);
+  const connectedDevices = getConnectedDeviceService(models, config);
+  for (const session of await models.DemoSession.find({ active: true, expiresAt: { $lte: now } }).lean()) await stopPhoneDemo(models, config, session._id, "worker:expired", now);
+  await models.DemoSession.updateMany({ thumbnailExpiresAt: { $lte: now } }, { $unset: { thumbnail: "", thumbnailType: "", thumbnailExpiresAt: "" } });
+  await reconcileClassroomCommands(models, now);
+  await connectedDevices.sync();
   await fixtureHeartbeat(models, config, now);
   const rooms = await models.Room.find().lean();
   for (const initial of rooms) {
@@ -167,6 +176,12 @@ export async function tick(
             return;
           }
           const issueKey = `vacancy:${room._id}`;
+          if (room.demoSessionId && (!context.demoSession || context.demoSession.lastError ||
+            !Object.values(context.demoSession.latestObservation?.equipment ?? {}).some(value => value === true))) {
+            await cancelRoomWork(models, room._id, "Demo visual equipment evidence is insufficient or demo requires reset", now);
+            return;
+          }
+          if (await connectedDevices.nativeRoomDemand(room) === false) return;
           const incident = await models.Incident.findOneAndUpdate(
             { issueKey, active: true },
             {
@@ -177,6 +192,7 @@ export async function tick(
                 state: "open",
                 openedAt: now,
                 policyVersion: room.policyVersion,
+                ...(context.demoSession ? { demoSessionId: context.demoSession._id, timing: { firstEscalationMs: 10000, finalAdditionalMs: 15000, profile: "authorised_two_phone_demo" } } : {}),
                 firstResponderId: room.firstResponderId,
                 secondResponderId: room.secondResponderId,
                 backupResponderId: room.backupResponderId,
@@ -213,6 +229,7 @@ export async function tick(
   for (let count = 0; count < 50; count++) {
     const job = await models.Job.findOneAndUpdate(
       {
+        kind: { $ne: "native_off" },
         dueAt: { $lte: now },
         $or: [
           { status: "pending" },
@@ -248,7 +265,7 @@ export async function tick(
           if (incident.snoozedUntil && incident.snoozedUntil > now) {
             await models.Job.updateOne(
               { _id: job._id, leaseOwner: workerId },
-              { $set: { status: "pending", dueAt: incident.snoozedUntil } },
+              { $set: { status: "pending", dueAt: incident.snoozedUntil, ...(job.stage === "final" ? { expiresAt: new Date(+incident.snoozedUntil + 30000) } : {}) } },
             );
             return;
           }
@@ -288,6 +305,15 @@ export async function tick(
               },
             );
           } else {
+            if (job.expiresAt && job.expiresAt <= now) {
+              await models.Incident.updateOne({ _id: incident._id }, { $set: { active: false, state: "blocked" }, $push: { timeline: { at: now, event: "final_deadline_expired" } } });
+              await models.Job.updateOne({ _id: job._id }, { $set: { status: "expired" } });
+              return;
+            }
+            if (await connectedDevices.planIncident(incident, job, room, now)) {
+              await models.Job.updateOne({ _id: job._id, leaseOwner: workerId }, { $set: { status: "completed" } });
+              return;
+            }
             try {
               const command = await adapter.setSupply(
                 room._id,
@@ -297,7 +323,7 @@ export async function tick(
                   reason: "vacancy_escalation",
                   incidentId: incident._id,
                   policyVersion: job.policyVersion,
-                  expiresAt: new Date(now.getTime() + 30000).toISOString(),
+                  expiresAt: (job.expiresAt ?? new Date(now.getTime() + 30000)).toISOString(),
                 },
                 "worker",
                 now,
@@ -307,10 +333,10 @@ export async function tick(
                 { _id: incident._id },
                 {
                   $set: {
-                    active: false,
-                    state: "resolved",
+                    active: command.demoSessionId ? true : false,
+                    state: command.demoSessionId ? "action_sent" : "resolved",
                     resolution: {
-                      method: "simulated",
+                      method: command.demoSessionId ? "awaiting_virtual_classroom" : "simulated",
                       commandId: command._id,
                       at: now,
                     },
@@ -318,8 +344,8 @@ export async function tick(
                   $push: {
                     timeline: {
                       at: now,
-                      event: "simulated_off",
-                      verification: "simulated",
+                      event: command.demoSessionId ? "virtual_classroom_command_created" : "simulated_off",
+                      verification: command.demoSessionId ? "unknown" : "simulated",
                     },
                   },
                 },
@@ -362,6 +388,7 @@ export async function tick(
       );
     }
   }
+  await connectedDevices.processJobs(now, workerId);
   for (const lease of await models.AccessLease.find({ endedAt: null }).lean()) {
     if (
       lease.expiresAt > now &&

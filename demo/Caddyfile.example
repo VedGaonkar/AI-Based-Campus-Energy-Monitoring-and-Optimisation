@@ -1,0 +1,7 @@
+# Example only. Replace this IP with the laptop's actual private LAN address.
+# Install/trust this Caddy instance's local CA on both phones first.
+# No tunnel, public deployment or firewall change is performed by this project.
+https://192.168.1.50 {
+    tls internal
+    reverse_proxy 127.0.0.1:5000
+}

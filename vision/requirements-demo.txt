@@ -1,0 +1,4 @@
+# Use an isolated environment; do not install competing OpenCV wheel variants together.
+opencv-contrib-python==4.10.0.84
+numpy==2.2.2
+Pillow==11.1.0

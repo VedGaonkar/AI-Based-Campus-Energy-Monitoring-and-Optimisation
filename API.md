@@ -1,5 +1,54 @@
 # API and integration contracts
 
+## Two-phone demonstration (CE-011)
+
+`GET /demo/available-rooms` is admin-only and returns room `_id`, code, name and unavailableReason (null when available). Shared checks cover existing session/native policy, mapped simulator, health/interlocks, independent infrastructure and reviewed load inventory; missing legacy nativeOffMode defaults to alert_only. Session creation rechecks the same rules under its room lock. Availability is setup eligibility, not permission to bypass current occupancy/booking/QR/override or command-time checks.
+
+Paths are relative to `/api/v1`. Existing key-verified admin sessions, room scope and CSRF/origin checks protect `/demo/sessions`. Phone routes use one-use pairing and scoped expiring bearer capabilities with exact allowed mutation origins. No administrator or HA credential is exposed. See [DEMO_SETUP.md](DEMO_SETUP.md) and `shared/phone-demo-contracts.js`.
+
+| Method/path | Contract |
+| --- | --- |
+| `GET/POST /demo/sessions` | Admin list/create: roomId, visionMode instrumented/camera_inference/scenario_injection, coverageReviewed:true, vacancyConfirmationSeconds (2–60), durationMinutes (5–120), optional allowManualControl. No inventory approvals/protected use changed. |
+| `GET /demo/sessions/:id` | Scoped admin evidence/protections/phone health, persistent incidents/jobs and command/ACK history; no secrets or thumbnail bytes. |
+| `POST /demo/sessions/:id/pairing` | Admin issues camera/classroom/presenter code plus fragment URL/QR once; five-minute validity; replaces prior role capability. |
+| `POST /demo/sessions/:id/stop` or `/reset` | Revoke pairings, cancel work/subscriptions, restore owned room configuration. Reset requires new pairing; no automatic energisation. |
+| `GET /demo/sessions/:id/frame` | Admin-only current JPEG thumbnail; no-store, two-minute expiry, cleared on end. |
+| `POST /demo-phone/pair` | `{code}` → expiring role/session/room token. One use; cookies/root credentials not required. |
+| `GET /demo-phone/state` | Capability-scoped snapshot; camera role does not receive classroom marker/scenario. |
+| `POST /demo-phone/frames` | Camera: sequence, capturedAt, mime, base64 image; JPEG/PNG ≤250KB, ≤960×720, capture ±5s, increasing sequence, bounded processing. Actual Python pixels; no URLs. |
+| `POST /demo-phone/scene` | Classroom/presenter: allowlisted name, optional localSwitches/lock. Scene selection alone never creates a camera observation. |
+| `GET /demo-phone/commands` | Classroom only receives current unexpired explicit ON/OFF; policy rechecked before delivery. Other roles receive no commands. |
+| `POST /demo-phone/ack` | Classroom: commandId, matching action, applied:true. Current session/room/deadline/policy/interlocks checked; durable supply changes only after ACK. |
+| `POST /demo-phone/master` | Opted-in classroom/presenter: UUID requestId + explicit action, using existing supply policy. No toggle/live provider. |
+| `POST /demo-phone/inject` | Injection sessions only: occupancy + equipmentOn, source scenario_injection. Frames rejected in this mode. |
+| `POST /demo-phone/offline` | Stop/background notification; camera unavailable, automatic cutoff cancelled. |
+
+Existing Socket.IO adds `/demo-phone`, authenticated by handshake `auth.token`, isolated by session/role. `demo:state` carries the scoped snapshot; `demo:command` goes only to its classroom; clients send `demo:heartbeat`. Grants are rechecked; reconnect resynchronises state and ignores expired work. HTTP polling recovers transport, not scheduling. Lifecycle: pending/created → sent → completed with verification simulator_acknowledged, or cancelled/expired/unverified. All remain simulated. ACK is separate from later camera evidence. Python is a bounded local JSON-lines subprocess, not a public general vision HTTP service.
+
+## Existing smart equipment / Home Assistant (CE-010)
+
+All paths below are relative to `/api/v1`. Gateway setup/discovery/review/permission actions are admin-only. Device reads, refresh and commands require room scope; manual OFF additionally requires admin/HOD/technician. Writes retain CSRF/origin checks. Inputs in `shared/native-contracts.js` are strict; the frontend supplies an internal device ID and approved OFF request, never an arbitrary HA URL/domain/service/body.
+
+| Method/path | Behavior |
+| --- | --- |
+| `GET/POST /device-connections` | List safe metadata / create simulator or allowlisted HA connection; token write-only |
+| `PATCH /device-connections/:id` | Update name/URL/token or enabled flag; reset target permissions/tests and cancel work |
+| `POST /device-connections/:id/test` | Read-only authentication/health/version test |
+| `GET /device-connections/:id/entities` | Filtered state/capability/registry candidates; no command |
+| `POST /device-connections/:id/live-permission` | `{enabled}`; live gate requires non-demo server approval and tested healthy gateway |
+| `POST /device-connections/:id/simulation` | Demo-only exact fixture entity state/outcome; never live |
+| `GET/POST /connected-devices` | Room-scoped list / authenticated entity registration and explicit room/inventory binding |
+| `GET /connected-devices/:id` | Scoped details, state and review evidence |
+| `POST /connected-devices/:id/refresh` | Authenticated state/capability read and identity check |
+| `PATCH /connected-devices/:id/binding` | Explicit exact entity/room/inventory reconciliation; review/test permissions reset |
+| `PATCH /connected-devices/:id/review` | Classification, identity/capability review, manual test permission and notes; automatic permission/test reset |
+| `POST /connected-devices/:id/automation` | `{enabled}`; confirmed explicit current-mode/configuration test required |
+| `POST /connected-devices/:id/off` | `{requestId,action:"off",confirmed:true}`; durable command/job; returns 202 requested, not a physical-success claim |
+| `GET /connected-devices/:id/commands` | Scoped retained lifecycle/evidence history |
+| `POST /connected-devices/:id/unregister` | Disable target/cancel work; retain history |
+
+Provider errors are normalised AUTHENTICATION, AUTHORIZATION, UNSUPPORTED, UNAVAILABLE, RATE_LIMITED, TIMEOUT, TRANSPORT, DESTINATION, RESPONSE_LIMIT or IDENTITY_CHANGED; upstream bodies/tokens are never echoed. Gateway operations/control are rate-limited; routine safe metadata polling is separate. The simulator shares the provider interface without network requests. See [HOME_ASSISTANT.md](HOME_ASSISTANT.md) for gates, protocol/source versions and live prerequisites.
+
 ## Administrator authentication and management (CE-009)
 
 `POST /auth/register` accepts `{name,email,password,adminKey?}`. No key creates a viewer; a valid key creates an admin. An incorrect key returns `403 INVALID_ADMIN_KEY` without creating an account; a supplied key with disabled server configuration returns `503 ADMIN_ACCESS_DISABLED`. `POST /auth/login` requires the password plus configured key for admin accounts. An existing non-admin supplying a correct password and key is explicitly promoted and audited. Sessions regenerate and record server-side `adminVerified`; old/unverified sessions cannot acquire admin API/socket access from a database role change alone.

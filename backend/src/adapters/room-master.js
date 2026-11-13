@@ -1,6 +1,9 @@
 import { supplyEligibility } from "../domain/policies.js";
 import { roomContext, audit } from "../services/context.js";
 import { withRoomLock, fail } from "../security/access.js";
+import { activePhoneDemo } from "../services/demo-session-state.js";
+import { queueClassroomCommand } from "./demo-classroom.js";
+import { applySimulatedSupply } from "./simulated-supply.js";
 
 export function createRoomMaster(models, config) {
   if (config.deviceAdapter !== "simulator" || config.allowPhysicalControl)
@@ -40,7 +43,7 @@ export function createRoomMaster(models, config) {
               "IDEMPOTENCY_CONFLICT",
               "Request ID belongs to a different command",
             );
-          if (existing.result) return existing;
+          if (existing.result || existing.demoSessionId) return existing;
         }
         const expiresAt = new Date(input.expiresAt ?? now.getTime() + 30000);
         if (expiresAt.getTime() - now.getTime() > 60000)
@@ -61,6 +64,10 @@ export function createRoomMaster(models, config) {
         });
         if (!eligibility.allowed)
           fail(409, "CONTROL_BLOCKED", eligibility.reason);
+        const demo = await activePhoneDemo(models, room, config, now);
+        if (room.demoSessionId && !demo) fail(409, "DEMO_ENDED", "Demo endpoint unavailable; no internal acknowledgement substituted");
+        if (demo && await models.Command.exists({ roomId, demoSessionId: demo._id, _id: { $ne: existing?._id ?? "" }, state: { $in: ["pending", "sent"] }, expiresAt: { $gt: now } }))
+          fail(409, "COMMAND_IN_FLIGHT", "Wait for the current virtual-classroom command outcome");
         const command =
           existing ??
           (
@@ -75,25 +82,9 @@ export function createRoomMaster(models, config) {
               state: "pending",
             })
           ).toObject();
-        // Simulated state is durable. Replaying the same explicit command cannot toggle it.
-        const changed = context.breaker.reportedSupply !== input.action;
-        await models.Breaker.updateOne(
-          { _id: room.roomBreakerId },
-          {
-            $set: {
-              reportedSupply: input.action,
-              automationDisabled:
-                input.action === "off" && input.reason === "vacancy_escalation",
-              ...(changed ? { lastChangedAt: now } : {}),
-              lastRequestId: input.requestId,
-            },
-          },
-        );
-        if (changed && input.action === "on")
-          await models.Device.updateMany(
-            { roomId, requiresNormalStopBeforeCutoff: true },
-            { $set: { lastRestartAt: now, stopProcedureConfirmedAt: null } },
-          );
+        if (demo) return queueClassroomCommand(models, demo, command, now);
+        // The ordinary internal simulator still applies its own durable state.
+        await applySimulatedSupply(models, context, input, now);
         const result = {
           requestId: input.requestId,
           transportStatus: "acknowledged",

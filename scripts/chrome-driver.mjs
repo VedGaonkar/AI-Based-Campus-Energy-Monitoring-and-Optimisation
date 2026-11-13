@@ -202,13 +202,17 @@ export async function launchChrome(executablePath) {
         deviceScaleFactor: 1,
         mobile: false,
       }),
-    screenshot: async ({ path, fullPage }) => {
+    screenshot: async ({ path, fullPage, selector }) => {
       const metrics = await send("Page.getLayoutMetrics");
       const size = metrics.cssContentSize ?? metrics.contentSize;
+      const elementClip = selector ? await evaluate((selector) => {
+        const rect = document.querySelector(selector).getBoundingClientRect();
+        return { x: rect.x + window.scrollX, y: rect.y + window.scrollY, width: rect.width, height: rect.height, scale: 1 };
+      }, selector) : null;
       const image = await send("Page.captureScreenshot", {
         format: "png",
-        captureBeyondViewport: !!fullPage,
-        ...(fullPage
+        captureBeyondViewport: !!fullPage || !!selector,
+        ...(elementClip ? { clip: elementClip } : fullPage
           ? {
               clip: {
                 x: 0,

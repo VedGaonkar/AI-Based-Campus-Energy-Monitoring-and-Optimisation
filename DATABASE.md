@@ -1,5 +1,24 @@
 # Database design and consistency
 
+## Two-phone demo extension (CE-011)
+
+`demoSessions` binds an existing room, author, source/mode/coverage convention, expiry, previous owned room configuration, marker epoch/scene, timing, latest observation and processing lease. A unique partial active-room index prevents concurrent sessions. The latest thumbnail alone is retained (query-excluded), with two-minute expiry/worker cleanup and explicit erasure on end. Observation/command metadata remains for audit, never measured energy.
+
+`demoClients` stores session/room/role, excluded pairing-code/token hashes, code/session expiry, paired/last-seen/offline/capture state and increasing frame sequence. Raw codes/tokens are returned once, not stored/exported. Unique code/token/session-role indexes enforce isolation. Reissue/reset/end revokes old access; expiry is checked directly, not delegated to TTL timing.
+
+Rooms add demoSessionId; observations add equipment/source/session evidence. Incidents add session and immutable timing; existing jobs keep deterministic stage IDs/deadlines/leases. Existing master commands add session, sent/ACK times and timeline, with pending/sent/completed/cancelled/expired/unverified outcomes. Room-locked ACK rechecks policy before applying the shared simulator state. Writes remain idempotent/compensating, not cross-collection transaction claims. Session end cancels all its commands; vacancy invalidation cancels automatic OFF intent without discarding authorised manual restoration.
+
+## Connected equipment extension (CE-010)
+
+- `deviceConnections`: provider/mode, name, configured-origin instance fingerprint, validated origin/IP pins, excluded AES-GCM token ciphertext, enabled/live permission, configuration revision, REST/socket health, version/last-seen/error and audit actors. Normal API responses omit ciphertext and DNS pins; tokens are write-only.
+- `connectedDevices`: immutable campus ID, connection/instance/entity/registry/physical identities and optional endpoint fingerprint, explicit campus room and optional existing inventory binding, capabilities/evidence, classification/review, manual/automatic permission, revisions, last observed provider state, explicit test evidence, verification and audit fields. Unique connection/entity; active physical identity/fingerprint and inventory indexes prevent ambiguous bindings where evidence exists. Rebinding resets permissions rather than guessing names.
+- `nativeCommands`: unique request ID, exact resolved target/action OFF, room/connection/incident and actor, policy/device/connection revisions, issue/dispatch/accept/expiry times, status, mode, verification, before/after evidence and retained timeline. Accepted/unavailable is not confirmed OFF; late matching evidence may reconcile an unverified command without erasing its history.
+- `simulatedEntities`: persistent isolated fixture state/outcome per simulator connection/entity; no live adapter fallback.
+- Existing `jobs` adds kind, targetId, commandId, expiry and device/connection revisions. Native jobs are claimed separately from legacy alert/master jobs. Missing jobs reconcile from durable commands; expired/dispatched work is not blindly replayed.
+- `rooms.nativeOffMode` defaults alert-only and is independent of master mode. `devices.nativeOffRequired` optionally blocks dependent master OFF until fresh matching native confirmation. Inventory alone remains non-executable. New occupancy, schedules, QR, overrides and policy changes cancel native intent through the existing room-work invalidation helper.
+
+As elsewhere, this is at-least-once document/row persistence with conditional writes, unique indexes and compensation, not cross-collection transaction guarantees. Connection disablement is authoritative immediately; dependent permission/job cleanup completes before its API response returns. Source timestamps plus observed times order state writes across API/worker processes.
+
 ## Administrator setup extension (CE-009)
 
 - Singleton `settings/installation` now stores organisationName, contactEmail, address, buildingType and setupCompleted alongside energy settings. No extra building/tenant collection is introduced.
@@ -19,7 +38,7 @@
 - `energyIntervals` persists boundaries, kWh, average kW, coverage, lineage and an embedded baseline/calculation version. `baselines` has a reserved schema/index; current calculations use the embedded record. Calculation implementation is version 1; fuller baseline history/version management remains future work.
 - `importBatches` holds type, mode, creator, normalised rows, `rowErrors`, duplicate count, status, commit time and 24-hour expiry. API responses expose rowErrors as `errors`. TTL only cleans previews, never executes control deadlines.
 - `notificationOutbox` is also the MVP inbox: recipient, stage, delivery state and readAt. `sessions` is managed by connect-mongo with its expiry index, not an application Mongoose model. No external provider delivery is claimed.
-- Reading `corrections` preserve old/new value, actor, time and evidence reason. Normal-stop evidence retains actor/reason/time and is invalidated after restart or uncertain occupancy. Raw meter-image/OCR files, physical credentials and production retention enforcement remain pending. No identifiable footage is stored.
+- Reading `corrections` preserve old/new value, actor, time and evidence reason. Normal-stop evidence retains actor/reason/time and is invalidated after restart or uncertain occupancy. Raw meter-image/OCR files, physical credentials and production retention enforcement remain pending. The phone demo may temporarily retain a potentially identifiable latest thumbnail under its scoped two-minute/end-of-session deletion policy; no video archive is stored.
 
 ## Installation and ownership
 

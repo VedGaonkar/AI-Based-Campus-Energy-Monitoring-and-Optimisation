@@ -42,6 +42,8 @@ import {
 } from "lucide-react";
 import { api, post, patch } from "./services/api";
 import { Management, Profile } from "./Management.jsx";
+import { ConnectedDevices } from "./ConnectedDevices.jsx";
+import { PhoneDemo, PhoneDemoSummary } from "./PhoneDemo.jsx";
 import "./styles.css";
 import "./stewardship.css";
 
@@ -271,6 +273,8 @@ function App() {
                 ["/incidents", Bell, "Incidents"],
                 ["/recommendations", Lightbulb, "Recommendations"],
                 ["/access", QrCode, "QR access"],
+                ["/connected-devices", PlugZap, "Connected devices"],
+                ...(user.role === "admin" ? [["/phone-demo", Camera, "Two-phone demo"]] : []),
                 ...(user.role === "admin"
                   ? [["/admin", Settings, "Admin management"]]
                   : []),
@@ -394,6 +398,8 @@ function App() {
                 </div>
               )}
               <Routes>
+                <Route path="/connected-devices" element={<ConnectedDevices ui={managementUI} />} />
+                <Route path="/phone-demo" element={<PhoneDemo ui={managementUI} />} />
                 <Route path="/profile" element={<Profile ui={managementUI} />} />
                 <Route path="/" element={<Overview />} />
                 <Route path="/rooms" element={<Rooms />} />
@@ -426,7 +432,7 @@ function App() {
                 Campus Energy{" "}
                 <span>One building. Clear evidence. Better decisions.</span>
                 <span>
-                  Calendar: Asia/Kolkata · All supply actions simulated
+                  Calendar: Asia/Kolkata · Room-master supply actions simulated
                 </span>
               </footer>
             </main>
@@ -698,6 +704,7 @@ function BuildingLabel() {
   return <span>{settings?.installationName ?? "Building workspace"}</span>;
 }
 function Overview() {
+  const { user } = useApp();
   const [summary, error] = useData("/analytics/summary"),
     [intervals, intervalError] = useData("/analytics/intervals"),
     [incidents, incidentError] = useData("/incidents"),
@@ -741,6 +748,7 @@ function Overview() {
         </span>
       </PageHead>
       <ErrorText>{error}</ErrorText>
+      <PhoneDemoSummary user={user} />
       <div className="metric-grid">
         {[
           [
@@ -1101,7 +1109,8 @@ function RoomDetail({ roomId }) {
       </div>
       <p className="caption">
         Master: {status.room.roomBreakerId}. All approved ordinary loads share
-        this supply. There are no individual appliance controls.
+        this supply. Separately reviewed native OFF actions for existing smart
+        equipment are managed under Connected devices.
       </p>
       {roleCan(user, RESPONDERS) && (
         <div className="action-row">
@@ -3272,7 +3281,7 @@ function AddIntegrationForm({ rooms }) {
   );
 }
 
-const managementUI = { useApp, useData, PageHead, Field, Button, Badge, ErrorText, Empty, Modal, RoomDetail, Timetable, Access, Admin, date };
+const managementUI = { useApp, useData, PageHead, Field, Button, Badge, ErrorText, Empty, Modal, RoomDetail, Timetable, Access, Admin, InventoryForm, date };
 
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>

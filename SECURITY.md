@@ -1,5 +1,29 @@
 # Security and Control Requirements
 
+## Two-phone demo extension (CE-011)
+
+Existing admin password/key sessions, CSRF and room scope authorise session/pairing management. Phones receive scoped expiring capabilities, not admin/HA secrets or a new user identity. Five-minute single-use pairing codes and tokens are hashed/query-excluded and never audited/exported. Reissue/reset/end revokes access. Fragment codes are removed from the URL; tokens stay in sessionStorage. Exact origins, bearer checks and rate/size limits protect phone mutations; cookies alone cannot authorise them. The Socket.IO namespace rechecks grants and isolates session/role payloads.
+
+Uploads carry bounded JPEG/PNG bytes, capture timestamps and increasing sequences. Signature/dimension/age checks, one frame per session and a global two-task limit prevent unbounded work. No arbitrary source URLs or public inference port exist. Python is deployment-selected, local and makes no model downloads. Failed/unreadable/stale pixels become unknown; HOG scores are not calibrated probabilities. Signed marker/injection observations stay explicitly simulated and cannot authorise live HA/physical action.
+
+Only scoped administrators can read the latest private thumbnail: no-store, two-minute expiry, removed on end; no audio, identity recognition or video archive. Trusted HTTPS/camera consent and actual network checks are required; [DEMO_SETUP.md](DEMO_SETUP.md) and the Caddy example prepare but do not install/deploy/trust a LAN or tunnel.
+
+Explicit commands resolve the one simulated room master and recheck deadline/policy/interlocks at delivery and ACK. Critical-load/native prerequisites and fault/maintenance/restoration restrictions remain enforced. Missing classroom ACK cannot be successful shutdown; expired work is not replayed. Session end cancels work without energising supply. Native failure has no breaker fallback. Physical phone filming and consenting-teammate detection remain field checks.
+
+## Native equipment OFF extension (CE-010)
+
+The approved optional scope permits OFF through reviewed existing HA entities while retaining the one-room-master boundary. Inventory labels alone are non-executable. Admin-only connection/entity registration, strict shared contracts, room scope, CSRF/origin checks, bounded/rate-limited gateway operations and exact target resolution prevent arbitrary browser-supplied services/targets. Scripts/scenes/groups/locks/alarms and detected masters/protected loads are excluded.
+
+HA tokens are write-only and encrypted with AES-256-GCM using random nonces, connection-bound AAD and a purpose-specific HKDF key derived from the server-only SESSION_SECRET outside MongoDB. Normal responses omit ciphertext/pins; logs/errors/audits do not echo tokens or raw upstream bodies. Rotating the root secret requires re-entering HA tokens; disconnecting does not revoke a token inside HA. URL changes require an authorised replacement token for a different origin.
+
+Gateway destinations must match deployment-controlled exact origins; credentials in URLs, unexpected ports/paths, redirects, metadata/link-local and mapped-IPv6 bypasses are blocked. IPs are resolved/pinned on save, revalidated and injected into actual HTTP/WS socket lookup. HTTP is separately opt-in for trusted private LANs; loopback is separately disabled by default. TLS validation remains enabled. Overall request deadlines, bounded messages/responses, heartbeat and bounded reconnect backoff prevent unbounded gateway work.
+
+Simulation makes zero live requests and cannot fall through to HA. Live native OFF additionally requires non-demo server enablement, a tested healthy connection with live permission, genuine live occupancy, reviewed exact ordinary target and explicit current-mode test before automatic permission. Changing/disconnecting/rebinding resets permissions and cancels work. The room-master physical gate stays disabled.
+
+Persistent native jobs use leases, room locks, current revisions and fixed expiry. Outage backlog is not replayed; recovered dispatched work is read/reconciled rather than re-sent. Bookings/QR/overrides/new occupancy invalidate pending work. Unknown/unavailable/optimistic states never prove OFF, and already-dispatched cancellation remains unverified. Native failure never initiates breaker fallback; required native prerequisites block dependent room cutoff. Reported OFF is not independently measured consumption or savings.
+
+The browser verification exposed an existing Socket.IO origin issue: same-origin polling can omit Origin. Such requests now require a configured Host and absent/same-origin fetch-site; provided origins must still match exactly. Application socket sessions/roles/room checks remain mandatory. Hostile origin/fetch-site regressions are covered.
+
 ## Administrator invite-key checks (CE-009)
 
 All administrator sign-ins require the account password plus server-configured `ADMIN_INVITE_KEY` (exactly 8 digits, per user configuration). Missing/incorrect keys reject login; invalid signup keys reject account creation instead of silently creating viewers. A valid key plus verified account password grants explicit, audited admin access to an existing account. This shared administrative enrollment credential is not per-user MFA; restrict and rotate it appropriately.
@@ -16,7 +40,7 @@ Implemented: bcrypt hashing, Mongo-backed HttpOnly/SameSite sessions with login 
 
 `npm run setup` generates ignored local secrets without printing them. No password/token is embedded in the UI or Markdown. Integration creation returns an HMAC-derived source-specific token to an authenticated admin; the root secret remains server-side. Source/type/room and timestamp checks prevent cross-source observation submission. Socket.IO reuses sessions and checks active accounts before payload-free refresh; room subscriptions are scoped.
 
-Local development binds loopback. HTTPS/reverse-proxy deployment, credential rotation/revocation, shared production rate-limit storage, retention enforcement, dependency/security review and an institutional reporting contact remain deployment work. There is no video/image storage or public remote-URL analysis; missing transports return unavailable. A real phone/HTTPS installation has not been verified.
+Local development binds loopback. HTTPS/reverse-proxy deployment, credential rotation/revocation, shared production rate-limit storage, retention enforcement, dependency/security review and an institutional reporting contact remain deployment work. No video archive or public remote-URL analysis exists; the scoped phone demo retains only its latest private thumbnail for at most two minutes. Missing general transports return unavailable. A real phone/HTTPS installation has not been verified.
 
 ## Access and trust boundaries
 

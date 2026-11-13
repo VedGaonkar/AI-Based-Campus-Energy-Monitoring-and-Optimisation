@@ -46,38 +46,38 @@ export default function ConsumptionChart({ intervals = [], range = 7 }) {
         >
           <defs>
             <linearGradient id="energyGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#b45836" stopOpacity={0.16} />
-              <stop offset="100%" stopColor="#b45836" stopOpacity={0.02} />
+              <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.16} />
+              <stop offset="100%" stopColor="var(--accent)" stopOpacity={0.02} />
             </linearGradient>
           </defs>
           <CartesianGrid
             vertical={false}
-            stroke="#e0e4da"
+            stroke="var(--border)"
             strokeDasharray="3 4"
           />
           <XAxis
             dataKey="label"
             minTickGap={75}
-            tick={{ fontSize: 11, fill: "#71817c" }}
+            tick={{ fontSize: 11, fill: "var(--text-muted)" }}
             axisLine={false}
             tickLine={false}
           />
           <YAxis
-            tick={{ fontSize: 11, fill: "#71817c" }}
+            tick={{ fontSize: 11, fill: "var(--text-muted)" }}
             axisLine={false}
             tickLine={false}
           />
           <Tooltip
             formatter={(v, name) => [`${number(v)} kWh`, name]}
-            labelStyle={{ color: "#252923" }}
-            contentStyle={{ border: "1px solid #e0e4da", borderRadius: 2, fontFamily: "var(--mono)", fontSize: 11 }}
+            labelStyle={{ color: "var(--text-primary)" }}
+            contentStyle={{ border: "1px solid var(--border)", borderRadius: 2, fontFamily: "var(--mono)", fontSize: 11 }}
           />
           <Legend wrapperStyle={{ fontSize: 12, paddingTop: 20 }} />
           <Area
             type="monotone"
             dataKey="energyKwh"
             name="Recorded interval energy"
-            stroke="#954120"
+            stroke="var(--accent)"
             strokeWidth={2}
             fill="url(#energyGradient)"
             isAnimationActive={false}
@@ -86,7 +86,7 @@ export default function ConsumptionChart({ intervals = [], range = 7 }) {
             type="monotone"
             dataKey="expected"
             name="Expected · estimated"
-            stroke="#9c9f91"
+            stroke="var(--text-primary)"
             strokeDasharray="5 4"
             fill="transparent"
             connectNulls={false}

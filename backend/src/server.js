@@ -6,7 +6,7 @@ const config = loadConfig(),
 const runtime = createApplication({ config, connection, models });
 runtime.server.listen(config.port, "127.0.0.1", () =>
   console.log(
-    `Campus Energy API: http://localhost:${config.port} (physical switching disabled)`,
+    `Campus Energy API: http://localhost:${config.port} (room-master physical switching disabled; native OFF ${config.allowNativeControl && !config.demoMode ? "requires connection/target approval" : "disabled"})`,
   ),
 );
 for (const signal of ["SIGINT", "SIGTERM"])

@@ -1,5 +1,26 @@
 # Implementation Tasks
 
+- [x] Repair demo room selection for legacy missing native policy; server-checked available-room options only, excluded reasons, matching creation checks. 17 demo tests and production/buildless build passed.
+
+## CE-011 — Two-phone camera and acknowledged room-master demonstration
+
+- [x] Scoped admin sessions/pairing, bounded camera transport and actual Python pixels (signed QR instrumented mode; positive-only HOG, unknown/injection kept distinct).
+- [x] Extend existing room-master simulator with durable delivery/application ACK, expiry/reconnect and existing protections/persistent scheduler; no native fallback/live actuation.
+- [x] Independent `demo/cctv-camera/` and `demo/circuit-board/` entry points/start commands, seven scenes/lock/local/master state, dashboard session/evidence/timeline/ACK panel.
+- [x] 86 isolated application tests, 10 three-browser workflow checks, 14 existing admin browser checks, production/buildless build and 55 syntax checks passed. DEMO_SETUP.md/HTTPS example and affected contracts updated; current local rollout verification is recorded in HANDOFF.md/PROGRESS.md.
+- [ ] Separate physical rehearsal: two phones, trusted reachable HTTPS/CA/firewall path, display focus/glare/moire/background/network-loss checks and consenting real teammate HOG test. These inputs were not supplied; no physical two-phone/electrical demonstration claimed.
+
+## CE-010 — Existing smart equipment through Home Assistant
+
+- [x] Add encrypted, destination-restricted Home Assistant connection and isolated simulator adapters; verify REST/WebSocket protocols and ordering.
+- [x] Add persisted entity binding/capability review, per-target permission/test gates and native OFF command lifecycle.
+- [x] Integrate native jobs with existing escalation, cancellation and breaker prerequisite checks; prevent fallback and outage backlog execution.
+- [x] Add Connected Devices setup/discovery/details/commands UI, scoped APIs and simulator demonstrations. Nine isolated browser workflow checks passed.
+- [x] Complete final full regression (70 tests), 40 syntax checks, production build, existing admin browser repeat (14 checks), managed local rollout and 7 read-only/runtime authentication checks. Setup guide and final continuity updated; app left running at localhost:5173.
+- [ ] Separate physical acceptance: supply an always-on reachable HA host/version/origin/token, exact ordinary model/firmware/entity/load and genuine occupancy, then complete supervised OFF review/test before enabling live automation. No real equipment was supplied or operated.
+
+- [x] Apply the user's six-color mint/forest/terracotta palette across the frontend and charts; verify exact browser colors, admin rendering and mobile layout. Production build passed.
+
 ## CE-009 — Administrator authentication and connected management panel
 
 - [x] Fix invalid admin key fallback; require password plus key for administrator login and allow verified recovery of viewer accounts.

@@ -1,5 +1,15 @@
 # AI-Based Campus Energy Monitoring and Optimisation
 
+**Two-phone demo:** [DEMO_SETUP.md](DEMO_SETUP.md) connects a video-only phone camera, actual Python/OpenCV pixels, existing persistent escalation and a second phone's acknowledged virtual room master. Open `/phone-demo` as admin and pair the independent `/demo/cctv-camera/` and `/demo/circuit-board/` apps. Instrumented QR vision, conservative person-positive inference and explicit scenario injection have separate labels. Physical phones/HTTPS/LAN filming still need a supervised rehearsal; no live switching or measured savings is claimed. Optional standalone entry commands: `npm run demo:camera` and `npm run demo:classroom`, using the existing backend.
+
+## Existing smart equipment
+
+**Connected devices** now supports an isolated simulator and a server-side Home Assistant connector for reviewed existing light/fan/switch/climate native OFF targets. Configure a connection, test it read-only, discover/map exact entities, review the load, conduct an explicit OFF test and then permit automation. The existing persistent escalation and room protections remain authoritative; a failed native OFF never triggers room-master fallback. No appliance ON restoration, universal brand/assistant support or measured savings is implied.
+
+Follow [HOME_ASSISTANT.md](HOME_ASSISTANT.md) for exact setup, supported routes, token encryption/revocation, network allowlists, per-target/live gates, simulator demonstration, versions/licences and remaining physical acceptance work. Home Assistant is not installed automatically. Live OFF is disabled by default; physical room-master controls remain uncommissioned.
+
+Validation for this feature: `npm test`, `npm run check`, `npm run build`, then `npm run test:devices-browser`. The device browser runner uses temporary databases/credentials and isolated simulation, not a saved live gateway.
+
 ## Administrator access and setup
 
 Use your account password and `ADMIN_INVITE_KEY` from the local ignored `.env` to sign in as administrator. The key must contain exactly 8 digits and requires an API restart after changes. It is required for every admin login. Incorrect registration keys now return an error rather than creating viewer accounts.
@@ -26,7 +36,7 @@ A local single-building energy prototype for a 24-hour hackathon. It combines bu
 
 The repository now contains a React/Vite frontend, Express API, MongoDB/Mongoose persistence, a separate durable worker, shared validated contracts, deterministic synthetic seed data and application tests. Reusable `.agents/skills/` tooling remains independent of the application.
 
-Implemented workflows include session login and room-scoped roles, CSV preview/commit and manual meter entry, timetable editing/cancellation, interval/baseline analytics, anomaly investigation, recommendation decisions/outcome review, in-app notifications, persistent vacancy escalation, QR leases/extensions, staff overrides and guarded room-level simulation. Physical devices, live camera inference, OCR, MQTT and SMTP are unavailable integrations; the application does not claim they work. Further acceptance coverage and installation work remain documented in TASKS.md.
+Implemented workflows include session login and room-scoped roles, CSV preview/commit and manual meter entry, timetable editing/cancellation, interval/baseline analytics, anomaly investigation, recommendation decisions/outcome review, in-app notifications, persistent vacancy escalation, QR leases/extensions, staff overrides and guarded room-level simulation. Physical room hardware, general CCTV/RTSP inference, OCR, MQTT and SMTP remain unavailable integrations; the separate phone-demo pixel pipeline is implemented; the application does not claim they work. Further acceptance coverage and installation work remain documented in TASKS.md.
 
 ## Intended prototype
 
@@ -40,7 +50,7 @@ Building meter readings do not establish unmetered room consumption. Camera obse
 
 Physical installation is outside the hackathon deliverable. A qualified electrician must approve the feeder, downstream protection and every connected load before physical operation. Cameras, sensors, networking and essential supplies remain available when ordinary room supply is OFF. AC stop/restart requirements can block the entire room cutoff.
 
-The scope excludes multiple-building operation/comparisons, per-appliance switching, smart plugs, per-button modules, AC IR blasters, facial recognition and attendance monitoring. Core functionality requires neither an LLM nor paid cloud services. See [scope and exclusions](PLAN.md#1-product-objective-and-agreed-decisions).
+The scope excludes multiple-building operation/comparisons, new per-appliance actuators, smart-plug purchases, per-button modules, AC IR blasters, facial recognition and attendance monitoring. The approved optional Home Assistant extension permits native OFF for reviewed existing smart appliances; room-master controls remain independent. Core functionality requires neither an LLM nor paid cloud services. See [scope and exclusions](PLAN.md#1-product-objective-and-agreed-decisions).
 
 ## Local setup and startup
 
@@ -94,4 +104,4 @@ The seed supplies 30 calendar days of visibly synthetic intervals (only complete
 
 Installation estimates require one suitable breaker quote per controlled room plus feeder/protection, labour, sensing, connectivity and commissioning costs. [Budget assumptions](PLAN.md#23-budget-purchasing-and-operating-cost-plan) are planning references, not current purchase quotes or verified payback. [Commercial options](PLAN.md#24-customer-segmentation-and-business-model) are future evaluation work; checkout, tenant management and ESG reporting are not MVP requirements.
 
-Remaining work includes live vision/OCR/model/licence selection, actual device/notification transports, broader field/production acceptance, full account lifecycle, baseline history/version management, retention/migrations and deployment/commissioning. Manual reading correction, reset epochs and normal-stop confirmation are implemented with evidence/audit records. The engine rebuilds at most 20,000 readings and returns at most 1,500 chart intervals; it is a prototype, not a production utility ledger. Import commits are repeat-safe row operations, not transactions. Tariffs and seed equipment approvals are hypothetical and cannot authorise physical installation.
+Remaining work includes field vision coverage/OCR/model validation, actual device/notification transports, broader field/production acceptance, full account lifecycle, baseline history/version management, retention/migrations and deployment/commissioning. Manual reading correction, reset epochs and normal-stop confirmation are implemented with evidence/audit records. The engine rebuilds at most 20,000 readings and returns at most 1,500 chart intervals; it is a prototype, not a production utility ledger. Import commits are repeat-safe row operations, not transactions. Tariffs and seed equipment approvals are hypothetical and cannot authorise physical installation.
