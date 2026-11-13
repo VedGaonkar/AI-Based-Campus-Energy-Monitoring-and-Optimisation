@@ -1,0 +1,107 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/archivo';
+
+@theme {
+  --font-sans: 'Archivo Variable', 'Segoe UI', system-ui, sans-serif;
+  --color-panel: #e7ebea;
+  --color-plate: #ffffff;
+  --color-rule: #c3cbc9;
+  --color-ink: #14201f;
+  --color-muted: #55625f;
+  --color-teal: #0e5a63;
+  --color-teal-dark: #0a434a;
+  --color-teal-tint: #dcebec;
+  --color-amber: #e3a008;
+  --color-amber-tint: #fbf0cf;
+  --color-red: #b42318;
+  --color-red-tint: #fbe4e1;
+  --color-green: #1f7a4d;
+  --color-green-tint: #dff0e6;
+}
+
+html {
+  background: var(--color-panel);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+/* Readings and times line up in columns. */
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+h1 {
+  font-size: 1.6rem;
+  font-weight: 650;
+  font-stretch: 88%;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+h2 {
+  font-size: 1.05rem;
+  font-weight: 650;
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-amber);
+  outline-offset: 2px;
+}
+
+/* The one loud element: shown whenever nothing physical is being switched. */
+.hazard {
+  background: repeating-linear-gradient(-45deg, var(--color-amber) 0 14px, var(--color-ink) 14px 28px);
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+th {
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: var(--color-muted);
+  padding: 0.5rem 0.75rem;
+  border-bottom: 2px solid var(--color-ink);
+  white-space: nowrap;
+}
+
+td {
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--color-rule);
+  vertical-align: top;
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+  background: var(--color-plate);
+  border: 1px solid var(--color-muted);
+  border-radius: 3px;
+  padding: 0.4rem 0.55rem;
+  max-width: 100%;
+}
+
+input[type='checkbox'] {
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: var(--color-teal);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
