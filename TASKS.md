@@ -1,132 +1,93 @@
-# Tasks
+# Implementation Tasks
 
-Work breakdown and progress for the 24-hour build. Derived from [PLAN.md](PLAN.md) §19.2, §20 and §26, which remain authoritative.
+## CE-009 — Administrator authentication and connected management panel
 
-**Progress:** planning and documentation are done. Implementation has not started; no application code exists.
+- [x] Fix invalid admin key fallback; require password plus key for administrator login and allow verified recovery of viewer accounts.
+- [x] Add server-verified profile and distinct management routes for building, spaces, cameras, controllers, timetable, QR, users and automation logs.
+- [x] Bulk floor/space generation, persistent mappings and documentation completed.
+- [x] Final isolated regression: 45 tests passed. Build and 28 syntax checks passed. Dedicated admin browser run: 14 checks passed with no runtime errors.
+- [x] Local-session rollout: user chose an eight-digit numeric key; validation/generation/forms updated, new key saved in ignored `.env`, managed API/worker/frontend restart succeeded, live administrator authentication and management API verified. Existing MongoDB/data preserved. 46 application tests passed.
 
-Tick an item only when it is implemented and checked. Acceptance scenarios are tracked in [TESTING.md](TESTING.md).
+## CE-008 — Stitch frontend redesign (13 November 2026)
 
-## Done
+- [x] Apply the supplied Campus Energy Stewardship visual system across the login screen and all eight authenticated pages, preserving connected APIs and access restrictions.
+- [x] Bundle Karla, Barlow Condensed and Azeret Mono locally with OFL licenses; use copper charts, pale surfaces, condensed headings and rectangular controls.
+- [x] Add room search, policy filtering, grid/list views, a room-status ledger with detail deep links, conservation directive links and a responsive room detail drawer.
+- [x] Verify production build, 25 JavaScript syntax checks and 14 read-only browser checks, including all eight routes at 390/768/1280px and mobile navigation. No browser runtime errors.
+- Scope: the attached master prompt is supporting context; its multi-building/backend expansion is not implemented by this redesign. PLAN.md is unchanged. Existing data, credentials and backend control logic are preserved.
+- Local startup limitation: the current `.env` has an invalid short `ADMIN_INVITE_KEY`; use at least 16 characters or an empty value when next starting the backend. Its value was never printed or changed.
 
-- [x] Implementation plan written ([PLAN.md](PLAN.md)).
-- [x] Control architecture decided: one Wi-Fi smart master breaker per controlled room.
-- [x] Supporting documentation aligned with the plan.
+**Status as of 13 November 2026:** The core local prototype and CE-006 checkpoint are complete: 31 application checks, 13 browser checks, production build, syntax, built-app HTTP and documentation validation passed. [PLAN.md](PLAN.md) remains authoritative. Skill tests do not count as application progress. CE-007 physical/vision/external transports and wider field/production acceptance remain pending; no installation or production readiness is claimed.
 
-## Decisions needed before or during the build
+## Documentation baseline
 
-- [ ] Choose the person-detection model and record its licence.
-- [ ] Decide how demo time acceleration works with `dueAt`-driven jobs.
-- [ ] Decide how the session is shared with the Socket.IO handshake.
-- [ ] Define the standard error response shape.
-- [ ] Commit the problem statement (ps_final.pdf) or replace its private link in PLAN.md §27.
-- [ ] Split the phases below across team members; the plan gives a single serial timeline.
+- [x] Inspect all 67 existing Markdown files and distinguish project documentation from 57 reusable skill references/templates.
+- [x] Align the nine supporting project documents with the plan and the actual planning-stage repository; preserve `PLAN.md` and reusable tooling.
 
-## Phase 1 — Foundation (hours 0–2)
+Do not check off application work based on documentation alone. Each milestone needs working code and recorded validation of its exit condition.
 
-Exit condition: login works and one room is available through the API.
+## 24-hour implementation sequence
 
-- [ ] Confirm an Active LTS Node.js version and a Python environment.
-- [ ] Scaffold `frontend/` with the Vite React JavaScript template and the current Tailwind Vite integration.
-- [ ] Scaffold `backend/` with Express, the session store and Zod validation.
-- [ ] Connect MongoDB and create the required indexes.
-- [ ] Define shared contracts and enums in `shared/`.
-- [ ] Implement login, logout, current user and role checks.
-- [ ] Seed test accounts and rooms.
+### Active implementation tasks
 
-## Phase 2 — Ingestion (hours 2–5)
+| ID | Status | Depends on | Acceptance criteria |
+| --- | --- | --- | --- |
+| CE-001 | Complete | Documentation baseline | Pinned workspaces, strict contracts, real Mongo indexes/session store, scoped login/rooms and connected UI verified |
+| CE-002 | Complete | CE-001 | Three CSV formats, durable preview/commit/retry, manual entry/review and epoch separation verified |
+| CE-003 | Complete for MVP | CE-002 | Connected interval/expected chart, explainable anomalies and guarded recommendation outcome transitions verified |
+| CE-004 | Complete for MVP | CE-001 | Durable incidents/jobs/inbox, first/second/final stages, database reconnect and cancellation verified |
+| CE-005 | Complete for simulator | CE-004 | QR creation/extension/unknown expiry, overrides, explicit idempotent simulated master and interlocks verified |
+| CE-006 | Complete for local MVP | CE-003, CE-005 | Connected admin/demo/browser/lifecycle, built-app HTTP and documentation checkpoint verified |
+| CE-007 | Pending field/production work | CE-006 | Real phone/HTTPS and full role/accessibility review; model/licence/footage, external transports, exact hardware commissioning, retention/migrations and broader stress/failure acceptance |
 
-Exit condition: uploaded data produces correct consumption.
+The milestone windows below preserve the original sequence. Statuses reflect the verified MVP subset; the task IDs above and PROGRESS.md record actual execution. No physical integration is marked complete by simulator results.
 
-- [ ] Meter CSV import with preview, validation and idempotent commit.
-- [ ] Manual meter reading form with provenance.
-- [ ] Timetable CSV import and editing, including cancellations and holidays.
-- [ ] Interval calculation with meter epochs, gaps and coverage.
+This follows [PLAN.md section 20](PLAN.md#20-time-boxed-24-hour-execution-plan). Hours are intended execution windows, not recorded effort or completed work.
 
-## Phase 3 — Analytics (hours 5–8)
+| Status | Hours | Work | Exit condition |
+| --- | --- | --- | --- |
+| Core verified | 0–2 | Confirm contracts/schema, scaffold JavaScript frontend/backend, sessions/roles and labelled seed data | Login and one room available through the API |
+| Core verified | 2–5 | Meter/timetable import, preview/validation, manual entry and interval calculations | Uploaded data produces correct consumption without duplication |
+| MVP verified | 5–8 | Dashboard, contextual baselines/anomalies and recommendation rules | Explainable anomaly and actionable recommendation with assumptions visible |
+| In-app verified | 8–11 | Observations, occupancy/protection policies, incidents, durable jobs and in-app alerts | Restart-safe first/second/final stages with invalidation checks |
+| Simulator verified | 11–14 | QR leases, warnings/extensions, manual override and room-master simulator | Authorised access, extension, cancellation and simulated control work |
+| Fallback declared | 14–17 | Approved camera clip/person inference and meter-image OCR adapters | Genuine integration exercised or limitation/fallback honestly declared |
+| MVP verified; wider role review pending | 17–20 | Integration tests/configuration UI, room/load approval, admin, assignments and outcomes | End-to-end workflow usable by each role |
+| 31 checks passed | 20–22 | Failure handling, permissions, imports, calculations and timer verification | Core acceptance scenarios pass with evidence |
+| Local demo verified; field checks pending | 22–24 | Deterministic demos, walkthrough and documentation of actual commands | Reproducible demo with visible provenance and remaining limitations |
 
-Exit condition: an explainable anomaly and an actionable recommendation card are visible.
+## Required implementation details
 
-- [ ] Overview dashboard with the actual versus expected chart and source labels.
-- [ ] Baseline engine with initial-rule and insufficient-data fallbacks.
-- [ ] Anomaly detection and anomaly incidents.
-- [ ] Recommendation rules with non-overlapping kWh and rupee estimates.
+- [x] Select compatible supported runtime/dependency versions, maintain the exact-version lockfile. No vision model is selected; record its licence before enabling one. Follow [setup order](PLAN.md#192-setup-procedure-for-the-coding-agent); the existing source map is recorded in ARCHITECTURE.md.
+- [x] Define validated shared contracts, standard errors and scoped Socket.IO subscriptions before wiring consumers. Resolve the open [API](API.md) and [persistence](DATABASE.md) decisions.
+- [x] Implement one installation with rooms/zones, inventory, assignments and exactly one master per controlled room. Reject duplicate or shared mappings between independent rooms.
+- [x] Implement all three [CSV contracts](PLAN.md#64-import-contracts), invalid/duplicate reporting, provenance and idempotent commit; allow timetable edits, holidays, cancellations and ad hoc bookings.
+- [x] Validate accepted meter readings, epochs/registers/units, resets/rollovers, quality and gaps. Compute compatible intervals and partial-day coverage, reconcile sources and distinguish kWh from interval-average kW.
+- [x] Build robust/contextual or initial-rule baselines with sample-count/insufficient-data labels. Keep possible contributors and confirmed causes separate; assign manual investigation for unexplained anomalies.
+- [x] Implement recommendation accept/reject/schedule/complete/verify behaviour, owners, evidence and non-overlapping benefit estimates. Include tariffs, implementation quotes, uncertainty, net benefit and meaningful payback; do not claim estimates are verified savings.
+- [x] Separate occupancy, authorised-use protection, supply and appliance evidence. Enforce coverage-validation and freshness metadata; real coverage commissioning remains pending; unknown blocks vacancy cutoff, while fresh positive occupancy protects immediately.
+- [x] Implement persistent incident episodes, job leasing, outbox, backup routing and at-least-once/idempotency handling. Confirm vacancy (initial 15 minutes), first alert at t=0, escalation at +10 minutes, final recheck at +25 minutes.
+- [x] Invalidate stale actions on occupancy, protected booking/preparation period, QR lease/extension, override, policy change or source failure. Acknowledgement is not resolution; snooze expiry requires re-evaluation.
+- [x] Implement QR permission/hour/booking/duration/lockout checks, initial 120-minute maximum and 10-minute expiry warning. No-source expiry defaults to a staff task, not a vacancy claim. Keep any approved fixed-duration physical policy separate.
+- [x] Implement the simulator's room-master adapter, explicit ON/OFF commands, request IDs, short expiries, capabilities/status and verification labels. Provide capabilities/connection-test UI and an honest unavailable boundary; the exact physical model/adapter remains pending; do not fabricate vendor endpoints or successful physical tests.
+- [x] Apply whole-room shared-cutoff approval, valid AC stop confirmation, restart delays and fault/maintenance/manual-isolation interlocks. Retain manual tasks for incompatible loads or unconnected hardware. Restore only eligible automation-disabled supply.
+- [x] Enforce simulation isolation on backend/gateway and preserve all source/data-mode labels. Accelerated time, replay and fixtures cannot trigger physical switching or notify real staff.
+- [x] Build Overview, Rooms, Incidents, Energy/imports, Recommendations, mobile QR Access and Admin screens from [frontend requirements](PLAN.md#16-frontend-screens-and-dashboard-requirements), including integration health, budget estimates, quotes and audit history.
+- [ ] Complete production security review, credential rotation/revocation and retention enforcement. Core role/room checks, ingestion scope, sessions/CSRF, rate limits, redaction and bounded uploads are implemented/tested; footage/image storage is unavailable.
+- [ ] Add operational trend/maintenance reporting for OCR review, false-alert findings, uptime and baseline age. Current raw source freshness, meter quality/gaps, incident timelines, command verification and recommendation outcomes are stored; physical recalibration and genuine OCR metrics remain unavailable.
+- [ ] Complete the remaining [TESTING.md](TESTING.md) field/production matrix, real phone/HTTPS and all-role/accessibility walkthrough. Unit/API/restart checks, build, synthetic thirty-day seed and a full browser incident-to-outcome/QR/mobile run have passed; optional integrations retain declared fallbacks.
+- [x] Record exact install/start/build/seed/test commands, enabled and unavailable integrations, credential prerequisites and verified results in the existing documentation once they exist.
 
-## Phase 4 — Incidents and escalation (hours 8–11)
+## Inputs and unresolved decisions
 
-Exit condition: restart-safe first, second and final stages.
+Collect institution-provided meter/timetable data, authorised roles/assignments, tariff assumptions and generated server secrets. Optional live features additionally need footage permission/source details, actual model/weights/licence, OCR installation, provider/broker credentials and supported hardware documentation. See [PLAN.md section 18](PLAN.md#18-credentials-tools-and-information-to-collect).
 
-- [ ] Observation ingestion and room occupancy aggregation.
-- [ ] Incident lifecycle and timeline.
-- [ ] MongoDB-backed job worker with leases and recovery.
-- [ ] In-app notifications with a persisted outbox and live updates.
+Additional core workflow routes are now mapped in [API.md](API.md): import commit, manual reading review, stop confirmation, incident inspection/reassignment, recommendation scheduling/outcome review, account creation, inbox and opaque QR generation. Raw image/OCR processing, full account lifecycle, generated OpenAPI/cursor pagination, deeper baseline history/version management and production retention/migration details remain work. The source problem-statement PDF is not present locally and has not been independently revalidated.
 
-## Phase 5 — Access and simulated control (hours 11–14)
+Real installation additionally requires an electrician's feeder/load survey, exact breaker model/firmware/protocol, coverage/network testing, AC stop/restart approvals, local override and installed quotes. Physical installation is outside the hackathon deliverable. Reference prices and hypothetical payback in [PLAN.md section 23](PLAN.md#23-budget-purchasing-and-operating-cost-plan) are not purchase commitments or current installed quotes. Retention values and a security-reporting contact/process remain to be established.
 
-Exit condition: access, extension and cancellation work with simulated control.
+## Scope and fallback priorities
 
-- [ ] QR access leases with role checks, expiry warning and extension.
-- [ ] Staff overrides.
-- [ ] Simulated room-master adapter implementing the adapter contract.
-- [ ] Room-level supply commands with final eligibility checks and verification levels.
+If time is short, preserve real CSV/manual ingestion, analytics, recommendations and action tracking. Use in-app notifications, simulated masters, approved clips and manual meter imports instead of blocking on external onboarding, mains installation or uncalibrated OCR. Show unavailable integrations honestly.
 
-## Phase 6 — Vision and OCR (hours 14–17)
-
-Exit condition: at least one genuine integration exercised, or honestly shown as unavailable.
-
-- [ ] FastAPI service with health reporting.
-- [ ] Person detection on an approved clip, in replay mode.
-- [ ] Meter-image OCR with review and correction.
-
-## Phase 7 — Admin and outcomes (hours 17–20)
-
-Exit condition: the end-to-end workflow is usable by each role.
-
-- [ ] Admin screens: rooms, inventory, room-to-master mapping, assignments, tariffs, thresholds.
-- [ ] Integration list with connection tests and health.
-- [ ] Recommendation accept, reject, complete and outcome tracking.
-- [ ] Budget estimator and audit history.
-
-## Phase 8 — Verification (hours 20–22)
-
-Exit condition: core acceptance scenarios pass.
-
-- [ ] Automated tests for calculations, policies, permissions and timers.
-- [ ] Failure cases: offline camera, bad OCR, stale evidence, worker restart.
-
-## Phase 9 — Demo and documentation (hours 22–24)
-
-Exit condition: a reproducible demo with clear evidence labels.
-
-- [ ] Deterministic demo fixtures and scenario start and reset.
-- [ ] README updated with the real start, build, seed and test commands.
-- [ ] Record implemented integrations, dependency versions, model licences and remaining limitations.
-
-## Optional integrations
-
-Disabled by default, behind connection tests. Build only after the core works.
-
-- [ ] SMTP email notifications.
-- [ ] MQTT ingestion for presence nodes.
-- [ ] ESPHome template for an LD2410 presence node.
-- [ ] Physical room-master adapter for a selected, documented breaker model.
-- [ ] Home Assistant gateway route.
-
-## If time is short
-
-Keep, in this order: real CSV and manual ingestion, analytics, recommendations and action tracking. Then fall back:
-
-1. In-app notifications instead of SMS, WhatsApp or SMTP.
-2. Simulator instead of mains hardware.
-3. An approved prerecorded clip instead of a live camera.
-4. Manual meter import instead of OCR.
-5. Optional integrations shown as disconnected with a connection guide, never faked.
-
-Do not add multi-building features, and do not drop recommendations to work on appliance detection.
-
-## Out of scope
-
-Multi-building management, facial recognition or attendance, per-appliance switching, AC IR blasters, smart plugs, per-button modules, payment checkout, and any required LLM API. Full list in PLAN.md §1.2.
-
-## Final completion checklist
-
-The release gate is the checklist in PLAN.md §26. Do not duplicate it here; tick it there when the build is complete.
+Do not add multi-building/tenant operations, universal appliance detection, per-appliance controls, IR blasters, smart plugs, attendance/facial recognition or a production checkout. [Commercial options](PLAN.md#24-customer-segmentation-and-business-model), including later savings-performance/ESG work, are evaluation topics and do not expand the MVP. Use the authoritative [completion checklist](PLAN.md#26-completion-checklist-for-the-implementation-agent) before declaring the prototype complete.

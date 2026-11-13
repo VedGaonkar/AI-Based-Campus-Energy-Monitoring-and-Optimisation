@@ -1,0 +1,3 @@
+meterId,capturedAt,readingKwh,register,source
+MAIN-01,2026-10-01T10:00:00+05:30,1200,import_kwh,manual
+MAIN-01,2026-10-01T11:00:00+05:30,1206,import_kwh,manual

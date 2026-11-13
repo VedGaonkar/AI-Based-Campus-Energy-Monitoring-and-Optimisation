@@ -1,78 +1,52 @@
-# Agent and contributor instructions
+# Repository instructions
 
-Working rules for AI coding agents and human contributors in this repository.
+## Continuity and session recovery
 
-## Source of truth
+Read [HANDOFF.md](HANDOFF.md), [PROGRESS.md](PROGRESS.md) and [TASKS.md](TASKS.md) at session start, then reconcile them with actual source, Git status and running services. PROGRESS.md holds concise history/current task; HANDOFF.md holds the latest actionable resume snapshot. Checkpoint after meaningful increments, failed verification, before lengthy/risky operations, approximately every five minutes and before ending a session. Record task IDs, results, limitations and next steps without secrets or private reasoning. Preserve pre-existing working-tree changes. Do not commit, push, merge, deploy or publish unless explicitly authorised.
 
-[PLAN.md](PLAN.md) is the authoritative plan. If any other document disagrees with it, PLAN.md wins; fix the other document. Do not change PLAN.md unless the task explicitly asks for it.
+## Authority and current state
 
-Read PLAN.md before writing code, then the document for the area you are touching:
+Read [PLAN.md](PLAN.md) completely before implementation, then inspect the repository. It defines the intended direction; source code and executed checks determine what is actually implemented. Resolve supporting documentation conflicts in favour of the plan, and record any ambiguity rather than inventing behaviour. Preserve the plan unless the task explicitly authorises changing it.
 
-| Area | Document | Plan sections |
-| --- | --- | --- |
-| Components and boundaries | [ARCHITECTURE.md](ARCHITECTURE.md) | §10, §11, §12, §15 |
-| Endpoints and contracts | [API.md](API.md) | §6.4, §12.3, §13 |
-| Collections and indexes | [DATABASE.md](DATABASE.md) | §14 |
-| Security and safety | [SECURITY.md](SECURITY.md) | §3.2, §17 |
-| Verification | [TESTING.md](TESTING.md) | §21, §22 |
-| What to build next | [TASKS.md](TASKS.md) | §19.2, §20, §26 |
+Implementation began on 13 November 2026. The repository now contains JavaScript workspaces, a Mongo-backed API/worker, React UI, shared contracts, seed fixtures and application tests. Read HANDOFF.md and PROGRESS.md for the current checkpoint; do not rely on the earlier documentation-only baseline. Skill scripts/tests remain unrelated to application verification. Preserve the nine Markdown files already modified before implementation began.
 
-## Current repository state
+## Scope and implementation rules
 
-- Only documentation exists. No application code, package manifests, lockfiles or tests have been created.
-- `.agents/skills/` contains third-party design skill packs (banner-design, brand, design, design-system, slides, ui-styling, ui-ux-pro-max). They may help with UI work. They are not part of the application; do not edit them or treat them as project requirements.
-- Inspect the repository before scaffolding and preserve unrelated files.
+- Build for one college building and selected rooms/common areas. Do not add multi-building/tenant management or cross-building comparisons.
+- Use JavaScript for the web application and Node backend; reserve Python for vision/OCR. Follow the [selected stack](PLAN.md#9-recommended-software-stack) and verify compatible supported versions before installing dependencies.
+- Keep policy, permissions, scheduling and commands in the backend. The browser and Python service never decide to cut power.
+- Build CSV/manual meter ingestion, timetable handling, analytics, recommendations and assigned action tracking before optional hardware work. Core operation must not depend on inference, SMTP, MQTT, Home Assistant, an LLM or paid services.
+- Treat the [repository layout](PLAN.md#191-suggested-repository-layout) as proposed until directories exist. Define shared contracts before integrations. Document only start/build/seed/test commands that actually exist.
+- Preserve unrelated source/configuration, useful documentation and reusable tooling. Keep each document focused on its purpose and link to the plan instead of copying it in full.
 
-## Non-negotiable design rules
+## Required control and evidence invariants
 
-1. **One building.** Do not add multi-building, multi-campus or multi-tenant structures.
-2. **One Wi-Fi smart master breaker per controlled room.** The application sends one room-level ON/OFF request. Do not add per-appliance controls, AC IR blasters, smart plugs, per-button modules or an ESP32 relay as an alternative actuator. Appliance inventory is for observation, estimates and shared-cutoff eligibility only.
-3. **The backend is the policy authority.** The browser never controls a breaker, talks to a camera, or decides to cut power.
-4. **Label evidence honestly.** Every reading, series, recommendation and outcome carries a source label: Metered, Camera-observed, Sensor-reported, Estimated, Simulated or Unknown. Preserve `dataMode` end to end.
-5. **Simulated is never verified.** A simulated OFF must not appear as a physical shutdown. Never return a hardcoded "person detected" or a faked successful integration.
-6. **Conservative control.** Rooms start alert-only. Positive occupancy cancels pending shutdown. Unknown occupancy blocks automatic shutdown. Use explicit ON and OFF, never a toggle.
-7. **An incompatible downstream load blocks the whole room cutoff** and creates a manual task, because software cannot isolate one load behind the master.
-8. **Never auto-restore** a supply that is fault-tripped, maintenance-locked or manually isolated. Only restore a supply the application deliberately opened.
-9. **No room-level kWh from a building meter or CCTV.** Contributors to a spike are "possible", never measured attribution.
-10. **Escalation is persistent.** Timing comes from stored `dueAt` in MongoDB, not `setTimeout`, browser storage or a frontend countdown. Reload current state before every stage.
-11. **Physical control is off by default.** `DEMO_MODE` and `ALLOW_PHYSICAL_CONTROL` are enforced on the server; demo, replay and accelerated time can never authorise a physical action.
-12. **No LLM API or paid cloud service** is required for core functionality.
+- Exactly one independently controlled Wi-Fi smart master breaker maps to each controlled room. Inventory describes loads and estimates, not independent light/fan/socket/AC controls. No IR blasters, smart plugs, per-button modules or separate ESP32 mains actuator.
+- Keep downstream protection, physical switches and independently maintained camera/sensor/network/essential supplies. Installation requires qualified electrical review. An incompatible downstream load blocks the whole room cutoff; enforce AC normal-stop and restart requirements.
+- Start rooms alert-only and hardware in simulation. Enforce `DEMO_MODE` and `ALLOW_PHYSICAL_CONTROL` on the server/gateway. Fixtures, replay and accelerated clocks must never authorise physical commands.
+- Use explicit ON/OFF commands with request IDs, expiry, interlocks and current-policy checks. Restore only an eligible supply deliberately disabled by this automation; never reset fault trips, maintenance lockouts or manual isolation.
+- Keep observed occupancy, authorised-use protection, breaker supply and appliance observations separate. Fresh positive presence protects; inadequate coverage, stale sources or uncertainty block vacancy shutdown.
+- After the configured vacancy confirmation (initially 15 minutes), alert at t=0, escalate at t=10 minutes, then recheck at t=25 minutes. Persist jobs/outbox in MongoDB with a separate worker; do not rely on browser timers or long in-memory timeouts.
+- Bookings/preparation windows, QR leases, overrides, new occupancy and policy changes invalidate obsolete work. Acknowledgement is not resolution; lease expiry is not evidence of vacancy. No-source expiry defaults to staff confirmation; any physical fixed-duration policy needs separate approval and override rules.
+- Preserve source labels: Metered, Camera-observed, Sensor-reported, Estimated, Simulated and Unknown. A building meter cannot identify unmetered room kWh. A simulated/controller-reported result is not independently verified shutdown or savings.
+- Handle meter epochs, gaps, units, duplicates and baseline limitations explicitly. Avoid overlapping savings estimates and unsupported causal claims.
 
-## Technology constraints
+See [SECURITY.md](SECURITY.md), [DATABASE.md](DATABASE.md) and [TESTING.md](TESTING.md) for the corresponding access, persistence and acceptance requirements.
 
-- Web application in JavaScript (React, Vite, Express). Python only for the vision and OCR service.
-- Use an Active LTS Node.js version compatible with the installed Vite, currently supported dependency versions, and committed lockfiles.
-- Follow the current official Tailwind Vite installation guide; do not mix in Tailwind v3 setup steps.
-- Validate at service boundaries with Zod (Node) and Pydantic (Python).
-- Persist timestamps in UTC; interpret calendars and display in Asia/Kolkata.
-- Before adopting a person-detection model, read and record its licence obligations.
-- Never put SMTP, meter, camera, broker or controller credentials in `VITE_` variables or browser code.
+## Documentation lookup
 
-## Build order
+For library/framework/SDK/API/CLI/cloud-service syntax, configuration, setup, migration or library-specific debugging, use the Context7 CLI before relying on remembered APIs. This is not required for documentation auditing, general concepts, business-logic debugging, code review or refactoring that does not depend on library-specific behaviour.
 
-1. Scaffold, contracts, schemas, authentication and seed data.
-2. CSV and manual ingestion with interval calculations.
-3. Dashboard, baseline and anomaly logic, recommendations.
-4. Observations, incidents, persistent jobs and in-app alerts.
-5. QR leases, overrides and the simulated room master.
-6. Vision and OCR as separate adapters.
-7. Optional MQTT, Home Assistant and physical room-master adapter, disabled by default and behind connection tests.
+1. Resolve the official library name: `npx ctx7@latest library <name> "<specific lookup>"`. Call `library` first unless a `/org/project` ID is supplied. Pick the best exact/relevant match using reputation, snippet count and benchmark score; try an alternate query if needed.
+2. Fetch with `npx ctx7@latest docs <libraryId> "<specific concept>"`. Use separate concepts unless their interaction is the question; use a versioned ID from the resolver for version-specific work.
+3. Use at most three commands per question and base guidance on fetched documentation. Never put credentials in queries.
 
-If time is short, keep ingestion, analytics, recommendations and action tracking, and fall back as described in PLAN.md §20. Do not drop recommendations to spend the time on appliance detection.
+Run Context7 requests outside the default sandbox through the available approval mechanism. If a request encounters DNS/network failure, rerun outside the sandbox rather than retrying inside. On quota errors, tell the user and suggest `npx ctx7@latest login` or `CONTEXT7_API_KEY`; do not silently fall back to memory. These are documentation-tool commands, not application scripts.
 
-## Documentation upkeep
+## Local skills and maintenance
 
-- Do not document a command, endpoint, feature or test result that does not exist. Mark planned work as planned.
-- When you implement something, update the affected document in the same change: [TASKS.md](TASKS.md) for progress, [API.md](API.md) and [DATABASE.md](DATABASE.md) for contract or schema changes, [README.md](README.md) for real start, build, seed and test commands, and [CHANGELOG.md](CHANGELOG.md) for notable changes.
-- If the implementation must differ from PLAN.md, record the discrepancy explicitly instead of silently diverging.
-- Do not create new Markdown files when an existing one already owns the topic.
+The 57 Markdown files under `.agents/skills/` are reusable design instructions, references and templates. Use a skill only when it fits the task. Their examples of other stacks (including TypeScript, Next.js, shadcn, Chart.js or older Tailwind setups), sample brands, external paths and generated asset conventions do not change this project's choices. Resolve their file references against the actual installed skill directory; a generic `.claude/skills/` example is not an existing project path. Do not introduce a conflicting framework or create design deliverables merely because a skill example contains them. Optional paid design-tool APIs do not become core application dependencies.
 
-## Open questions in the plan
+For documentation-only work, audit those files for project relevance and leave reusable technical material intact unless a specific correction is needed. For implementation, update the relevant existing project docs as features land, disclose missing integrations, and record exact verification results. Do not create a parallel `docs/` tree just because it appears in the proposed layout.
 
-These are not decided by PLAN.md. Raise them rather than guessing silently; if you must choose, record the choice.
-
-- Which person-detection model to use (§9 only requires an acceptable licence).
-- How `DEMO_TIME_SCALE` accelerates time while job timing stays driven by stored `dueAt` (§15.1, §22).
-- How session authentication is shared with the Socket.IO handshake (§13.1 requires role and room checks on every subscription).
-- The shape of the "standard error responses" (§13).
-- Which smart-breaker model and integration route the physical adapter targets (§11.4).
+Validate meaningful policy/calculation/API/failure cases from [PLAN.md section 21](PLAN.md#21-acceptance-checks). Report separately what changed, which checks actually ran and which application behaviour remains untested. Never fabricate dependency versions, fixtures, physical-control success or test results.

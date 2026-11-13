@@ -1,187 +1,156 @@
-# API and event contracts
+# API and integration contracts
 
-**Status:** specification only. No endpoint is implemented yet. Derived from [PLAN.md](PLAN.md) §6.4, §12.3 and §13, which remain authoritative. Update this file when implemented behaviour differs.
+## Administrator authentication and management (CE-009)
 
-## Conventions
+`POST /auth/register` accepts `{name,email,password,adminKey?}`. No key creates a viewer; a valid key creates an admin. An incorrect key returns `403 INVALID_ADMIN_KEY` without creating an account; a supplied key with disabled server configuration returns `503 ADMIN_ACCESS_DISABLED`. `POST /auth/login` requires the password plus configured key for admin accounts. An existing non-admin supplying a correct password and key is explicitly promoted and audited. Sessions regenerate and record server-side `adminVerified`; old/unverified sessions cannot acquire admin API/socket access from a database role change alone.
 
-- All application routes are under `/api/v1`.
-- Stable string IDs, explicit units, ISO 8601 timestamps.
-- Requests are schema-validated (Zod).
-- Browser clients authenticate with a server session cookie. Integration services use a separate scoped service credential.
-- Role and room scope are checked on the server for every mutation and every Socket.IO subscription.
-- "Standard error responses" are required by the plan, but their shape is not yet defined.
-- The plan lists endpoints and payload contracts separately. The pairing of each contract with an endpoint below is the natural reading and should be confirmed during implementation.
-
-## Application endpoints
-
-Paths are relative to `/api/v1`.
-
-| Area | Endpoints |
+| Method/path (relative to `/api/v1`) | Implemented behavior |
 | --- | --- |
-| Auth | `POST /auth/login`; `POST /auth/logout`; `GET /auth/me` |
-| Installation settings | `GET /settings`; `PATCH /settings` |
-| Rooms | `GET /rooms`; `POST /rooms`; `GET /rooms/:id`; `PATCH /rooms/:id`; `GET /rooms/:id/status` |
-| Inventory | `GET /devices`; `POST /devices`; `PATCH /devices/:id` |
-| Assignments | `GET /rooms/:id/assignments`; `PATCH /rooms/:id/assignments` |
-| Timetable | `GET /schedules`; `POST /schedules`; `PATCH /schedules/:id`; `POST /imports/timetable` |
+| `PATCH /auth/profile` | Update own display name only; role/password fields rejected |
+| `GET /management/building` | Admin-only singleton building, ordered floors and space registry |
+| `PUT /management/building` | Persist organisationName, installationName, contactEmail, address, buildingType and initial-setup flag |
+| `POST /management/floors` | Add floor with UUID, unique code, display name and order |
+| `PATCH /management/floors/:id` | Rename/reorder without changing room relationships |
+| `POST /management/floors/generate` | Add 1–30 next available numbered floors; preserve existing records |
+| `POST /management/floors/:id/spaces` | Generate 1–100 spaces and unique simulator masters using count/prefix/startNumber/spaceType/capacity; reject overlapping codes |
+| `POST /management/cameras` | Map named simulation/gateway camera to room; return `{integration,serviceToken?}`; gateway token returned once, never in list reads |
+| `GET /management/controllers` | Existing one-room master mappings and reported simulator state |
+| `PATCH /management/controllers/:id` | Update name/manufacturer/model/nativeDeviceId/installationVerified metadata; cannot change room mapping or adapter |
+| `POST /management/controllers/:id/test` | Simulator status; no claimed physical network test |
+| `GET /management/automation` | Occupancy, protected use, supply/policy/interlocks, pending jobs, commands and escalation timing |
+
+Room create/PATCH additionally validates floorId, spaceType and cameraConfiguration (`installed`, `planned`, `none`, `offline`). Unavailable/no-camera choices invalidate camera coverage and obsolete vacancy work; camera evidence does not establish occupancy for a room explicitly configured without an available camera. Presence evidence and timetable/QR protection remain separate. `/management` routes require a verified admin session and origin/CSRF checks for writes. Existing timetable, QR, command, audit, inventory and user APIs remain authoritative.
+
+**Status:** The local Express application implements the core routes below in `backend/src/app.js`, with inputs in `shared/contracts.js`. Physical device ingestion and meter-image OCR return explicit `503` unavailable errors. Python internal endpoints and native MQTT/vendor protocols remain planned. [PLAN.md](PLAN.md) is authoritative; no OpenAPI artifact or physical integration is claimed.
+
+## Implemented HTTP conventions
+
+- Successful responses use `{ "data": ... }`; string MongoDB identifiers are exposed as `_id`. Errors use `{ "error": { "code", "message", "requestId", "details"? } }`. `X-Request-Id` is returned on every response. Validation is `400`, authentication `401`, permission/origin/CSRF `403`, missing resources `404`, conflicts/interlocks `409`, oversized JSON `413`, unavailable integration `503`. Unhandled failures return redacted `500` errors.
+- `GET /api/v1/auth/csrf` establishes a session and returns `data.csrfToken`. Mutations require an exact configured `Origin`, session cookie and `X-CSRF-Token`, including login/logout. Login accepts `{email,password,adminKey?}` (the key is required for every administrator login), regenerates the session and returns `{user,csrfToken}`; `GET /auth/me` returns the same shape. Service ingestion uses its separate boundary below.
+- List responses are arrays in `data`; supported lists accept a bounded `limit` (default 100, maximum 200). Charts return up to 1,500 original intervals. Cursor pagination is not implemented.
+- Room create accepts code, name, roomBreakerId and optional fields from the strict room contract. Defaults are alert-only/unvalidated. Inventory writes never operate an individual appliance. A room/master remap cannot silently replace a current mapping.
+- Meter POST accepts the PLAN event contract plus optional `epoch` (default `initial`) and `intervalStart` for interval input. Returns `{reading,duplicate}`. Configured meter/epoch, original time, supply growth and quality determine acceptance/review. Demo mode forces supplied readings to `simulated`.
+- Import POST accepts `{csv,dataMode}` and returns a persisted preview with `_id`, normalised `rows`, `errors` and duplicate count. `POST /imports/:id/commit` commits the creator's valid preview; invalid rows block commit. Repeated records/commits are idempotent. A commit can partially persist before a failure; retry reconciles row identities.
+- Supply POST accepts `{requestId,action,reason:"staff_override",expiresAt?}` and returns a persisted command. Automatic/QR reasons are generated internally. Request IDs cannot be reused for a different actor/room/action/reason. Commands expire within one minute and require current interlocks. Only simulated results are possible.
+- Lease create/extend accepts `{durationMinutes,acceptedPolicy:true}`; duration is capped at 120 policy minutes. Server-controlled lease time is accelerated only in demo mode. An extension is a new duration from now after booking/hour checks. Ending/extension is limited to the requester or admin and room scope.
+
+The unit/API tests exercise these contracts against MongoDB; see TESTING.md for exact coverage.
+
+## Additional implemented workflow routes
+
+All paths below are relative to `/api/v1` and remain subject to role and room scope:
+
+| Method/path | Contract |
+| --- | --- |
+| `GET /auth/csrf` | Obtain session CSRF token; does not switch supply |
+| `POST /imports/:id/commit` | Commit a valid persistent preview created by the authenticated admin |
+| `GET/POST /users` | Admin account creation: name, email, password (minimum 12), role and permittedRoomIds; password never returned |
+| `POST /incidents/:id/inspect` | Record inspection without resolving |
+| `POST /incidents/:id/reassign` | Admin assigns validated first/second responder IDs |
+| `POST /recommendations/:id/schedule` | Accepted recommendation plus ISO `dueAt` |
+| `POST /recommendations/:id/verify` | Completed recommendation plus evidence `reason` and optional observedReductionKwh; stores staff-reviewed outcome, not certified savings |
+| `GET /notifications`; `POST /notifications/:id/read` | Persisted in-app inbox/read state; reading is not incident resolution |
+| `GET /rooms/:id/qr` | Staff-only opaque access URL and QR PNG data URL; no switching |
+| `PATCH /meter-readings/:id/review` | Responder supplies confirmed value and evidence reason; validates neighbors/supply bound, preserves source/mode and correction history |
+| `POST /devices/:id/confirm-stop` | Room-scoped responder records reason/actor/time for an existing required stop procedure; it does not operate an appliance |
+| `POST /integrations` | Admin maps source ID/type/room, coverage/freshness and optional meterId; returns a source-scoped service token once |
+
+Recommendation states implemented: `proposed → accepted → scheduled/completed → reviewed`; rejection requires a reason. Proposed recommendations become `withdrawn` if recalculated evidence no longer supports the pattern. Inspection/acknowledgement remains unresolved. Snooze accepts 1–30 policy minutes; manual resolution requires evidence text. Assignment snapshots are retained until explicit reassignment. PATCH parsing retains only explicitly supplied fields; omitted defaults cannot reset safety metadata or resurrect a cancelled booking.
+
+## Application boundary
+
+All application routes use the `/api/v1` prefix. The paths in the table below are relative to that prefix. Use stable string IDs, explicit units, ISO 8601 timestamps, schema validation and standard error responses. Persist timestamps in UTC; interpret the pilot's calendar/display in `Asia/Kolkata`.
+
+The Node backend owns authentication, room scope, policy decisions, ingestion acceptance, jobs and commands. The browser submits requests to it. Python inference and hardware adapters supply evidence or results; neither owns switching policy.
+
+Apply server-side role and room checks to mutations and Socket.IO subscriptions. Use scoped service credentials for ingestion. A public QR lookup exposes only minimal room/access-policy information. Creating, extending or ending a lease requires authenticated authorisation; GET/page load must not switch power. See [SECURITY.md](SECURITY.md).
+
+## Application routes from the plan
+
+The methods and paths follow [PLAN.md §13.1](PLAN.md#131-application-endpoints).
+
+| Area | Methods and paths, relative to `/api/v1` |
+| --- | --- |
+| Authentication | `POST /auth/login`; `POST /auth/logout`; `GET /auth/me` |
+| Installation settings | `GET/PATCH /settings` |
+| Rooms | `GET/POST /rooms`; `GET/PATCH /rooms/:id`; `GET /rooms/:id/status` |
+| Load inventory | `GET/POST /devices`; `PATCH /devices/:id` |
+| Assignments | `GET/PATCH /rooms/:id/assignments` |
+| Timetable | `GET/POST /schedules`; `PATCH /schedules/:id`; `POST /imports/timetable` |
 | Utility data | `POST /imports/meter-readings`; `POST /meter-readings`; `GET /meter-readings`; `POST /meter-images` |
 | Analytics | `GET /analytics/summary`; `GET /analytics/intervals`; `GET /analytics/anomalies` |
 | Incidents | `GET /incidents`; `GET /incidents/:id`; `POST /incidents/:id/acknowledge`; `POST /incidents/:id/snooze`; `POST /incidents/:id/resolve` |
 | Recommendations | `GET /recommendations`; `POST /recommendations/:id/accept`; `POST /recommendations/:id/reject`; `POST /recommendations/:id/complete` |
 | QR access | `GET /access/:publicToken`; `POST /rooms/:id/access-leases`; `POST /access-leases/:id/extend`; `POST /access-leases/:id/end` |
-| Override | `POST /rooms/:id/overrides`; `POST /overrides/:id/end` |
+| Overrides | `POST /rooms/:id/overrides`; `POST /overrides/:id/end` |
 | Integrations | `GET /integrations`; `POST /integrations/:id/test`; `PATCH /integrations/:id` |
 | Commands | `POST /rooms/:id/supply-commands`; `GET /commands/:id` |
-| Ingestion | `POST /ingest/observations`; `POST /ingest/device-events`; `POST /ingest/meter-readings` |
+| Service ingestion | `POST /ingest/observations`; `POST /ingest/device-events`; `POST /ingest/meter-readings` |
 | Operations | `GET /health`; `GET /ready`; `GET /audit-events` |
-| Demo only | `POST /demo/scenarios/:id/start`; `POST /demo/reset` |
+| Isolated demonstration only | `POST /demo/scenarios/:id/start`; `POST /demo/reset` |
 
-Notes:
+`devices` represents observed equipment and downstream load inventory. It does not expose individual light, fan, socket or AC switching. Supply requests target exactly one room master breaker.
 
-- `/devices` is the observation and load inventory. It exposes no switching. The only control endpoint is the room-level `POST /rooms/:id/supply-commands`.
-- `GET /access/:publicToken` returns minimal room and access-policy information only, never controller credentials or full staff details. It must not switch power on page load.
-- Acknowledging an incident does not resolve it.
+## Imports and event validation
 
-## Occupancy observation
+The exact CSV examples live in [PLAN.md §6.4](PLAN.md#64-import-contracts) and executable examples are under `fixtures/`. Preserve these headers:
 
-Sent to `POST /ingest/observations`.
-
-~~~json
-{
-  "eventId": "unique-source-event-id",
-  "sourceId": "CAM-R101",
-  "roomId": "room-r101",
-  "capturedAt": "2026-11-13T10:30:00+05:30",
-  "sourceType": "camera",
-  "occupancy": "occupied",
-  "detectedPeople": 3,
-  "confidence": 0.94,
-  "coverageValidated": true,
-  "quality": { "usable": true, "reason": null },
-  "dataMode": "live",
-  "modelVersion": "record-actual-model-version"
-}
-~~~
-
-- `occupancy` is one of `occupied`, `vacant`, `unknown`.
-- The server computes freshness and room state. A client cannot force vacancy by posting a count of zero.
-- `detectedPeople` is a model observation, not a headcount. `confidence` is not the probability that the room is empty.
-
-## Meter reading
-
-Sent to `POST /ingest/meter-readings`.
-
-~~~json
-{
-  "eventId": "meter-main-01-capture-unique-id",
-  "meterId": "MAIN-01",
-  "capturedAt": "2026-11-13T11:00:00+05:30",
-  "kind": "cumulative",
-  "register": "import_kwh",
-  "value": 1206.0,
-  "unit": "kWh",
-  "sourceType": "camera_ocr",
-  "dataMode": "live",
-  "quality": {
-    "ocrConfidence": 0.96,
-    "registerMatched": true,
-    "burstAgreement": true
-  }
-}
-~~~
-
-The backend decides `accepted`, `needs_review` or `rejected`. Incoming confidence does not bypass validation.
-
-## Room supply command
-
-Sent to `POST /rooms/:id/supply-commands`.
-
-~~~json
-{
-  "requestId": "unique-command-id",
-  "roomId": "room-r101",
-  "roomBreakerId": "BRK-R101",
-  "action": "off",
-  "reason": "vacancy_escalation",
-  "incidentId": "incident-id",
-  "policyVersion": 4,
-  "expiresAt": "2026-11-13T11:00:30+05:30"
-}
-~~~
-
-The backend or gateway adds `issuedAt` and the authorised actor, then persists the command before transport. `action` is an explicit `on` or `off`; there is no toggle.
-
-Normalised result, from `GET /commands/:id`:
-
-~~~json
-{
-  "requestId": "unique-command-id",
-  "transportStatus": "acknowledged",
-  "reportedOutput": "off",
-  "verification": "controller_reported",
-  "verifiedAt": "2026-11-13T11:00:02+05:30",
-  "dataMode": "simulated"
-}
-~~~
-
-`verification` is one of `simulated`, `command_only`, `controller_reported`, `independently_metered`, `manually_confirmed`, `unknown`. A simulated result stays simulated even when `reportedOutput` is `off`.
-
-## CSV import formats
-
-Cumulative meter readings (`POST /imports/meter-readings`):
-
-~~~csv
-meterId,capturedAt,readingKwh,register,source
-MAIN-01,2026-11-13T10:00:00+05:30,1200.0,import_kwh,manual
-MAIN-01,2026-11-13T11:00:00+05:30,1206.0,import_kwh,manual
-~~~
-
-Interval energy:
-
-~~~csv
-meterId,intervalStart,intervalEnd,energyKwh
-MAIN-01,2026-11-13T10:00:00+05:30,2026-11-13T11:00:00+05:30,6.0
-~~~
-
-Timetable (`POST /imports/timetable`):
-
-~~~csv
-roomCode,startAt,endAt,title,status
-R101,2026-11-13T10:00:00+05:30,2026-11-13T11:00:00+05:30,BCA lecture,confirmed
-~~~
-
-The import preview reports invalid rows, duplicate rows, timezone assumptions, meter epoch, format type and intended data source. Re-imports are idempotent. A CSV label does not make data trusted: simulated fixtures remain simulated.
-
-## Vision and OCR service (internal)
-
-A separate Python service, not under `/api/v1`, reached only by the backend or gateway.
-
-| Method and endpoint | Purpose |
+| Input format | Header |
 | --- | --- |
-| `GET /health` | Service and model availability |
-| `POST /v1/observe-frame` | Analyse a supplied bounded frame and region configuration |
-| `POST /v1/ocr-meter` | Analyse a supplied bounded meter image |
+| Cumulative meter reading | `meterId,capturedAt,readingKwh,register,source` |
+| Interval energy | `meterId,intervalStart,intervalEnd,energyKwh` |
+| Timetable | `roomCode,startAt,endAt,title,status` |
+
+Preview invalid/duplicate rows, timezone assumptions, meter epoch, format type and intended source before committing. Re-importing the same records must be idempotent. The CSV `source` field and the JSON event `sourceType` field belong to different input contracts and must be normalised explicitly. A user-supplied source label does not make synthetic data measured evidence.
+
+| Event | Fields and acceptance rules |
+| --- | --- |
+| Occupancy observation | `eventId`, `sourceId`, `roomId`, `capturedAt`, `sourceType`, `occupancy`, `detectedPeople`, `confidence`, `coverageValidated`, `quality`, `dataMode`, `modelVersion`; see [§13.2](PLAN.md#132-occupancy-observation-contract). |
+| Meter reading | `eventId`, `meterId`, `capturedAt`, `kind`, `register`, `value`, `unit`, `sourceType`, `dataMode`, `quality`; see [§13.3](PLAN.md#133-meter-reading-contract). |
+
+Occupancy values are `occupied`, `vacant` and `unknown`. The server computes freshness and room state from validated coverage and source health. A count of zero, expired access lease or cancelled booking cannot establish vacancy. Any fresh credible positive occupancy protects the room.
+
+The backend assigns meter validation status `accepted`, `needs_review` or `rejected`. Validate register, units, decimal placement, capture chronology, physically plausible growth for the supply, duplicate identity and meter epoch. OCR confidence alone cannot authorise acceptance. Corrections retain provenance and an audit trail. Only accepted readings contribute to measured calculations; fixtures retain their simulated status. See [DATABASE.md](DATABASE.md) for interval and consistency rules.
+
+## Commands and verification
+
+Follow the payload examples in [PLAN.md §13.4](PLAN.md#134-device-command-contract). A command includes `requestId`, `roomId`, `roomBreakerId`, explicit `action` (`on` or `off`), `reason`, relevant `incidentId`, `policyVersion` and `expiresAt`. The backend/gateway adds `issuedAt` and the authorised actor and persists the command before transport. Do not use toggle commands.
+
+Before dispatch, reload current evidence, schedules, QR leases, overrides, policy version, adapter health and interlocks, including after acquiring a command lock. Apply all [final eligibility checks](PLAN.md#153-final-command-eligibility). An incompatible downstream load blocks the whole room cutoff. Automatically restore only a supply deliberately opened by this automation, subject to access, restart and safety checks; fault trips, maintenance locks and manual isolation block restoration.
+
+Results carry `requestId`, `transportStatus`, `reportedOutput`, `verification`, `verifiedAt` and `dataMode`. Verification levels are `simulated`, `command_only`, `controller_reported`, `independently_metered`, `manually_confirmed` and `unknown`. Missing feedback leaves an action unverified. Acknowledged transport does not establish physical shutdown. `dataMode: simulated` always remains simulated, including the plan's example with `verification: controller_reported`.
+
+`DEMO_MODE=true` prevents real switching adapters from being instantiated; `ALLOW_PHYSICAL_CONTROL=false` is the initial physical-control setting. Accelerated time, replayed clips and fixture observations cannot authorise physical action. These controls belong on the server and gateway.
+
+## Internal integrations
+
+The optional Python service uses the separate paths in [PLAN.md §12.3](PLAN.md#123-internal-endpoints); they are not application routes under `/api/v1`:
+
+| Method and path | Purpose |
+| --- | --- |
+| `GET /health` | Service/model availability |
+| `POST /v1/observe-frame` | Analyse a bounded frame and configured regions |
+| `POST /v1/ocr-meter` | Analyse a bounded meter image |
 | `POST /v1/sources/:id/start` | Start an administrator-configured source |
-| `POST /v1/sources/:id/stop` | Stop the source |
+| `POST /v1/sources/:id/stop` | Stop that source |
 
-Source addresses are configured by an administrator; arbitrary camera URLs are not accepted. Every result includes `sourceId`, `capturedAt`, `processedAt`, `modelVersion`, `dataMode` and quality information. If the model is unavailable the service reports it; it never substitutes a hardcoded detection.
+Results include `sourceId`, `capturedAt`, `processedAt`, `modelVersion`, `dataMode` and quality. Source addresses are configured by an administrator and validated on the gateway; public requests cannot supply arbitrary camera URLs. Report missing models/integrations as unavailable, with a labelled replay/fixture alternative.
 
-## MQTT topics (optional)
+The room-master simulator and supported physical adapters share the [internal adapter contract](PLAN.md#116-room-master-adapter-contract):
 
-Application-defined topics on a private broker. Adapters translate real device protocols; these are not manufacturer topic names.
+```text
+getCapabilities(roomBreakerId)
+getStatus(roomBreakerId)
+setSupply(roomBreakerId, on, requestId, expiresAt)
+getCommandResult(requestId)
+```
 
-| Topic | Purpose | Retained? |
-| --- | --- | --- |
-| `energy/rooms/R101/presence` | Timestamped presence state | May retain; freshness is mandatory |
-| `energy/devices/BRK-R101/availability` | Online or offline | Yes |
-| `energy/devices/BRK-R101/command` | Explicit action, ID and expiry | No |
-| `energy/devices/BRK-R101/result` | Command outcome | No |
-| `energy/meters/MAIN-01/reading` | Reading observation | No, or deduplicated state with original capture time |
+These functions are application contracts, not universal manufacturer endpoints. The internal simulator's `setSupply` service receives room ID, command input and actor to enforce mapping/policy before applying the contract. Exact physical model, firmware, protocol and feedback remain unavailable. Connection-test responses explicitly distinguish recent fixture observations from real integration availability.
 
-Use authenticated per-device access control. QoS 1 can deliver duplicates, so events and commands are deduplicated. Retained presence is never treated as fresh occupancy, and ON/OFF commands are never retained.
+Optional private MQTT topics follow [PLAN.md §13.5](PLAN.md#135-application-mqtt-topics). Commands and results are not retained. Retained presence keeps its original timestamp and must pass freshness checks. Deduplicate QoS 1 deliveries using stable event/request IDs, enforce per-device access and reject expired commands after reconnection. Socket.IO is for authorised application updates; event names and payload schemas remain to be defined.
 
-## Live updates
+## Contract work still required
 
-Socket.IO carries incident, room-state and command updates. Event names and payloads are not yet defined.
+Schemas and HTTP envelopes for implemented inputs now exist. Socket.IO uses the session cookie, validates source origin and active accounts, accepts a checked `subscribe-room` request, and emits a payload-free `refresh` signal with server time every three seconds. Room state is retrieved through scoped HTTP routes; it is not broadcast globally. Account/session state is rechecked before refresh. Native MQTT events, cursor pagination and a generated OpenAPI contract remain pending.
 
-Related documents: [DATABASE.md](DATABASE.md), [ARCHITECTURE.md](ARCHITECTURE.md), [SECURITY.md](SECURITY.md).
+Service observation ingestion requires `X-Source-Id` and `Authorization: Bearer <source-specific token>`. Tokens are derived server-side with HMAC from the protected root secret and source ID. Source/type/room, five-minute timestamp bounds and uniqueness are checked. Repeated identical evidence returns the stored event; conflicting occupancy/mode/time for the same event ID is rejected. Replay remains isolated to demo mode. Native device events are unavailable; meter telemetry requires a registered meter scope. Manual meter correction is implemented; raw OCR/image processing, full account lifecycle and external transports remain pending. Track work in [TASKS.md](TASKS.md), with evidence in [TESTING.md](TESTING.md).

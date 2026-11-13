@@ -1,8 +1,11 @@
 node_modules/
-dist/
+frontend/dist/
 .env
-.env.local
-.data/
-*.log
+.env.*
+!.env.example
+.local/
+coverage/
+test-results/
 __pycache__/
 .venv/
+*.log

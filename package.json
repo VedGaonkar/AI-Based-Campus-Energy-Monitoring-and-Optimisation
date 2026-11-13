@@ -1,0 +1,33 @@
+{
+  "name": "campus-energy",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "engines": {
+    "node": ">=22.22.0"
+  },
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "dev": "node scripts/dev.mjs",
+    "db": "node scripts/database.mjs",
+    "start": "node backend/src/server.js",
+    "worker": "node backend/src/workers/run.js",
+    "seed": "node backend/src/seed.js",
+    "build": "npm run build --workspace frontend",
+    "test": "node --test --test-concurrency=1 tests/*.test.js",
+    "test:unit": "node --test tests/policies.test.js tests/energy.test.js",
+    "check": "node scripts/check.mjs",
+    "test:browser": "node scripts/browser-smoke.mjs",
+    "test:admin-browser": "node scripts/admin-browser-smoke.mjs",
+    "stop": "node scripts/stop-dev.mjs"
+  },
+  "devDependencies": {
+    "mongodb-memory-server": "11.3.0",
+    "node": "26.13.1",
+    "supertest": "7.3.2"
+  }
+}

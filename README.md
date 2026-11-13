@@ -1,92 +1,97 @@
-# AI-Based-Campus-Energy-Monitoring-and-Optimisation
+# AI-Based Campus Energy Monitoring and Optimisation
 
-An energy dashboard for one college building. It combines building-level electricity records, timetables, room-use requests and available occupancy evidence to identify avoidable usage, recommend improvements, assign action and track the outcome.
+## Administrator access and setup
 
-Built for problem statement PS 34, "AI-Based Campus Energy Monitoring and Optimisation", as a 24-hour hackathon software prototype with documented paths to real hardware integration.
+Use your account password and `ADMIN_INVITE_KEY` from the local ignored `.env` to sign in as administrator. The key must contain exactly 8 digits and requires an API restart after changes. It is required for every admin login. Incorrect registration keys now return an error rather than creating viewer accounts.
+
+If your existing account shows Viewer, open **My profile** and verify your account password plus the valid key to activate admin access. You can also supply both during sign-in. The server audits the role change; the profile displays the role verified by `/auth/me`.
+
+**Admin management** at `/admin` has dedicated Building setup, Rooms & corridors, Camera mapping, Smart controllers, Timetable, Room QR & overrides, Automation & control logs, Users & permissions and Advanced settings pages. Building setup persists organisation details, generates floors and supports named spaces with stable identities. Existing rooms can be assigned to floors without replacing their records. Hardware transport remains simulated or unavailable until commissioned.
+
+To explicitly generate a new key while preserving other existing settings:
+
+```bash
+npm run setup -- --generate-admin-key
+```
+
+Read the generated key only from `.env`, restart the API, and sign in again. This command rotates the previous shared invite key. A fresh `npm run setup` also generates a key when creating a new `.env`; ordinary setup preserves an existing file.
+
+`npm run test:admin-browser` runs the admin registration/login/profile/building/floors/rooms/cameras/controllers/timetable/QR/automation workflow against an isolated temporary database with generated credentials and the built frontend. Run `npm run build` first; the check requires installed Chrome/Edge or `BROWSER_EXECUTABLE`.
+
+A local single-building energy prototype for a 24-hour hackathon. It combines building meter readings, room timetables and available occupancy evidence to identify avoidable use, assign action and track outcomes.
+
+[PLAN.md](PLAN.md) is the authoritative implementation plan. [PROGRESS.md](PROGRESS.md) and [HANDOFF.md](HANDOFF.md) record current implementation and session recovery details.
 
 ## Current status
 
-**Planning stage. No application code exists in this repository yet.**
+The repository now contains a React/Vite frontend, Express API, MongoDB/Mongoose persistence, a separate durable worker, shared validated contracts, deterministic synthetic seed data and application tests. Reusable `.agents/skills/` tooling remains independent of the application.
 
-| Item | Status |
+Implemented workflows include session login and room-scoped roles, CSV preview/commit and manual meter entry, timetable editing/cancellation, interval/baseline analytics, anomaly investigation, recommendation decisions/outcome review, in-app notifications, persistent vacancy escalation, QR leases/extensions, staff overrides and guarded room-level simulation. Physical devices, live camera inference, OCR, MQTT and SMTP are unavailable integrations; the application does not claim they work. Further acceptance coverage and installation work remain documented in TASKS.md.
+
+## Intended prototype
+
+- Import building meter readings through CSV/manual entry and room timetables through CSV/editing. Calculate compatible energy intervals, show data coverage and detect explainable anomalies.
+- Recommend scheduling and efficiency changes with owners, evidence, estimated kWh/rupee benefits and outcome tracking.
+- Use validated camera/presence observations where available; offer authenticated QR access leases where rooms have no occupancy source.
+- Persist incidents and escalation: first alert after confirmed vacancy and protection checks, second alert 10 minutes later, final eligibility check after another 15 minutes.
+- Default to alert-only room policies and simulated hardware. One independently controlled Wi-Fi smart master breaker per controlled room switches all its approved ordinary loads together.
+
+Building meter readings do not establish unmetered room consumption. Camera observations, equipment estimates, simulated fixtures and measured data must retain distinct source labels. Unknown occupancy blocks vacancy-based automatic shutdown. QR expiry alone does not establish vacancy.
+
+Physical installation is outside the hackathon deliverable. A qualified electrician must approve the feeder, downstream protection and every connected load before physical operation. Cameras, sensors, networking and essential supplies remain available when ordinary room supply is OFF. AC stop/restart requirements can block the entire room cutoff.
+
+The scope excludes multiple-building operation/comparisons, per-appliance switching, smart plugs, per-button modules, AC IR blasters, facial recognition and attendance monitoring. Core functionality requires neither an LLM nor paid cloud services. See [scope and exclusions](PLAN.md#1-product-objective-and-agreed-decisions).
+
+## Local setup and startup
+
+The selected design uses React/Vite with JavaScript, Tailwind CSS, React Router, Recharts and Socket.IO; an Express/Node.js backend; MongoDB/Mongoose; and a separate persistent Node worker. Python is reserved for the optional FastAPI/OpenCV/person-detection/Tesseract vision and OCR service. See [the full stack and dependency choices](PLAN.md#9-recommended-software-stack).
+
+Use Node 26.13.1 (recorded in `.node-version`) and npm. A workspace-local Node runtime is also pinned for npm scripts; the system Node used during development was older than the router's minimum. MongoDB is the real database, including during tests. The local development helper starts MongoDB 8.2.6 with persistent data under ignored `.local/` when the default local URI is not already reachable. Its first download is about 781 MB and needs network access. An existing MongoDB URI can be supplied instead; Docker is not required.
+
+Run from the repository directory containing this README:
+
+```bash
+npm ci
+npm run setup
+npm run dev
+```
+
+Open `http://localhost:5173`. Setup creates an ignored `.env` with generated secrets, an `ADMIN_INVITE_KEY` and a local `DEMO_PASSWORD`; existing configuration is preserved. Demo account names are `admin@campus.test`, `hod@campus.test`, `technician@campus.test`, `teacher@campus.test` and `viewer@campus.test`. Read the generated password locally; it is not published in documentation or embedded in browser code. Never commit `.env`.
+
+Development starts the API at `http://localhost:5000`, worker and Vite. The initial database is seeded once; subsequent starts preserve it. `npm run seed` idempotently adds missing synthetic records/accounts without resetting existing policies/passwords. Use `npm run stop` from another terminal for explicit owned-service cleanup, or Ctrl+C. A reachable existing local MongoDB is reused; an existing Campus Energy Vite server on port 5173 is also reused. Reused services are never stopped by the helper. Ignored `.local/dev-session.json` records process ownership; verify it rather than assuming all local listeners belong to this run.
+
+The official npm registry reset connections in the implementation environment; `npm install --registry=https://registry.npmmirror.com` was the per-command workaround. No global npm setting was changed. Normal network environments can use the standard registry; the lockfile records the selected package artifacts and integrity hashes.
+
+For the built application with a reachable configured MongoDB, run `npm run build`, `npm start` and `npm run worker` (the last two in separate terminals). The API serves `frontend/dist/` on port 5000. Build output is ignored. Development preview is loopback-only; a real phone requires a deliberately configured reachable HTTPS URL/reverse proxy and matching `PUBLIC_APP_URL`/origin. A real phone/network installation has not been verified.
+
+Verification commands: `npm test`, `npm run test:unit`, `npm run check`, `npm run build`. Browser smoke uses `node scripts/browser-smoke.mjs` with the development stack running and an installed Chromium browser; set `BROWSER_EXECUTABLE` if necessary. See [TESTING.md](TESTING.md) for recorded results and limits.
+
+Review `.env.example` and [PLAN.md section 18](PLAN.md#18-credentials-tools-and-information-to-collect). Keep `DEMO_MODE=true`, `ALLOW_PHYSICAL_CONTROL=false`, `DEVICE_ADAPTER=simulator` and `NOTIFICATIONS_MODE=in_app`. Physical enablement is rejected because no commissioned physical adapter is installed. Set `DEMO_TIME_SCALE=1` when demo mode is disabled. Persisted timestamps are UTC; pilot calendar/display is `Asia/Kolkata`.
+
+The intended demo serves the built frontend from the Node server on a continuously running local host. Phone QR access needs a reachable application URL. Private CCTV and breaker connectivity require a reachable local gateway; storing an RTSP URL does not give a cloud host network access.
+
+## Documentation map
+
+| File | Purpose |
 | --- | --- |
-| Implementation plan ([PLAN.md](PLAN.md)) | Complete; the authoritative source of truth |
-| Supporting documentation (this file and the documents listed below) | Written from the plan |
-| `frontend/`, `backend/`, `vision/`, `firmware/`, `shared/`, `fixtures/`, `tests/`, `docs/` | Not created |
-| Install, start, build, seed and test commands | None exist yet |
+| [PLAN.md](PLAN.md) | Authoritative scope, workflows, contracts, milestones, budgets and acceptance criteria |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Planned components, boundaries, evidence and room-master design |
+| [API.md](API.md) | Planned application/internal endpoints and event contracts |
+| [DATABASE.md](DATABASE.md) | Planned collections, indexes and consistency rules |
+| [SECURITY.md](SECURITY.md) | Required access, privacy, integration and physical-control safeguards |
+| [TASKS.md](TASKS.md) | Implementation backlog and the 24-hour milestone sequence |
+| [TESTING.md](TESTING.md) | Planned acceptance checks and honest verification status |
+| [AGENTS.md](AGENTS.md) | Repository instructions for future developers and AI agents |
+| [CHANGELOG.md](CHANGELOG.md) | Documentation changes and eventual implementation history |
+| [PROGRESS.md](PROGRESS.md) | Current task, completed increments, verification and concise history |
+| [HANDOFF.md](HANDOFF.md) | Immediately actionable session-resume snapshot |
 
-Everything below describes the intended system. When code lands, this file must be updated with the commands and integrations that actually exist (PLAN.md §19.2, §26).
+Supporting documents identify implemented behaviour separately from remaining requirements. Generic skill references under `.agents/skills/` retain their own reusable purpose; they do not select the application architecture. Exact installed versions are recorded in package manifests/lockfile. Current framework guidance was checked through Context7 and the official [Vite](https://vite.dev/guide/), [Tailwind Vite integration](https://tailwindcss.com/docs/installation/using-vite), [Mongoose](https://mongoosejs.com/docs/guide.html) and installed connect-mongo documentation.
 
-## What the system is intended to do
+## Demonstration and rollout
 
-1. Ingest building meter readings through CSV upload or manual entry, with optional meter-image OCR and optional meter telemetry.
-2. Ingest room timetables, including cancellations, holidays and ad hoc bookings.
-3. Show actual versus expected consumption and raise explainable anomalies.
-4. Produce recommendation cards with owners and estimated kWh and rupee benefits, and track their outcome.
-5. Detect apparent waste in vacant rooms using existing CCTV, an optional LD2410 presence sensor, or authenticated QR access where neither is available.
-6. Alert the first responder, escalate to the HOD or second responder after 10 minutes, and after a further 15 minutes recheck eligibility and optionally switch off the room supply.
-7. Restore an automation-disabled supply on eligible occupancy, an authorised QR session or a staff override.
+The seed supplies 30 calendar days of visibly synthetic intervals (only completed intervals on the current day), three rooms and test roles. Open a room to start normal-class, forgotten-lights, person-return or camera-offline fixture replay. Forgotten-lights demonstrates 15 seconds of vacancy confirmation, a first alert, escalation 10 seconds later and a final simulated recheck 15 seconds after that at the default 60× scale. In-app notifications are persisted; nobody is emailed. QR access uses its normal authenticated form; analytics and recommendation scenarios use seeded data. These are explicit fixtures, not genuine vision/OCR output.
 
-The energy dashboard, anomalies and recommendations are the core. CCTV, QR access, presence sensors, escalation and control are supporting features, and the core must work without them.
+Installation estimates require one suitable breaker quote per controlled room plus feeder/protection, labour, sensing, connectivity and commissioning costs. [Budget assumptions](PLAN.md#23-budget-purchasing-and-operating-cost-plan) are planning references, not current purchase quotes or verified payback. [Commercial options](PLAN.md#24-customer-segmentation-and-business-model) are future evaluation work; checkout, tenant management and ESG reporting are not MVP requirements.
 
-## Scope
-
-- **In scope:** one building, its rooms and selected common areas.
-- **Out of scope:** multiple buildings or campuses, facial recognition or attendance monitoring, exact room-level electricity measurement from CCTV or one building meter, a universal appliance detector, payment checkout, and any dependency on an LLM API or paid cloud service. See PLAN.md §1.2 for the full list.
-
-## Control architecture
-
-Each controlled room has exactly one Wi-Fi smart master circuit breaker, which switches that room's approved ordinary loads together. There is no independent control of individual lights, fans, sockets or ACs, and no AC IR blasters, smart plugs or per-button modules. Appliance inventory exists for observation, estimates and shared-cutoff eligibility only (PLAN.md §1.3, §11).
-
-In the prototype, room masters are simulated by default. Physical installation is outside the hackathon deliverable and requires a qualified electrician. A simulated OFF is never presented as a verified physical shutdown.
-
-## Evidence labels
-
-Every reading, chart series, recommendation and outcome carries one source label: **Metered**, **Camera-observed**, **Sensor-reported**, **Estimated**, **Simulated** or **Unknown**. The system must not claim more than its evidence supports; for example, a building meter cannot say which room consumed the electricity (PLAN.md §3).
-
-## Planned technology
-
-| Layer | Choice |
-| --- | --- |
-| Frontend | React, Vite, JavaScript, Tailwind CSS, React Router, Recharts |
-| Backend | Active LTS Node.js, Express, Zod, Socket.IO |
-| Database | MongoDB with Mongoose, including persistent jobs and a notification outbox |
-| Authentication | Server sessions (express-session, connect-mongo) with bcrypt password hashing |
-| Vision and OCR (optional) | Python, FastAPI, OpenCV, Tesseract; person-detection model not yet selected |
-| Device messaging (optional) | MQTT with a private Mosquitto broker; Home Assistant as an optional gateway |
-| Presence firmware (optional) | ESPHome or a small ESP32 sensing programme for LD2410 |
-
-Login, room setup, CSV and manual ingestion, the dashboard, anomalies, recommendations, in-app alerts, persisted escalation, QR leases and the simulated room master must all work with only the frontend, backend and MongoDB (PLAN.md §9.1).
-
-## Planned repository layout
-
-| Path | Contents |
-| --- | --- |
-| `frontend/` | Vite React application |
-| `backend/` | Express API, policies, services, adapters, workers and security |
-| `vision/` | FastAPI camera and OCR service |
-| `firmware/` | Optional ESP32/ESPHome templates |
-| `shared/` | JSON contracts, enums and OpenAPI documentation |
-| `fixtures/` | Clearly labelled synthetic data and permitted sample media |
-| `tests/` | Policy, calculation, API and integration verification |
-| `docs/` | Setup, hardware mapping, demo script and evidence limitations |
-
-None of these directories exist yet. The existing `.agents/skills/` folder holds third-party design skill packs for AI coding agents; it is not application code.
-
-## Documentation
-
-| Document | Purpose |
-| --- | --- |
-| [PLAN.md](PLAN.md) | Complete implementation plan; wins over every other document |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Components, boundaries, topologies and the room-master adapter |
-| [API.md](API.md) | REST endpoints, event contracts, MQTT topics and CSV import formats |
-| [DATABASE.md](DATABASE.md) | MongoDB collections, indexes and consistency rules |
-| [SECURITY.md](SECURITY.md) | Security, privacy, simulation isolation and electrical-safety rules |
-| [TESTING.md](TESTING.md) | Acceptance scenarios and verification approach |
-| [TASKS.md](TASKS.md) | Work breakdown and progress tracking |
-| [AGENTS.md](AGENTS.md) | Working rules for AI coding agents and contributors |
-| [CHANGELOG.md](CHANGELOG.md) | History of notable changes |
-
-## Getting started
-
-There is nothing to install or run yet. The first implementation steps are in [TASKS.md](TASKS.md). The planned environment variables are listed in PLAN.md §18.1.
+Remaining work includes live vision/OCR/model/licence selection, actual device/notification transports, broader field/production acceptance, full account lifecycle, baseline history/version management, retention/migrations and deployment/commissioning. Manual reading correction, reset epochs and normal-stop confirmation are implemented with evidence/audit records. The engine rebuilds at most 20,000 readings and returns at most 1,500 chart intervals; it is a prototype, not a production utility ledger. Import commits are repeat-safe row operations, not transactions. Tariffs and seed equipment approvals are hypothetical and cannot authorise physical installation.

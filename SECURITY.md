@@ -1,85 +1,77 @@
-# Security and safety
+# Security and Control Requirements
 
-**Status:** requirements only. No code exists yet, so none of these controls are implemented or verified. Derived from [PLAN.md](PLAN.md) §3.2, §11, §15.3 and §17, which remain authoritative.
+## Administrator invite-key checks (CE-009)
 
-This system can eventually switch mains supply to a room and processes camera footage of people, so security covers three areas: application security, privacy, and physical safety.
+All administrator sign-ins require the account password plus server-configured `ADMIN_INVITE_KEY` (exactly 8 digits, per user configuration). Missing/incorrect keys reject login; invalid signup keys reject account creation instead of silently creating viewers. A valid key plus verified account password grants explicit, audited admin access to an existing account. This shared administrative enrollment credential is not per-user MFA; restrict and rotate it appropriately.
 
-## Application security
+Key-verified authentication regenerates/saves the session. Admin HTTP/socket access requires server-side adminVerified plus the current active database role. Old sessions must sign in again; a database role change alone cannot upgrade a session. Profile updates cannot assign roles. The acting admin cannot deactivate/demote their own account through user-management endpoints.
 
-- HTTPS for any network-accessible installation; secure, HttpOnly session cookies.
-- Validate browser mutation origins and apply CSRF protection, since authentication is cookie-based.
-- Restrict CORS to the actual frontend origin when cross-origin development is needed.
-- Enforce role and room scope on the server for every mutation and every Socket.IO subscription. Hiding a button is not access control.
-- Rate-limit login, QR lease creation and supply commands.
-- Hash passwords with bcrypt.
-- Validate uploaded file types, sizes and parsing limits.
-- Do not accept arbitrary remote URLs through public endpoints; prevent requests to unintended internal services. Camera sources are configured by an administrator only.
-- Integration services (camera, meter, device) use separate scoped credentials with replay protection and timestamp validation, and may submit only their own telemetry.
-- Record actor, action, target and time in audit events, with secrets redacted.
+Management APIs retain role, origin, CSRF, validation, room locks, audit and simulator boundaries. Gateway camera registration returns a scoped token once; list reads and logs exclude it. No raw camera passwords, public streams or physical transport have been added. Floor/room names remain display labels, not mutable database identities.
 
-## Secrets
+**Status:** Core local controls are implemented in `backend/src/app.js`, `security/access.js`, `config.js` and the room-master service, with API/policy tests. Optional integrations and production hardening remain pending. [PLAN.md](PLAN.md) is authoritative; requirements below still apply beyond the verified subset.
 
-- Never commit real secrets. Environment samples contain placeholders only.
-- Never place SMTP, meter, camera, broker or controller credentials in `VITE_` variables or browser JavaScript.
-- Store integration secrets encrypted or by reference; camera and controller secrets belong in protected server-side configuration.
-- Redact RTSP passwords and tokens from logs and exports.
-- Configuration is validated at startup. Production must reject placeholder secrets and must reject physical-control enablement without its required configuration.
-- A blank optional credential disables that adapter cleanly.
+## Implemented safeguards and current limits
 
-## Roles
+Implemented: bcrypt hashing, Mongo-backed HttpOnly/SameSite sessions with login regeneration, strict Zod input, exact-origin/CSRF mutation checks, role/room/service scope, login/lease/supply rate limits, bounded JSON/CSV parsing, redacted errors/audits, room locks, expiring explicit commands and durable deduplication. Configuration rejects placeholder secrets and all physical enablement because no commissioned adapter exists. Demo meter inputs remain simulated.
 
-| Role | Access |
+`npm run setup` generates ignored local secrets without printing them. No password/token is embedded in the UI or Markdown. Integration creation returns an HMAC-derived source-specific token to an authenticated admin; the root secret remains server-side. Source/type/room and timestamp checks prevent cross-source observation submission. Socket.IO reuses sessions and checks active accounts before payload-free refresh; room subscriptions are scoped.
+
+Local development binds loopback. HTTPS/reverse-proxy deployment, credential rotation/revocation, shared production rate-limit storage, retention enforcement, dependency/security review and an institutional reporting contact remain deployment work. There is no video/image storage or public remote-URL analysis; missing transports return unavailable. A real phone/HTTPS installation has not been verified.
+
+## Access and trust boundaries
+
+The Node backend is the policy authority. Browsers, QR pages, camera processors and presence nodes must not independently authorise power changes. Enforce server-side role and room scope for API requests and Socket.IO subscriptions, including requests made directly without the UI.
+
+| Role | Permitted scope from the plan |
 | --- | --- |
-| Administrator | Configuration, users, policies, integrations, imports, enabling approved control |
-| HOD or second responder | Assigned department incidents and recommendations |
-| First responder (lab assistant, technician) | Assigned incidents, actions and evidence |
-| Teacher or authorised staff | Room access requests, permitted extensions and overrides for assigned rooms |
-| Student or general viewer | Permitted information and approval requests; no power control by default |
-| Integration service | Its own telemetry only |
+| Administrator | Configure rooms, users, integrations, assignments, policies and approved control |
+| HOD / second responder | Assigned department incidents and recommendations; permitted acknowledgement, resolution and snooze |
+| First responder / technician | Assigned incidents, inspections and recorded actions/evidence |
+| Teacher / authorised staff | Permitted room-access leases, extensions and overrides |
+| Student / general viewer | Permitted information or approval requests; no default direct power-control privilege |
+| Integration service | Its own mapped telemetry, using a separate scoped service credential |
 
-## QR access
+Apply the detailed [role rules](PLAN.md#4-users-permissions-and-admin-controls) and [API boundaries](API.md). Hiding a button is insufficient authorisation. Public QR lookup returns minimal room/access-policy information; it must not expose controller credentials or full staff details. A GET request or page load must never switch power. A static QR URL can be shared and does not prove physical presence.
 
-- The printed QR holds an opaque room-access URL, never a control password or device address.
-- Opening the URL must not switch power. A lease is created only after sign-in and server-side checks of role, room, hours, booking conflicts, duration and lockouts.
-- A static QR can be photographed and shared. Authentication is not proof that the user is in the room, and lease expiry is not proof that the room is empty.
+## Sessions, secrets and input handling
 
-## Privacy
+Implement the [planned security rules](PLAN.md#17-security-access-and-deployment-rules):
 
-- Use only footage the institution has authorised.
-- No facial recognition, identity recognition or attendance monitoring.
-- Process footage locally where possible and keep only minimal occupancy metadata. Avoid storing identifiable video.
-- Restrict access to any stored evidence images and apply a short, configurable retention period.
-- Check model licensing and footage-use requirements before distribution.
-- Demo data uses test users; do not seed real staff contact details.
+- Use HTTPS for a network-accessible installation, secure HttpOnly session cookies and server-side sessions. Store password hashes; the planned stack uses bcrypt and a MongoDB-backed session store.
+- Validate mutation origins, protect cookie-authenticated mutations against CSRF and restrict cross-origin access to the configured frontend origin.
+- Rate-limit login, QR lease creation and control commands. Validate contracts, uploaded file types/sizes and parsing limits.
+- Keep camera, meter, controller, broker and SMTP credentials server-side in protected configuration or encrypted/referenced storage. Never put these secrets in browser code or `VITE` variables.
+- Redact passwords, RTSP credentials and tokens from logs, audit exports and errors. Audit actors, policy changes, commands and outcomes without leaking secrets.
+- Authenticate service/device ingestion separately from user sessions. Enforce source scope, event deduplication, replay protection and timestamp validation; submitted confidence or a zero person count cannot bypass backend checks.
+- Allow only administrator-configured integration endpoints validated at the gateway. Public analysis requests must not accept arbitrary remote URLs or reach unintended internal services.
+
+`.env.example` and `backend/src/config.js` implement the current environment contract; [PLAN.md's template](PLAN.md#181-environment-configuration-template) also describes future transports. Startup rejects short/placeholder secrets and physical enablement. SMTP/MQTT/vision currently remain unavailable even if optional credentials are filled. Production deployment has not been verified.
 
 ## Simulation isolation
 
-- `DEMO_MODE` and `ALLOW_PHYSICAL_CONTROL` are enforced on the server and gateway. The planned defaults are `DEMO_MODE=true` and `ALLOW_PHYSICAL_CONTROL=false`.
-- In demonstration mode a real switching adapter cannot be instantiated.
-- Accelerated time, replayed clips and fixture observations can never authorise a physical action.
-- Every simulated command, reading and chart keeps its `dataMode` through the whole pipeline. A simulated OFF is never shown as a verified shutdown.
-- Use separate demo MQTT topics or a separate broker where needed.
+Default to `DEMO_MODE=true`, `ALLOW_PHYSICAL_CONTROL=false` and `DEVICE_ADAPTER=simulator`. Enforce these settings on the server and gateway. Demonstration mode must prevent instantiation of real switching adapters, rather than relying on a warning banner.
 
-## Physical control safety
+Preserve `dataMode` through readings, observations, commands, charts and outcomes. Accelerated clocks, fixture observations and replayed clips must never authorise physical actions. Use test/in-app notification recipients and separate demo MQTT topics or a separate broker where needed. Never seed real staff email addresses into demonstrations. A simulated OFF remains simulated regardless of a reported output or verification field.
 
-- Every room starts in alert-only mode. Automatic control requires explicit enablement and a tested adapter.
-- The only actuator is one master breaker per controlled room, operated with explicit ON and OFF commands. Commands have short expiries and are never replayed after a reconnection.
-- Unknown occupancy blocks automatic shutdown; positive occupancy cancels it.
-- Any downstream load not approved for shared cutoff blocks the whole room cutoff.
-- Cameras, sensors, network equipment and emergency or essential circuits stay outside the routine cutoff.
-- A fault-tripped, maintenance-locked or manually isolated supply is never restored automatically.
-- An unexplained building-level spike never triggers a room shutdown.
-- A consumption anomaly is a review signal, not an electrical protection mechanism.
-- Physical installation is outside the prototype. It requires a qualified electrician to design the room feeder, preserve downstream protection, select the breaker for the actual load and commission the system, with a local override available.
+## Physical action and restoration
 
-The complete eligibility list for an automatic OFF is in PLAN.md §15.3.
+The agreed actuator is exactly one independently controlled Wi-Fi smart master breaker per controlled room. It switches that room's approved ordinary loads together. Inventory entries, cameras and LD2410/ESP32 presence nodes do not introduce per-appliance controls or a second mains actuator.
 
-## Deployment
+Start rooms in alert-only mode. Before enabling physical control, require the [commissioning checks](PLAN.md#115-connection-and-commissioning-steps) and [final eligibility checks](PLAN.md#153-final-command-eligibility). In particular:
 
-- Run the full stack locally for the hackathon.
-- If the dashboard is hosted remotely, the local gateway connects outbound with authentication. Never expose raw CCTV ports or device control to the internet.
-- Keep the worker on a continuously running host; a sleeping worker breaks escalation.
+- Confirm the correct room master, tested integration, fresh live evidence, current policy/deadline, healthy device and explicit room approval. Recheck after command-lock waits and invalidate stale work on new occupancy, bookings, QR leases or overrides.
+- Block occupancy-driven OFF when occupancy is unknown. QR expiry without an occupancy source leaves occupancy unknown and defaults to a staff action. A separately accepted fixed-duration policy still requires its own approval, local override and all fault/essential-load interlocks.
+- Approve every downstream load for shared cutoff. An incompatible load or an unconfirmed required AC stop procedure blocks the entire room cutoff and creates manual work. Invalidate a stop confirmation if the AC restarts or evidence becomes uncertain; respect restart delays.
+- Keep cameras, sensors, gateway/network equipment and emergency/essential supplies outside routine cutoff. A qualified electrician must establish the feeder, retain appropriate downstream protection and commission the installation.
+- Restore automatically only a supply deliberately disabled by this automation, subject to access policy, health and restart constraints. Never reset a fault trip or override maintenance lockout/manual isolation. Missing required interlock status blocks restoration unless an approved manual procedure establishes eligibility.
+- Persist explicit ON/OFF commands with request IDs and expiry; do not use toggles or retain MQTT switching commands. Reject expired work after reconnection. Record transport acknowledgement separately from controller feedback and independent verification.
 
-## Reporting a vulnerability
+A building consumption anomaly cannot justify blind shutdown of a selected room. Building-meter readings and camera evidence do not establish unmetered room consumption or a definite cause.
 
-No reporting channel has been set up yet. Until one is, report security or safety concerns privately to the repository maintainers rather than in a public issue.
+## Footage, evidence and deployment
+
+Use only institution-authorised footage. Process suitable footage locally and retain minimal occupancy metadata by default; facial recognition, identity recognition from video and attendance monitoring are excluded. Restrict stored evidence images and set a short configurable retention period. Record model version/licence and footage-use permission before distribution; model selection and licensing review remain pending.
+
+Run the prototype locally first with a continuously running worker. A remote dashboard needs an authenticated outbound gateway connection to private cameras/controllers; do not expose raw CCTV ports or unrestricted device control publicly. Loss of communication suspends new central automatic commands. A printed QR and local-only presence detection do not provide a command path. See [deployment boundaries](ARCHITECTURE.md) and the [connectivity limits](PLAN.md#118-connectivity-limits).
+
+Before a real deployment, the institution must supply authorised contacts, endpoint/credential details, retention settings, exact hardware/firmware documentation and commissioning approval. No security-reporting contact or disclosure process has been established in this repository. Security and failure validation is pending under [TESTING.md](TESTING.md).
