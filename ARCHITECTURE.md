@@ -1,5 +1,12 @@
 # Architecture
 
+## Dedicated meter source and OCR (CE-016)
+
+A separate MeterCamera service/routes/capability domain reuses existing institution context, static phone hosting, bounded image encoder, worker and change journal. Meter imagery never enters occupancy inference. The worker persists hourly capture requests; the paired source only satisfies unexpired server requests. Manual authenticated image tests are also supported; arbitrary website/RTSP URLs are not.
+
+Node invokes a bounded local Python/Tesseract worker, applying orientation/ROI and returning raw text/scores. Parser, neighbour/time/plausibility/decimal checks and review remain backend-owned. Immutable evidence is stored separately from accepted cumulative readings, then the existing energy importer/calculator handles accepted values. Manual review enters the core as needs_review until the existing audited validator accepts it; failed review cannot briefly create anomalies. Automatic acceptance requires explicit tested configuration and never guarantees accuracy. Image retention is latest12 pairs/camera24h with a site budget; separate metadata/audit survives expiry. See [METER_CAMERA.md](METER_CAMERA.md).
+
+
 ## Persisted change feed and frontend reconciliation (CE-014)
 
 Existing Socket.IO, MongoDB and shared App/useData version state remain. backend/src/realtime/journal.js installs operational Mongoose post-write hooks before model compilation. Successful saves, query writes/deletes, insertMany and bulk imports append minimal syncEvents after the operational write; syncCounters allocates revisions per database. Lock-only/timestamp-only/no-op writes do not create refresh loops. Room remapping invalidates both old and new scoped views. Raw migration writes are deliberately offline; direct database edits outside application models require snapshot repair. No change-stream/Redis/replica-set dependency was added.

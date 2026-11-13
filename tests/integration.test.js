@@ -145,7 +145,7 @@ test("CSV preview/commit is durable and repeat-safe; intervals are calculated fr
   assert.equal(interval.averagePowerKw, 6);
   assert.equal(interval.dataMode, "simulated");
 });
-test("manual reading conflict, invalid CSV and OCR unavailable do not fabricate results", async () => {
+test("manual reading conflict, invalid CSV and unregistered meter images do not fabricate results", async () => {
   const result = await mutate("/api/v1/meter-readings", {
     eventId: "conflict",
     meterId: "MAIN-01",
@@ -165,7 +165,7 @@ test("manual reading conflict, invalid CSV and OCR unavailable do not fabricate 
       .status,
     400,
   );
-  assert.equal((await mutate("/api/v1/meter-images", {})).status, 503);
+  assert.equal((await mutate("/api/v1/meter-images", {})).status, 400);
 });
 test("audited manual review preserves provenance and reset configuration separates epochs", async () => {
   const settings = await models.Settings.findById("installation").lean();

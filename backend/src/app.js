@@ -1,4 +1,5 @@
 import express from "express";
+import { registerMeterPhoneRoutes, registerMeterCameraRoutes } from "./meter-camera-routes.js";
 import { startRealtime, syncSnapshot } from "./realtime/transport.js";
 import session from "express-session";
 import MongoStore from "connect-mongo";
@@ -113,6 +114,7 @@ export function createApplication({ config, connection, models, workspaceDirecto
   const api = express.Router();
   const phoneDemo = createPhoneDemoService(models, config);
   registerDemoPhoneRoutes(api, { models, config, service: phoneDemo, origins });
+  registerMeterPhoneRoutes(api, { models, config, origins });
   api.get("/health", (req, res) =>
     res.json({
       data: {
@@ -388,6 +390,7 @@ export function createApplication({ config, connection, models, workspaceDirecto
   if (workspaceDirectory) registerWorkspaceAdministration(api, { directory: workspaceDirectory });
   api.get("/sync/snapshot", async (req, res) => { res.setHeader("Cache-Control", "no-store"); res.json({ data: await syncSnapshot({ connection, models, workspaceDirectory }, req.user) }); });
   registerManagement(api, { models, config });
+  registerMeterCameraRoutes(api, { models, config });
   const connectedDevices = registerConnectedDevices(api, { models, config });
   registerDemoAdminRoutes(api, { models, service: phoneDemo });
   api.get("/auth/me", (req, res) =>
@@ -817,13 +820,6 @@ export function createApplication({ config, connection, models, workspaceDirecto
       ),
     });
   });
-  api.post("/meter-images", () =>
-    fail(
-      503,
-      "OCR_UNAVAILABLE",
-      "OCR adapter is not configured; use reviewed manual readings or CSV",
-    ),
-  );
   api.get("/analytics/summary", async (req, res) =>
     res.json({ data: await analyticsSummary(models) }),
   );

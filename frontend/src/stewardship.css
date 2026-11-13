@@ -351,3 +351,5 @@ td select { max-width: 240px; padding: 8px; border: 1px solid var(--border); bac
 
 .sync-status { padding: .5rem 1.5rem; border-bottom: 1px solid #BED4CA; background: #F4FAF7; color: #20483C; font-size: .8rem; overflow-wrap: anywhere; }
 .sync-status.stale { border-color: #AD512F; color: #AD512F; }
+
+.meter-previews { display: flex; flex-wrap: wrap; gap: 1rem; margin: 1rem 0; }.meter-previews img { max-width: min(100%, 540px); max-height: 280px; object-fit: contain; border: 1px solid #BED4CA; }.meter-raw { white-space: pre-wrap; overflow-wrap: anywhere; background: #F4FAF7; padding: 1rem; }

@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 // A durable invalidation feed works with standalone MongoDB as well as replica
 // sets. It never stores documents, credentials, names, notification text or video.
 const resources = {
+  MeterCamera: "meter-cameras", MeterCapture: "meter-captures", MeterCaptureJob: "meter-capture-jobs", MeterEpochTransition: "meter-epochs",
   Room: "rooms", Floor: "floors", Settings: "institution", User: "permissions",
   Breaker: "room-master", Device: "inventory", Schedule: "schedules",
   AccessLease: "qr-leases", Override: "overrides", Incident: "incidents",
@@ -45,7 +46,7 @@ function descriptor(name, row) {
     resource: resources[name], entityId: String(row._id), ...(roomId ? { roomId: String(roomId) } : {}),
     ...(name === "Notification" ? { recipientId: row.recipientId ?? "unassigned" } : {}),
     ...(name === "User" ? { userId: String(row._id), adminOnly: true } : {}),
-    ...(["DeviceConnection", "DemoSession", "ImportBatch", "Floor", "Report"].includes(name) ? { adminOnly: true } : {}),
+    ...(["DeviceConnection", "DemoSession", "ImportBatch", "Floor", "Report", "MeterCamera", "MeterCapture", "MeterCaptureJob", "MeterEpochTransition"].includes(name) ? { adminOnly: true } : {}),
     ...(["Command", "NativeCommand"].includes(name) ? {
       phase: name === "Command" ? row.state : row.status,
       verification: name === "Command" ? row.result?.verification ?? "unverified" : row.verification ?? "unverified",

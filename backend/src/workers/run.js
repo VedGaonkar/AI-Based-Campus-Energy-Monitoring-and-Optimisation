@@ -1,3 +1,4 @@
+import { maintainMeterCameras } from "../services/meter-camera.js";
 import { randomUUID } from "node:crypto";
 import { loadConfig } from "../config.js";
 import { connectDatabase } from "../models/index.js";
@@ -20,7 +21,7 @@ while (!stopping) {
     for (const institution of await directory.Institution.find({ active: true }).select("_id").lean()) {
       try {
         const realm = await directory.realm(institution._id);
-        await directory.run(realm, () => tick(realm.models, config, new Date(), `${owner}:${institution._id}`));
+        await directory.run(realm, async () => { await maintainMeterCameras(realm.models); await tick(realm.models, config, new Date(), `${owner}:${institution._id}`); });
       } catch (error) { console.error(JSON.stringify({ code: "INSTITUTION_WORKER_TICK_FAILED", name: error.name })); }
     }
   } catch (err) {

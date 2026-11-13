@@ -1,5 +1,12 @@
 # Database design and consistency
 
+## Meter-camera persistence (CE-016)
+
+Institution-bound meterCameras stores meter/epoch,purpose=meter,display configuration,60min default schedule,revision,review-first permission,source health and write-only hashed codes/tokens. meterCaptureJobs persists due slot/expiry/revision and pending/processing/completed/missed/cancelled state separately from room-control jobs. meterCaptures retains immutable source/time/configuration/image hashes/original OCR text/candidate/validation plus mutable review history/reading link. One guarded internal initial raw update fills original OCR fields exactly once after recognition, with an explicit scoped invalidation; later corrections do not change them. meterImages holds query-excluded bounded image pairs with TTL24h and latest12/camera retention; metadata persists. meterEpochTransitions records pending/completed procedure evidence; no reading crosses epochs.
+
+Accepted values reuse meterReadings/import keys/audited corrections/energyIntervals; CSV/OCR alternatives do not double count. Closed/started meter epochs are recorded in existing Settings.meters and checked on ingestion/review. Additive collections/indexes only: no destructive migration or data reseed required. Multi-document review/epoch operations are guarded/resumable or operator-reconciled, not cross-collection transactions. See [METER_CAMERA.md](METER_CAMERA.md).
+
+
 ## Institution persistence (CE-013)
 
 The configured MongoDB database holds the shared directory: institutions (immutable UUID, editable display/search name, private-by-default discovery, backend-only dbName, kind/active/migration flags, hashed identity code), workspaceAccounts (global unique email, name, query-excluded passwordHash/active), workspaceMemberships (unique userId/institutionId pair, active) and workspaceInvitations (hashed single-use token, institution, optional email, role/room scope, expiry/claim audit). Local User records retain membership role/permissions; authentication uses the global account hash.

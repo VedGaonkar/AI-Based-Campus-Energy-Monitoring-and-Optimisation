@@ -1,3 +1,4 @@
+import { captureJpeg } from "../shared/image-source.js";
 import { $, text, error, request, ready, credential } from "../shared/phone.js";
 let stream, timer, active = false, sequence = Number(sessionStorage.getItem("demo-camera-sequence") ?? 0), controller;
 const video = $("#video"), canvas = document.createElement("canvas");
@@ -11,11 +12,8 @@ async function sample() {
   if (!active || document.hidden) return;
   try {
     if (!video.videoWidth || !video.videoHeight) throw new Error("Waiting for a usable video frame");
-    const scale = Math.min(1, 640 / Math.max(video.videoWidth, video.videoHeight));
-    canvas.width = Math.round(video.videoWidth * scale); canvas.height = Math.round(video.videoHeight * scale);
-    const capturedAt = new Date().toISOString(); canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
-    const image = canvas.toDataURL("image/jpeg", .72).split(",")[1];
-    if (image.length > 333000) throw new Error("Frame is too large; reduce camera resolution");
+    const capturedAt = new Date().toISOString();
+    const { image } = captureJpeg(video);
     controller = new AbortController(); const timeout = setTimeout(() => controller?.abort(), 10000);
     sequence++; sessionStorage.setItem("demo-camera-sequence", String(sequence));
     text("#capture-status", `Uploading sampled frame ${sequence}…`);

@@ -1,5 +1,12 @@
 # Validation and Acceptance Plan
 
+## Meter-camera acceptance (CE-016)
+
+Run node --test tests/meter-camera.test.js after npm run setup:ocr. Pure/parser and source/scheduler checks remain separate from optional real OCR tests; missing engine skips are explicit and never count as recognition. Executed tests cover point/comma/implied decimals,Wh conversion,wrong registers,duplicates,real synthetic image/orientation,review/correction without lost evidence,automatic permission reset,paired scheduled capture,hourly calculations/CSV overlap,non-monotonic/future/stale data,gap aggregates,loss/expiry,no occupancy effects,reset isolation and retention.
+
+After build, npm run test:meter-browser uses isolated Chrome profiles and a synthetic canvas video substituted for getUserMedia. JPEG capture,capability transport,Tesseract,review and image preview are real; the meter and video source are synthetic. No actual phone/physical meter accuracy claim is made. The test checks administrator registration/60min default,real OCR review/acceptance,paired source isolation and stopped-camera health. Existing occupancy/demo and energy regressions must also pass. Physical positioning/lighting/cycling-register/hour-long rehearsals remain in METER_CAMERA.md.
+
+
 ## Live synchronisation verification (CE-014)
 
 node --test tests/live-sync.test.js uses isolated MongoDB and independent admin/viewer/foreign sockets. It verifies persisted mutations, denied writes/no events, every required resource, requested vs failed vs simulator ACK, event uniqueness, another database connection's background/provider writes, reconnect checkpoint/current data, room permission removal, membership revocation, ordering/coalescing, foreground recovery, aborted/old responses and listener cleanup.
@@ -184,3 +191,5 @@ Final implementation documentation check: twelve root Markdown files, 113 local 
 CE-013 final executed results (14 November 2026): 99/99 application tests, 6 isolated institution browser checks without runtime errors, production/buildless build, 68 syntax checks and 12 client assets secret scan passed. Logs are ignored .local/institution-*.log. Actual local migration/account preservation and dedicated demo repeat were separately verified.
 
 CE-014 final executed results:105/105 application tests (original transport test retained),6 multi-profile/two-tab browser checks without runtime errors,production/buildless build,72 syntax files and12 client assets secret scan passed. Running-stack viewer snapshot/readiness and unauthenticated denial verified separately. See HANDOFF.md for exact logs, rollout and unverified live/production limits.
+
+CE-016 executed results:116full application tests passed,0skipped;17meter+energy targeted and10final meter tests passed. Five meter browser checks passed with actual OCR on synthetic video/images,not a physical meter. Production/buildless build,83syntax files and17client assets secret scan passed. Running Tesseract health/admin/viewer scopes/static pages verified separately. See HANDOFF for exact logs and remaining physical checks.

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router";
 import { Building2, Layers, Camera, PlugZap, CalendarDays, QrCode, Workflow, Users, Settings, ArrowRight, ShieldCheck, DoorOpen, Plus, UserRound } from "lucide-react";
 import { api, post, patch } from "./services/api";
+import { MeterCameras } from "./MeterCameras.jsx";
 import { ConnectedDevices } from "./ConnectedDevices.jsx";
 import { InstitutionSettings } from "./Institutions.jsx";
 
@@ -11,6 +12,7 @@ const modules = [
   ["cameras", Camera, "Camera mapping", "CCTV sources and no-camera settings"],
   ["controllers", PlugZap, "Smart controllers", "One room master, device and circuit mapping"],
   ["devices", PlugZap, "Connected devices", "Existing equipment through Home Assistant or simulation"],
+  ["meters", Camera, "Meter cameras", "Cumulative register OCR, review and capture schedule"],
   ["timetable", CalendarDays, "Timetable", "Class timings and authorised-use protection"],
   ["qr", QrCode, "Room QR & overrides", "Authenticated temporary access and room QR"],
   ["automation", Workflow, "Automation & control logs", "Occupancy, scheduling, permissions and safety"],
@@ -46,6 +48,7 @@ export function Management({ ui }) {
     {section === "rooms" && registry && <Spaces ui={ui} registry={registry} />}
     {section === "cameras" && registry && <Cameras ui={ui} registry={registry} />}
     {section === "controllers" && registry && <Controllers ui={ui} registry={registry} />}
+    {section === "meters" && <MeterCameras ui={ui} />}
     {section === "devices" && <ConnectedDevices ui={ui} embedded />}
     {section === "automation" && <Automation ui={ui} />}
     {section === "users" && <UsersPanel ui={ui} />}

@@ -34,6 +34,27 @@ export function createModels(connection, institutionId) {
     return connection.model(name, schema, collection);
   };
   return {
+    MeterCamera: model("MeterCamera", "meterCameras", {
+      purpose: { type: String, default: "meter", immutable: true }, name: String, meterId: String, epoch: String,
+      intervalMinutes: { type: Number, default: 60 }, register: String, unit: String, registerLabel: String,
+      roi: mixed, orientation: Number, decimalMode: String, decimalPlaces: Number, dataMode: mode,
+      enabled: { type: Boolean, default: true }, autoAccept: { type: Boolean, default: false }, revision: { type: Number, default: 1 },
+      nextCaptureAt: Date, lastCaptureAt: Date, lastSeenAt: Date, offlineAt: Date, lastError: String, captureActive: { type: Boolean, default: false },
+      codeHash: { type: String, select: false }, codeExpiresAt: Date, tokenHash: { type: String, select: false }, pairedUntil: Date,
+      generation: { type: Number, default: 0 }, processingOwner: String, processingUntil: Date, createdBy: String, updatedBy: String,
+    }, [[{ meterId: 1, epoch: 1 }, { unique: true, partialFilterExpression: { enabled: true } }], [{ tokenHash: 1 }, { unique: true, sparse: true }]]),
+    MeterCaptureJob: model("MeterCaptureJob", "meterCaptureJobs", { cameraId: String, slotAt: Date, expiresAt: Date, revision: Number, status: String, captureId: String, finishedAt: Date }, [[{ cameraId: 1, status: 1 }, {}]]),
+    MeterCapture: model("MeterCapture", "meterCaptures", {
+      cameraId: String, captureId: String, jobId: String, meterId: String, epoch: String,
+      capturedAt: { type: Date, immutable: true }, receivedAt: { type: Date, immutable: true },
+      configSnapshot: { type: mixed, immutable: true }, imageDigests: { type: [String], immutable: true }, dataMode: mode,
+      sourceType: { type: String, immutable: true }, physicalVerification: { type: String, default: "unverified", immutable: true },
+      evidence: { type: mixed, immutable: true }, candidateKwh: { type: Number, immutable: true },
+      validation: { type: mixed, immutable: true }, status: String, readingId: String, reviewedValue: Number,
+      reviews: { type: [mixed], default: [] }, processingUntil: Date,
+    }, [[{ cameraId: 1, captureId: 1 }, { unique: true }], [{ cameraId: 1, capturedAt: 1 }, { unique: true }]]),
+    MeterImage: model("MeterImage", "meterImages", { captureId: String, cameraId: String, frames: { type: [mixed], select: false }, expiresAt: Date }, [[{ expiresAt: 1 }, { expireAfterSeconds: 0 }], [{ captureId: 1 }, { unique: true }]]),
+    MeterEpochTransition: model("MeterEpochTransition", "meterEpochTransitions", { meterId: String, fromEpoch: String, newEpoch: String, type: String, effectiveAt: Date, reason: String, registerMaximum: Number, actorId: String, status: { type: String, default: "pending" } }, [[{ meterId: 1, newEpoch: 1 }, { unique: true }]]),
     Report: model("Report", "reports", { name: String, generatedAt: Date, createdBy: String, dataMode: mode, payload: mixed }),
     DemoSession: model("DemoSession", "demoSessions", {
       roomId: { type: String, required: true }, active: { type: Boolean, default: true },

@@ -43,6 +43,7 @@ import {
 } from "lucide-react";
 import { api, post, patch } from "./services/api";
 import { Management, Profile } from "./Management.jsx";
+import { MeterCameras } from "./MeterCameras.jsx";
 import { ConnectedDevices } from "./ConnectedDevices.jsx";
 import { PhoneDemo, PhoneDemoSummary } from "./PhoneDemo.jsx";
 import { InstitutionPicker } from "./Institutions.jsx";
@@ -282,7 +283,7 @@ function App() {
                 ["/recommendations", Lightbulb, "Recommendations"],
                 ["/access", QrCode, "QR access"],
                 ["/connected-devices", PlugZap, "Connected devices"],
-                ...(user.role === "admin" ? [["/phone-demo", Camera, "Two-phone demo"]] : []),
+                ...(user.role === "admin" ? [["/phone-demo", Camera, "Two-phone demo"], ["/meter-cameras", Camera, "Meter cameras"]] : []),
                 ...(user.role === "admin"
                   ? [["/admin", Settings, "Admin management"]]
                   : []),
@@ -409,6 +410,7 @@ function App() {
                 </div>
               )}
               <Routes>
+                <Route path="/meter-cameras" element={<MeterCameras ui={managementUI} />} />
                 <Route path="/connected-devices" element={<ConnectedDevices ui={managementUI} />} />
                 <Route path="/phone-demo" element={<PhoneDemo ui={managementUI} />} />
                 <Route path="/profile" element={<Profile ui={managementUI} />} />
@@ -1529,7 +1531,7 @@ function Energy() {
             <div className="callout">
               <TriangleAlert size={19} />
               <p>
-                OCR is currently unavailable. Enter the meter value manually
+                Use Meter cameras for reviewed image OCR, or enter the value manually
                 after checking the register. Hourly readings show average power,
                 not instantaneous demand.
               </p>

@@ -15,11 +15,11 @@ export function workspaceMiddleware(directory) {
     try {
       if (!req.path.startsWith("/api/v1")) return next();
       const path = req.path.slice(7);
-      if (req.method === "OPTIONS" && path.startsWith("/demo-phone")) return next();
+      if (req.method === "OPTIONS" && (path.startsWith("/demo-phone") || path.startsWith("/meter-phone"))) return next();
       if (publicPaths.has(path)) return next();
       let id;
-      if (path.startsWith("/demo-phone")) {
-        const token = path === "/demo-phone/pair" ? req.body?.code : req.get("Authorization")?.replace(/^Bearer /, "");
+      if (path.startsWith("/demo-phone") || path.startsWith("/meter-phone")) {
+        const token = (path === "/demo-phone/pair" || path === "/meter-phone/pair") ? req.body?.code : req.get("Authorization")?.replace(/^Bearer /, "");
         id = String(token ?? "").split(".")[0];
       } else if (path.startsWith("/ingest/")) id = req.get("X-Institution-Id");
       else if (path.startsWith("/access/")) {
@@ -28,7 +28,7 @@ export function workspaceMiddleware(directory) {
       } else id = req.session.institutionId;
       if (!id) fail(401, "WORKSPACE_REQUIRED", "Sign in and select an authorised institution workspace");
       const realm = await directory.realm(id);
-      const capability = path.startsWith("/demo-phone") || path.startsWith("/ingest/") || path.startsWith("/access/");
+      const capability = path.startsWith("/demo-phone") || path.startsWith("/meter-phone") || path.startsWith("/ingest/") || path.startsWith("/access/");
       if (!capability && !await directory.user(realm, req.session.userId)) invalid();
       req.workspaceRealm = realm;
       directory.run(realm, next);

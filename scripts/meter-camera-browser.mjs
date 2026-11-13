@@ -1,0 +1,78 @@
+import { existsSync, readFileSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
+import { randomBytes, randomInt } from "node:crypto";
+import { createServer } from "node:net";
+import request from "supertest";
+import assert from "node:assert/strict";
+import { startDatabase } from "./database.mjs";
+import { launchChrome } from "./chrome-driver.mjs";
+import { loadConfig } from "../backend/src/config.js";
+import { createInstitutionApplication } from "../backend/src/workspaces/runtime.js";
+const executable = process.env.BROWSER_EXECUTABLE ?? ["C:/Program Files/Google/Chrome/Application/chrome.exe", "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"].find(existsSync);
+if (!executable) throw new Error("Install Chromium or set BROWSER_EXECUTABLE");
+let db, runtime, adminBrowser, sourceBrowser, page, phone;
+const checks = [], errors = [], password = randomBytes(24).toString("base64url"), key = randomInt(10000000, 100000000).toString();
+async function until(fn) { for (let i = 0; i < 150; i++) { if (await fn()) return; await new Promise(resolve => setTimeout(resolve, 100)); } throw new Error(`Meter browser timed out after ${checks.length} checks`); }
+try {
+  const probe = createServer(); await new Promise(resolve => probe.listen(0, "127.0.0.1", resolve)); const port = probe.address().port; await new Promise(resolve => probe.close(resolve)); const base = `http://localhost:${port}`;
+  db = await startDatabase(); const config = loadConfig({ NODE_ENV: "test", MONGODB_URI: db.getUri("meter_browser_directory"), SESSION_SECRET: randomBytes(32).toString("hex"), SERVICE_INGEST_TOKEN: randomBytes(32).toString("hex"), ADMIN_INVITE_KEY: key, FRONTEND_ORIGIN: base, PUBLIC_APP_URL: base });
+  runtime = await createInstitutionApplication(config);
+  const agent = request.agent(runtime.app), csrf = (await agent.get("/api/v1/auth/csrf")).body.data.csrfToken;
+  const registered = await agent.post("/api/v1/auth/register").set("Origin", base).set("X-CSRF-Token", csrf).send({ name: "Meter UI admin", email: "admin@meter-ui.test", password, adminKey: key, institutionName: "Meter Camera Browser", discoverable: true }); assert.equal(registered.status, 201);
+  const models = (await runtime.directory.realm(registered.body.data.institution._id)).models;
+  await new Promise(resolve => runtime.server.listen(port, "127.0.0.1", resolve));
+  adminBrowser = await launchChrome(executable); page = await adminBrowser.newPage({ viewport: { width: 1440, height: 1100 } }); page.on("pageerror", error => errors.push(error.message));
+  await page.goto(base); await page.getByLabel("Institution / building").fill("Meter Camera Browser"); await page.locator(".institution-suggestions button").click(); await page.getByLabel("Email address").fill("admin@meter-ui.test"); await page.getByLabel("Password").fill(password); await page.getByLabel("Admin invite key").fill(key); await page.getByRole("button", { name: "Sign in to workspace" }).click();
+  await until(() => page.evaluate(() => document.body.innerText.includes("Live updates connected")));
+  await page.goto(`${base}/meter-cameras`); await page.getByLabel("Meter identifier").fill("UI-MAIN"); await page.getByLabel("Meter display name").fill("UI cumulative meter"); await page.getByRole("button", { name: "Add meter" }).click();
+  await until(() => page.evaluate(() => !!document.querySelector('select[name="meter"] option[value="0"]')));
+  await page.getByLabel("Meter and current epoch").selectOption("0"); await page.getByLabel("Meter camera name").fill("Dedicated UI meter camera"); await page.getByRole("button", { name: "Register meter camera" }).click();
+  await until(() => models.MeterCamera.exists({ meterId: "UI-MAIN" })); const camera = await models.MeterCamera.findOne({ meterId: "UI-MAIN" }).lean();
+  await page.getByLabel("Capture interval (minutes)").waitFor(); assert.equal(camera.intervalMinutes, 60); assert.equal(camera.autoAccept, false);
+  checks.push("Administrator creates empty meter/camera, defaults hourly and review-only, separate from room occupancy");
+  await page.getByRole("button", { name: "Test OCR engine" }).click(); await until(() => page.evaluate(() => document.body.innerText.includes("tesseract 5.5.4")));
+  const image = readFileSync("fixtures/meter/synthetic-kwh.png").toString("base64");
+  await page.evaluate(image => {
+    const bytes = Uint8Array.from(atob(image), char => char.charCodeAt(0)); const transfer = new DataTransfer();
+    transfer.items.add(new File([bytes], "synthetic-one.png", { type: "image/png" })); transfer.items.add(new File([bytes], "synthetic-two.png", { type: "image/png" }));
+    const input = document.querySelector('input[type="file"]'); input.files = transfer.files; input.dispatchEvent(new Event("change", { bubbles: true }));
+  }, image);
+  await until(() => page.evaluate(() => document.querySelectorAll('.meter-previews img').length === 2));
+  await page.getByRole("button", { name: "Perform OCR test reading" }).click(); await until(() => models.MeterCapture.exists({ cameraId: camera._id, status: "needs_review" }));
+  const capture = await models.MeterCapture.findOne({ cameraId: camera._id }).lean(); assert.equal(capture.candidateKwh, 12345.67); assert.equal(await models.MeterReading.countDocuments(), 0);
+  await page.getByLabel(`Review reason / ${capture.captureId}`).fill("Visually checked synthetic image, decimal and selected energy register"); await page.getByRole("button", { name: "Accept / correct cumulative reading" }).click();
+  await until(() => models.MeterReading.exists({ meterId: "UI-MAIN", value: 12345.67, validationState: "accepted" }));
+  await page.getByRole("button", { name: "Preview retained image" }).click();
+  await until(() => page.evaluate(() => [...document.querySelectorAll('img')].some(image => image.alt.startsWith('Original uploaded') && image.naturalWidth === 1000)));
+  checks.push("Local frame preview, real two-image OCR, queued review/acceptance and retained evidence work through UI");
+  await page.getByRole("button", { name: "Pair meter phone" }).click(); await until(() => page.evaluate(() => !!document.querySelector('.institution-secret')?.textContent));
+  const code = await page.evaluate(() => document.querySelector('.institution-secret').textContent);
+  sourceBrowser = await launchChrome(executable); phone = await sourceBrowser.newPage({ viewport: { width: 390, height: 844 } }); phone.on("pageerror", error => errors.push(error.message));
+  await phone.goto(`${base}/demo/meter-camera/#pair=${code}`); await phone.locator("#pair-form button").click(); await until(() => phone.evaluate(() => !document.querySelector('#paired').hidden));
+  await phone.evaluate(async image => {
+    const canvas = document.createElement('canvas'); canvas.width = 1000; canvas.height = 260;
+    const bitmap = await createImageBitmap(new Blob([Uint8Array.from(atob(image), char => char.charCodeAt(0))], { type: 'image/png' }));
+    const draw = () => canvas.getContext('2d').drawImage(bitmap, 0, 0); draw(); setInterval(draw, 200);
+    const stream = canvas.captureStream(5); Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { configurable: true, value: async () => stream });
+  }, image);
+  await phone.locator("#start").click();
+  await until(() => models.MeterCapture.exists({ cameraId: camera._id, sourceType: "paired_meter_phone", status: "needs_review" }));
+  assert.equal(await models.Observation.countDocuments(), 0); assert.equal(await models.Room.countDocuments(), 0);
+  await until(() => page.evaluate(() => document.body.innerText.includes("paired_meter_phone")));
+  checks.push("Independent paired phone uploads synthetic video pixels for persisted request; meter evidence never becomes occupancy");
+  const queued = await models.MeterCapture.findOne({ cameraId: camera._id, sourceType: "paired_meter_phone" }).lean();
+  await page.getByLabel(`Review reason / ${queued.captureId}`).fill("Reject this synthetic duplicate demonstration capture");
+  await page.getByRole("button", { name: "Reject capture" }).click();
+  await until(() => models.MeterCapture.exists({ _id: queued._id, status: "rejected" }));
+  assert.equal(await models.MeterReading.countDocuments(), 1);
+  checks.push("Rejecting a capture does not submit the acceptance form or create energy readings");
+  await phone.locator("#stop").click(); await until(async () => { const row = await models.MeterCamera.findById(camera._id).lean(); return !row.captureActive; });
+  await until(() => page.evaluate(() => /offline|stopped/i.test(document.body.innerText)));
+  checks.push("Stopping camera is reflected in admin health without inventing a reading");
+  await page.getByLabel("Selected meter camera").selectOption("");
+  await mkdir(".local/screenshots", { recursive: true }); await page.screenshot({ path: ".local/screenshots/meter-camera-workflow.png", fullPage: true });
+  await phone.setViewportSize({ width: 390, height: 844 }); assert.ok(await phone.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+  assert.deepEqual(errors, []); await writeFile(".local/meter-browser.json", JSON.stringify({ checks, runtimeErrors: errors, source: "Synthetic canvas video through getUserMedia test substitute; real JPEG upload/Tesseract, no physical meter" }, null, 2));
+  console.log(`${checks.length} meter browser checks passed with real OCR on synthetic imagery; no runtime errors.`);
+} catch (error) { if (page) await writeFile(".local/meter-browser-failure.txt", await page.evaluate(() => document.body.innerText).catch(() => "Page closed")); throw error; }
+finally { await sourceBrowser?.close(); await adminBrowser?.close(); await runtime?.close(); await db?.stop(); }

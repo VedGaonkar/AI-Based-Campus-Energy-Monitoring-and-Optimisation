@@ -1,5 +1,19 @@
 # Implementation Tasks
 
+## CE-016 complete - dedicated meter camera OCR
+
+- [x] Institution-scoped meter/camera registration,hashed pairing,persisted hourly capture requests,health/preview/ROI/decimal setup,separate meter source and labelled virtual fixture.
+- [x] Real bounded local Tesseract,immutable evidence,review/correction,retention,epoch procedure and accepted cumulative consumption/deduplication integration.
+- [x] Verify116full tests,17meter/energy targeted,10final meter tests,5browser flows,build,83syntax files,17client assets scan and running-stack health/permissions.
+- [x] Dependency/setup/positioning/lighting/register/retention/recovery limits and contracts/continuity documented; local restart completed.
+- [ ] Physical meter/camera commissioning and hour-long real-image calibration/network-loss rehearsal (hardware/reachable trusted HTTPS/reference log not supplied).
+
+
+## CE-016 active - dedicated meter camera and reviewed OCR
+
+Starting clean at user HEAD34f845c. Inspected imports/calculation/review and paired phone transport. OCR currently only503 placeholder; Python Pillow/pytesseract installed but no engine executable. Implement bounded local Tesseract path (workspace-local embedded tesserocr fallback), separate meter camera pairing/capture schedule, immutable OCR evidence/review, existing accepted-reading import/interval integration and explicit epoch transitions. Default review, no suspicious auto anomalies; source isolation retained. Current official OCR docs checked via Context7. No data/env/account edits; preserve palette/stack. Next implement contracts/models/OCR/service/UI/paired phone and real-image regressions.
+
+
 ## CE-015 complete - explicit create/join registration
 
 - [x] Separate new institution/admin key from existing institution membership invitation; clear inactive values and reject mixed requests server-side without fallback/accounts.
