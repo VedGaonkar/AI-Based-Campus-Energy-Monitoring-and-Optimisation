@@ -1,5 +1,12 @@
 # Validation and Acceptance Plan
 
+## Live synchronisation verification (CE-014)
+
+node --test tests/live-sync.test.js uses isolated MongoDB and independent admin/viewer/foreign sockets. It verifies persisted mutations, denied writes/no events, every required resource, requested vs failed vs simulator ACK, event uniqueness, another database connection's background/provider writes, reconnect checkpoint/current data, room permission removal, membership revocation, ordering/coalescing, foreground recovery, aborted/old responses and listener cleanup.
+
+After npm run build, node scripts/realtime-browser.mjs uses three independent installed-Chromium profiles and two real tabs in one profile. The isolated simulator workflow checks authorised supply OFF propagation, rename propagation/isolation, native OFF request/transport failure, stale disconnect banner and missed-update recovery, single inbox notification and stable connection count across navigation. Network emulation blocks reconnect HTTP; the harness also closes the established viewer transport because some Chromium versions retain existing WebSockets during offline emulation. All data/credentials are temporary. This is no physical-device/real-phone/production-network verification. Run the existing regressions and npm run check:client-secrets as well.
+
+
 ## Institution regression checks (CE-013)
 
 Run npm test for the isolated two-institution API/database/job/socket/migration/demo suite. It covers overlapping room/master IDs, foreign writes/reads, invitation email/expiry/role/room restrictions, global unique email, rename-stable membership, private identity without membership, bounded suggestions, empty onboarding, separate integration caches and phone/source credentials, durable jobs and socket subscriptions. Repeated explicit demo seed preserves password hashes and refuses role/account reactivation. Migration preserves hashes/IDs/roles and blocks ambiguous records.
@@ -175,3 +182,5 @@ At the earlier documentation-only checkpoint on 13 November 2026, 67 Markdown fi
 Final implementation documentation check: twelve root Markdown files, 113 local links/anchors and 30 actual implementation paths passed, along with exact dependency pins, ignored artifact boundaries and Git whitespace. PLAN's initial SHA-256 and reusable skill files are unchanged. Broader field/production acceptance remains explicitly pending.
 
 CE-013 final executed results (14 November 2026): 99/99 application tests, 6 isolated institution browser checks without runtime errors, production/buildless build, 68 syntax checks and 12 client assets secret scan passed. Logs are ignored .local/institution-*.log. Actual local migration/account preservation and dedicated demo repeat were separately verified.
+
+CE-014 final executed results:105/105 application tests (original transport test retained),6 multi-profile/two-tab browser checks without runtime errors,production/buildless build,72 syntax files and12 client assets secret scan passed. Running-stack viewer snapshot/readiness and unauthenticated denial verified separately. See HANDOFF.md for exact logs, rollout and unverified live/production limits.

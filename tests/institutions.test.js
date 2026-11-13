@@ -19,7 +19,7 @@ const mutate = (account, path, body = {}, method = "post") => account.agent[meth
 async function guest() { const agent = request.agent(runtime.app); return { agent, csrf: (await agent.get("/api/v1/auth/csrf")).body.data.csrfToken }; }
 async function register(email, institutionName, discoverable) {
   const account = await guest();
-  const response = await mutate(account, "/auth/register", { name: institutionName, email, password, adminKey, institutionName, discoverable });
+  const response = await mutate(account, "/auth/register", { name: institutionName, email, password, adminKey, institutionName, discoverable, registrationMode: "create" });
   assert.equal(response.status, 201, JSON.stringify(response.body));
   return { ...account, csrf: response.body.data.csrfToken, id: response.body.data.institution._id, user: response.body.data.user, email };
 }
@@ -49,6 +49,25 @@ test("new administrators own immutable separate institution IDs and start with e
     assert.equal(account.user.institutionId, account.id);
   }
   assert.throws(() => directory.models.Room, /Select an authorised institution workspace/);
+});
+
+test("registration keeps institution creation and invitation membership separate without fallback or partial accounts", async () => {
+  const visitor = await guest(), before = await directory.Institution.countDocuments();
+  const body = { name: "New administrator", email: "mixed-registration@workspace.test", password, adminKey };
+  for (const extra of [
+    { institutionName: "New site", invitationToken: "not-an-invitation" },
+    { registrationMode: "create", institutionName: "New site", invitationToken: "not-an-invitation" },
+    { registrationMode: "join", institutionName: "New site", invitationToken: "not-an-invitation" },
+  ]) {
+    const result = await mutate(visitor, "/auth/register", { ...body, ...extra });
+    assert.equal(result.status, 400); assert.equal(result.body.error.code, "REGISTRATION_MODE_CONFLICT");
+  }
+  const missing = await mutate(visitor, "/auth/register", { ...body, registrationMode: "join" });
+  assert.equal(missing.status, 400); assert.equal(missing.body.error.code, "INVITATION_REQUIRED");
+  const invalid = await mutate(visitor, "/auth/register", { ...body, registrationMode: "join", invitationToken: "not-an-invitation" });
+  assert.equal(invalid.status, 403); assert.equal(invalid.body.error.code, "INVITATION_INVALID");
+  assert.equal(await directory.Account.countDocuments({ email: body.email }), 0);
+  assert.equal(await directory.Institution.countDocuments(), before);
 });
 
 test("public suggestions are minimal, bounded, escaped, discoverability-aware and private code grants no membership", async () => {
@@ -142,7 +161,7 @@ test("invitations enforce email, expiry, exact role/scope and cannot be replaced
   const invite = await mutate(a, "/institutions/current/invitations", { email: "new-viewer@workspace.test", role: "viewer", permittedRoomIds: ["shared-room-id"], expiresInHours: 1 }); assert.equal(invite.status, 201);
   const badEmail = await mutate(guestAccount, "/auth/register", { name: "Wrong email", email: "wrong-viewer@workspace.test", password, invitationToken: invite.body.data.token }); assert.equal(badEmail.status, 403);
   assert.equal(await directory.Account.countDocuments({ email: "wrong-viewer@workspace.test" }), 0);
-  const joined = await mutate(guestAccount, "/auth/register", { name: "Invited viewer", email: "new-viewer@workspace.test", password, invitationToken: invite.body.data.token }); assert.equal(joined.status, 201);
+  const joined = await mutate(guestAccount, "/auth/register", { name: "Invited viewer", email: "new-viewer@workspace.test", password, invitationToken: invite.body.data.token, registrationMode: "join" }); assert.equal(joined.status, 201);
   assert.equal(joined.body.data.user.institutionId, a.id); assert.equal(joined.body.data.user.role, "viewer"); assert.deepEqual(joined.body.data.user.permittedRoomIds, ["shared-room-id"]);
   assert.equal((await login("new-viewer@workspace.test", a.id)).response.status, 403);
   assert.equal((await login("new-viewer@workspace.test", a.id, "")).response.body.data.user.role, "viewer");

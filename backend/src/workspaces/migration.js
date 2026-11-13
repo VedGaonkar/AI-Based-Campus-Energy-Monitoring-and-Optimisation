@@ -16,7 +16,7 @@ export async function migrateLegacyInstallation(directory, { apply = false } = {
     unscopedRecords += await rows.countDocuments({ $or: [{ institutionId: { $exists: false } }, { institutionId: null }] });
     if (await rows.countDocuments({ institutionId: { $exists: true, $nin: [null, id] } })) issues.push(`Conflicting institution ownership in ${model.collection.name}; operator mapping required`);
   }
-  const known = new Set([...Object.values(operational).map(model => model.collection.name), "institutions", "workspaceAccounts", "workspaceMemberships", "workspaceInvitations", "sessions"]);
+  const known = new Set([...Object.values(operational).map(model => model.collection.name), "institutions", "workspaceAccounts", "workspaceMemberships", "workspaceInvitations", "sessions", "syncEvents", "syncCounters"]);
   for (const collection of await connection.db.listCollections({}, { nameOnly: true }).toArray()) if (!known.has(collection.name) && !collection.name.startsWith("system.") && await connection.collection(collection.name).countDocuments({})) issues.push(`Unmapped non-empty collection ${collection.name}; operator ownership review required`);
   const users = await operational.User.find().select("+passwordHash").lean();
   for (const user of users) {

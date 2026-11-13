@@ -5,33 +5,21 @@ import { api, post } from "./services/api.js";
 const modeLabel = mode => ({ instrumented: "Instrumented demo vision", camera_inference: "Camera inference · person positives only", scenario_injection: "Explicit scenario injection · no pixels" }[mode] ?? mode);
 const time = value => value ? new Date(value).toLocaleTimeString() : "Not yet";
 
-export function PhoneDemoSummary({ user }) {
-  const [sessions, setSessions] = useState([]);
-  useEffect(() => { if (user?.role === "admin") api("/demo/sessions").then(setSessions).catch(() => {}); }, [user?.role]);
+export function PhoneDemoSummary({ user, useData }) {
+  const [rows] = useData("/demo/sessions"), sessions = rows ?? [];
   if (user?.role !== "admin") return null;
   return <section className="panel section-gap phone-demo-summary"><div><div className="eyebrow">TWO PHONES / ONE CONNECTED LOOP</div><h2>Camera to classroom</h2><p className="caption">{sessions.filter(item => item.active).length} active demo sessions. Pixel evidence, persistent escalation and virtual-classroom acknowledgements stay separate.</p></div><Link className="button secondary" to="/phone-demo">Open two-phone demo</Link></section>;
 }
 
 export function PhoneDemo({ ui }) {
   const { PageHead, Field, Button, Badge, ErrorText, useApp, useData } = ui;
-  const { user, act } = useApp();
-  const [rooms] = useData("/rooms"), [sessions, setSessions] = useState([]), [selected, setSelected] = useState(""), [detail, setDetail] = useState(null), [error, setError] = useState(""), [pairings, setPairings] = useState({}), [now, setNow] = useState(Date.now());
-  const [candidates, setCandidates] = useState(null);
-  async function refresh() {
-    try {
-      const rows = await api("/demo/sessions"); setSessions(rows);
-      setCandidates(await api("/demo/available-rooms"));
-      if (selected) setDetail(await api(`/demo/sessions/${selected}`));
-      setError("");
-    } catch (failure) { setError(failure.message); }
-  }
-  useEffect(() => {
-    if (user.role !== "admin") return;
-    let pending = false, stopped = false;
-    async function poll() { if (pending || stopped) return; pending = true; await refresh(); pending = false; }
-    poll(); const timer = setInterval(() => { setNow(Date.now()); poll(); }, 1000);
-    return () => { stopped = true; clearInterval(timer); };
-  }, [selected, user.role]);
+  const { user, act, refresh } = useApp();
+  const [selected, setSelected] = useState(""), [pairings, setPairings] = useState({}), [now, setNow] = useState(Date.now());
+  const [rooms] = useData("/rooms"), [rows, sessionsError] = useData(user.role === "admin" ? "/demo/sessions" : null);
+  const [candidates, candidatesError] = useData(user.role === "admin" ? "/demo/available-rooms" : null);
+  const [detail, detailError] = useData(user.role === "admin" && selected ? `/demo/sessions/${selected}` : null);
+  const sessions = rows ?? [], error = sessionsError || candidatesError || detailError;
+  useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); }, []);
   if (user.role !== "admin") return <ErrorText>Administrator access is required to manage phone demonstrations.</ErrorText>;
   const session = detail?.session;
   const availableRooms = (candidates ?? []).filter(room => !room.unavailableReason);
@@ -61,7 +49,7 @@ export function PhoneDemo({ ui }) {
       {!!unavailableRooms.length && <details><summary>{unavailableRooms.length} rooms unavailable for demo setup</summary><ul>{unavailableRooms.map(room => <li key={room._id}>{room.code} · {room.name}: {room.unavailableReason}</li>)}</ul></details>}
       <p className="caption">Demo only: first alert after confirmed vacancy; escalate after 10 seconds, final recheck after another 15 seconds. Production timings remain unchanged. Camera-inference mode cannot establish vacancy from a missing detection.</p>
     </section>
-    <section className="panel section-gap"><Field label="Session"><select value={selected} onChange={event => { setSelected(event.target.value); setDetail(null); setPairings({}); }}><option value="">Select a session</option>{sessions.map(item => <option key={item._id} value={item._id}>{(rooms ?? []).find(room => room._id === item.roomId)?.code ?? item.roomId} · {item._id.slice(0, 8)} · {item.active ? "active" : "ended"}</option>)}</select></Field></section>
+    <section className="panel section-gap"><Field label="Session"><select value={selected} onChange={event => { setSelected(event.target.value); setPairings({}); }}><option value="">Select a session</option>{sessions.map(item => <option key={item._id} value={item._id}>{(rooms ?? []).find(room => room._id === item.roomId)?.code ?? item.roomId} · {item._id.slice(0, 8)} · {item.active ? "active" : "ended"}</option>)}</select></Field></section>
     {session && <>
       <section className="panel section-gap"><div className="section-title"><div><div className="eyebrow">{detail.room.code} / {session._id.slice(0, 8)}</div><h2>{modeLabel(session.visionMode)}</h2></div><Badge tone={session.active ? "success" : "neutral"}>{session.active ? "Demo active" : "Ended"}</Badge></div>
         <p className="caption">Vacancy confirmation: {session.vacancyConfirmationMs / 1000}s. Escalation: +10s / +15s. Session expires {time(session.expiresAt)}. Live physical control is disabled.</p>

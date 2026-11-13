@@ -1,4 +1,5 @@
 import express from "express";
+import { startRealtime, syncSnapshot } from "./realtime/transport.js";
 import session from "express-session";
 import MongoStore from "connect-mongo";
 import helmet from "helmet";
@@ -385,6 +386,7 @@ export function createApplication({ config, connection, models, workspaceDirecto
     next();
   });
   if (workspaceDirectory) registerWorkspaceAdministration(api, { directory: workspaceDirectory });
+  api.get("/sync/snapshot", async (req, res) => { res.setHeader("Cache-Control", "no-store"); res.json({ data: await syncSnapshot({ connection, models, workspaceDirectory }, req.user) }); });
   registerManagement(api, { models, config });
   const connectedDevices = registerConnectedDevices(api, { models, config });
   registerDemoAdminRoutes(api, { models, service: phoneDemo });
@@ -1554,39 +1556,14 @@ export function createApplication({ config, connection, models, workspaceDirecto
       }
     });
   });
-  const interval = setInterval(() => {
-    for (const socket of io.sockets.sockets.values())
-      socket.request.session.reload(async (err) => {
-        if (err) return socket.disconnect(true);
-        if (workspaceDirectory) {
-          try {
-            if (socket.request.session.institutionId !== socket.data.institutionId) return socket.disconnect(true);
-            const realm = await workspaceDirectory.realm(socket.data.institutionId);
-            const user = await workspaceDirectory.user(realm, socket.request.session.userId);
-            if (!user || (user.role === "admin" && !socket.request.session.adminVerified)) return socket.disconnect(true);
-            socket.data.user = user; socket.emit("refresh", { serverTime: new Date().toISOString() });
-          } catch { socket.disconnect(true); }
-          return;
-        }
-        const user = await models.User.findOne({
-          _id: socket.request.session.userId,
-          active: true,
-        })
-          .lean()
-          .catch(() => null);
-        if (!user || (user.role === "admin" && !socket.request.session.adminVerified)) return socket.disconnect(true);
-        socket.data.user = user;
-        socket.emit("refresh", { serverTime: new Date().toISOString() });
-      });
-  }, 3000);
-  interval.unref();
+  const closeRealtime = startRealtime(io, { connection, models, workspaceDirectory });
   return {
     app,
     server,
     io,
     store,
     close: async () => {
-      clearInterval(interval);
+      await closeRealtime();
       closeDemoSockets();
       await phoneDemo.close();
       await connectedDevices.close();

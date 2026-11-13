@@ -52,6 +52,18 @@ export async function launchChrome(executablePath) {
       "Headless Chrome did not expose its local debugging endpoint",
     );
   }
+  const first = await attachPage(target, processHandle);
+  const pages = [first];
+  return {
+    newPage: async ({ viewport }) => { await first.page.setViewportSize(viewport); return first.page; },
+    newTab: async ({ viewport }) => {
+      const row = await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: "PUT" }).then(r => r.json());
+      const attached = await attachPage(row, processHandle); pages.push(attached); await attached.page.setViewportSize(viewport); return attached.page;
+    },
+    close: async () => { try { await first.send("Browser.close"); } catch {} for (const attached of pages) attached.socket.close(); if (processHandle.exitCode === null) processHandle.kill(); },
+  };
+}
+async function attachPage(target, processHandle) {
   const socket = new WebSocket(target.webSocketDebuggerUrl);
   await new Promise((resolve, reject) => {
     socket.addEventListener("open", resolve, { once: true });
@@ -183,6 +195,8 @@ export async function launchChrome(executablePath) {
   }
   const page = {
     evaluate,
+    bringToFront: () => send("Page.bringToFront"),
+    setOffline: async offline => { await send("Network.enable"); await send("Network.emulateNetworkConditions", { offline, latency: 0, downloadThroughput: -1, uploadThroughput: -1 }); },
     on: (name, handler) => {
       handlers[name] = handler;
     },
@@ -227,17 +241,5 @@ export async function launchChrome(executablePath) {
       await writeFile(path, Buffer.from(image.data, "base64"));
     },
   };
-  return {
-    newPage: async ({ viewport }) => {
-      await page.setViewportSize(viewport);
-      return page;
-    },
-    close: async () => {
-      try {
-        await send("Browser.close");
-      } catch {}
-      socket.close();
-      if (processHandle.exitCode === null) processHandle.kill();
-    },
-  };
+  return { page, send, socket };
 }

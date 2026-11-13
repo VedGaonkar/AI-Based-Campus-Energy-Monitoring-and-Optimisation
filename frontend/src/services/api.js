@@ -24,9 +24,9 @@ export async function api(path, { method = "GET", body, signal } = {}) {
   }
   if (!response.ok) {
     if (payload.error?.code === "CSRF_REJECTED") csrfToken = undefined;
-    throw new Error(
-      payload.error?.message ?? `Request failed (${response.status})`,
-    );
+    const error = new Error(payload.error?.message ?? `Request failed (${response.status})`);
+    error.status = response.status; error.code = payload.error?.code;
+    throw error;
   }
   if (payload.data?.csrfToken) csrfToken = payload.data.csrfToken;
   // Clear cached token after logout so the next login fetches a fresh one

@@ -108,9 +108,14 @@ export function registerWorkspaceAuth(api, { directory, config }) {
   });
   api.post("/auth/register", authLimit, async (req, res) => {
     const input = workspaceRegistration.parse(req.body);
+    const mode = input.registrationMode ?? (input.invitationToken ? "join" : "create");
+    if (input.institutionName && input.invitationToken || mode === "create" && input.invitationToken || mode === "join" && input.institutionName)
+      fail(400, "REGISTRATION_MODE_CONFLICT", "Choose one setup: create a new institution using its name and admin key, or join an existing institution using its membership invitation.");
+    if (mode === "join" && !input.invitationToken)
+      fail(400, "INVITATION_REQUIRED", "To join an existing institution, enter the membership invitation issued by its administrator. To create your own institution, select Create a new institution.");
     if (await directory.Account.exists({ email: input.email })) fail(409, "EMAIL_TAKEN", "An account with that email already exists. Sign in or accept an invitation using the existing account.");
     let invite;
-    if (input.invitationToken) {
+    if (mode === "join") {
       invite = await invitation(input.invitationToken, input.email);
       if (invite.role === "admin") {
         if (!config.adminInviteKey) fail(503, "ADMIN_ACCESS_DISABLED", "Admin registration is not configured. Set ADMIN_INVITE_KEY and restart the backend.");

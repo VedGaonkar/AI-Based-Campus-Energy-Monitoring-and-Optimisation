@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { randomUUID, randomBytes } from "node:crypto";
+import { installChangeHooks } from "../realtime/journal.js";
 const { Schema } = mongoose;
 const mixed = Schema.Types.Mixed;
 const ref = () => ({ type: String });
@@ -29,6 +30,7 @@ export function createModels(connection, institutionId) {
       { timestamps: true, versionKey: false, strict: "throw" },
     );
     for (const [keys, options] of indexes) schema.index(keys, options);
+    installChangeHooks(schema, { name, connection });
     return connection.model(name, schema, collection);
   };
   return {

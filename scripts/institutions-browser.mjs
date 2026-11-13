@@ -25,6 +25,13 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(base);
   await page.getByRole('button', { name: 'Create account' }).click();
+  await page.getByLabel('Account setup').waitFor();
+  assert.equal(await page.evaluate(() => [...document.querySelectorAll('label')].some(label => label.textContent.includes('Membership invitation (joining an existing institution)'))), false);
+  await page.getByLabel('Account setup').selectOption('join');
+  await page.getByLabel('Membership invitation (joining an existing institution)').fill('not-an-invitation');
+  assert.equal(await page.evaluate(() => [...document.querySelectorAll('label')].some(label => label.textContent.includes('Institution / building name for new administrator'))), false);
+  await page.getByLabel('Account setup').selectOption('create');
+  checks.push('Create/join selection separates fields and clears an old invitation before administrator registration');
   await page.getByLabel('Full name').fill('Browser administrator');
   await page.getByLabel('Email address').fill('browser@institution.test');
   await page.getByLabel('Password').fill(password); await page.getByLabel('Confirm password').fill(password);
@@ -52,12 +59,14 @@ try {
   }, password);
   assert.equal(viewerCreated, 201);
   await page.goto(`${base}/`);
+  await wait(() => page.evaluate(() => document.querySelector('.sync-status')?.textContent.includes('Live updates connected')));
   await page.getByRole('button', { name: 'Sign out' }).click();
   await page.getByLabel('Institution / building').fill('Renamed');
   await page.locator('.institution-suggestions button').click();
   await page.getByLabel('Email address').fill('browser@institution.test'); await page.getByLabel('Password').fill(password); await page.getByLabel('Admin invite key').fill(key);
   await page.getByRole('button', { name: 'Sign in to workspace' }).click();
   await wait(() => page.evaluate(() => document.body.innerText.includes('Sign out')));
+  await wait(() => page.evaluate(() => document.querySelector('.sync-status')?.textContent.includes('Live updates connected')));
   checks.push('Debounced suggestion selection and membership login succeed after rename');
   await page.getByRole('button', { name: 'Sign out' }).click();
   await page.getByRole('button', { name: 'Sign in to workspace' }).waitFor();
@@ -73,6 +82,7 @@ try {
   await wait(() => page.evaluate(() => document.body.innerText.includes('Renamed Browser Institute') && document.body.innerText.includes('Account role: viewer')));
   assert.equal(await page.evaluate(() => !!document.querySelector('input[name="displayName"]')), false);
   checks.push('Viewer sees the renamed institution and cannot edit its identity');
+  await wait(() => page.evaluate(() => document.querySelector('.sync-status')?.textContent.includes('Live updates connected')));
   await page.getByRole('button', { name: 'Sign out' }).click();
   await page.getByLabel('Institution / building').waitFor();
   await page.setViewportSize({ width: 390, height: 844 });

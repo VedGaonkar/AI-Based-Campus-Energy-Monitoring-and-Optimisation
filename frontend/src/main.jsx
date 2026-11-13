@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import {
   BrowserRouter,
@@ -9,7 +9,8 @@ import {
   useParams,
   useLocation,
 } from "react-router";
-import { io } from "socket.io-client";
+import { startLiveSync } from "./services/live-sync.js";
+import { setReadState, subscribeReadState } from "./services/read-state.js";
 import {
   Activity,
   LayoutDashboard,
@@ -74,20 +75,23 @@ const STAFF = ["admin", "hod", "technician", "teacher"],
   RESPONDERS = ["admin", "hod", "technician"];
 
 function useData(path) {
-  const { version } = useApp(),
+  const requestKey = useRef(Symbol("page-read"));
+  const { version, user } = useApp(),
     [data, setData] = useState(null),
     [error, setError] = useState("");
   useEffect(() => {
     const controller = new AbortController();
+    if (!path) { setData(null); setReadState(requestKey.current, null); return; }
     setError("");
+    setReadState(requestKey.current, { pending: true });
     api(path, { signal: controller.signal })
-      .then(setData)
+      .then(value => { if (!controller.signal.aborted) { setData({ path, institutionId: user.institutionId, value }); setReadState(requestKey.current, { pending: false }); } })
       .catch((err) => {
-        if (err.name !== "AbortError") setError(err.message);
+        if (!controller.signal.aborted && err.name !== "AbortError") { setError(err.message); setData(null); setReadState(requestKey.current, { error: true }); }
       });
-    return () => controller.abort();
-  }, [path, version]);
-  return [data, error];
+    return () => { controller.abort(); setReadState(requestKey.current, null); };
+  }, [path, version, user.institutionId]);
+  return [data?.path === path && data.institutionId === user.institutionId ? data.value : null, error];
 }
 function Badge({ children, tone = "neutral" }) {
   return <span className={`badge ${tone}`}>{children}</span>;
@@ -204,7 +208,9 @@ function App() {
     [error, setError] = useState(""),
     [menu, setMenu] = useState(false);
   const location = useLocation();
-  const refresh = () => setVersion((v) => v + 1);
+  const refresh = useCallback(() => setVersion((v) => v + 1), []);
+  const [syncState, setSyncState] = useState("connecting"), [reads, setReads] = useState({ pending: false, failed: false });
+  useEffect(() => subscribeReadState(setReads), []);
   useEffect(() => {
     api("/auth/me")
       .then((d) => setUser(d.user))
@@ -218,10 +224,11 @@ function App() {
   }, [location.pathname]);
   useEffect(() => {
     if (!user) return;
-    const socket = io({ withCredentials: true });
-    socket.on("refresh", refresh);
-    return () => socket.disconnect();
-  }, [user]);
+    return startLiveSync({ request: api, invalidate: refresh, status: setSyncState, expectedInstitutionId: user.institutionId ?? "legacy",
+      identity: next => setUser(previous => JSON.stringify(previous) === JSON.stringify(next) ? previous : next),
+      revoked: () => setUser(null),
+    });
+  }, [user?._id, user?.institutionId, refresh]);
   async function act(operation, message = "Saved") {
     setBusy(true);
     setError("");
@@ -237,7 +244,7 @@ function App() {
       setBusy(false);
     }
   }
-  const context = { user, version, busy, act, refresh, health, setUser };
+  const context = { user, version, busy, act, refresh, health, setUser, syncState };
   if (user === undefined)
     return (
       <div className="boot">
@@ -344,8 +351,8 @@ function App() {
                 <span className="muted terminal-label">Operations terminal</span>
               </div>
               <div className="topbar-right">
-                <span className="online-dot" />
-                <span className="topbar-status">Workspace connected</span>
+                <span className="online-dot" style={syncState === "current" && !reads.failed ? undefined : { background: "#AD512F" }} />
+                <span className="topbar-status">{syncState === "current" && !reads.failed ? "Workspace connected" : "Workspace data may be stale"}</span>
                 <button
                   className="icon-button"
                   aria-label="Refresh data"
@@ -383,6 +390,9 @@ function App() {
                 </span>
               </div>
             )}
+            <div className={`sync-status ${syncState === "current" && !reads.failed ? "" : "stale"}`} role="status" data-sync-state={syncState}>
+              {syncState === "current" ? reads.failed ? "Data unavailable: some pages could not refresh" : reads.pending ? "Updating authorised data..." : "Live updates connected" : ({ connecting: "Connecting live updates...", reconciling: "Synchronising with the server...", disconnected: "Disconnected: displayed data may be stale", stale: "Updates unavailable: displayed data may be stale", background: "Background tab: data will reconcile when you return" }[syncState])}
+            </div>
             <main id="main">
               <ErrorText>{error}</ErrorText>
               {notice && (
@@ -464,6 +474,7 @@ function Login({ onLogin }) {
     [adminKey, setAdminKey] = useState(""),
     [institutionId, setInstitutionId] = useState(""),
     [institutionName, setInstitutionName] = useState(""),
+    [registrationMode, setRegistrationMode] = useState("create"),
     [invitationToken, setInvitationToken] = useState(""),
     [error, setError] = useState("");
 
@@ -475,6 +486,7 @@ function Login({ onLogin }) {
     setName("");
     setConfirmPassword("");
     setAdminKey("");
+    setInstitutionId(""); setInstitutionName(""); setInvitationToken(""); setRegistrationMode("create");
   };
 
   return (
@@ -616,8 +628,9 @@ function Login({ onLogin }) {
                   const body = { name, email, password };
                   if (adminKey.trim()) body.adminKey = adminKey.trim();
                   if (health?.institutionWorkspaces) {
-                    if (institutionName.trim()) body.institutionName = institutionName.trim();
-                    if (invitationToken.trim()) body.invitationToken = invitationToken.trim();
+                    body.registrationMode = registrationMode;
+                    if (registrationMode === "create") body.institutionName = institutionName.trim();
+                    else body.invitationToken = invitationToken.trim();
                   }
                   const result = await post("/auth/register", body);
                   onLogin(result.user);
@@ -629,6 +642,7 @@ function Login({ onLogin }) {
                 }
               }}
             >
+              {health?.institutionWorkspaces && <Field label="Account setup"><select value={registrationMode} onChange={event => { setRegistrationMode(event.target.value); setInstitutionName(""); setInvitationToken(""); setAdminKey(""); setError(""); }}><option value="create">Create a new institution (administrator)</option><option value="join">Join an existing institution (invitation)</option></select></Field>}
               <Field label="Full name">
                 <input
                   type="text"
@@ -667,9 +681,8 @@ function Login({ onLogin }) {
                 />
               </Field>
               {health?.institutionWorkspaces && <>
-                <Field label="Institution / building name for new administrator"><input value={institutionName} onChange={event => setInstitutionName(event.target.value)} maxLength={200} required={!!adminKey.trim() && !invitationToken.trim()} placeholder="Your institution's single-building workspace" /></Field>
-                <Field label="Membership invitation (joining an existing institution)"><input type="password" value={invitationToken} onChange={event => setInvitationToken(event.target.value)} maxLength={200} autoComplete="off" /></Field>
-                <p className="caption">New administrators receive an empty, private workspace. To join an existing institution, use its authorised invitation; its name or admin key alone does not grant membership.</p>
+                {registrationMode === "create" ? <Field label="Institution / building name for new administrator"><input value={institutionName} onChange={event => setInstitutionName(event.target.value)} maxLength={200} required placeholder="Your institution's single-building workspace" /></Field> : <Field label="Membership invitation (joining an existing institution)"><input type="password" value={invitationToken} onChange={event => setInvitationToken(event.target.value)} maxLength={200} required autoComplete="off" placeholder="Invitation issued by your institution administrator" /></Field>}
+                <p className="caption">{registrationMode === "create" ? "Use your server admin key to create an empty, private institution. No membership invitation is needed." : "Use the membership invitation issued by that institution's administrator. This is different from the server admin key. Administrator invitations also require the admin key."}</p>
               </>}
               <Field label="Admin invite key" hint="New workspace administrator enrollment; existing-institution members use an invitation">
                 <input
@@ -680,6 +693,7 @@ function Login({ onLogin }) {
                   maxLength={8}
                   value={adminKey}
                   onChange={(e) => setAdminKey(e.target.value)}
+                  required={!!health?.institutionWorkspaces && registrationMode === "create"}
                   placeholder="8-digit key to register as admin"
                 />
               </Field>
@@ -768,7 +782,7 @@ function Overview() {
         </span>
       </PageHead>
       <ErrorText>{error}</ErrorText>
-      <PhoneDemoSummary user={user} />
+      {user.role === "admin" && <PhoneDemoSummary user={user} useData={useData} />}
       <div className="metric-grid">
         {[
           [

@@ -1,5 +1,29 @@
 # Implementation Tasks
 
+## CE-015 complete - explicit create/join registration
+
+- [x] Separate new institution/admin key from existing institution membership invitation; clear inactive values and reject mixed requests server-side without fallback/accounts.
+- [x] Eleven institution/auth tests,seven browser checks,build,syntax andsecret scan passed; managed backend restarted, existing data/env preserved.
+
+
+## CE-015 active - clarify registration setup
+
+Screenshot showed institutionName plus an eight-character membership invitation and admin key. Existing backend prioritised any invitationToken, causing INVITATION_INVALID403; no account created. Implemented explicit create/join selector, mutually exclusive fields and cleared mode state; backend rejects ambiguous combinations, requires join invitation and retains all admin-key/invitation/email/role checks. No key/env/account changes. Added institution API regressions and browser mode-switch coverage. Build passed; targeted checks/browser pending. Contentscript/ObjectMultiplex/liveness strings absent from app source; likely extension injection, no emitter limit changes. Signed-out auth/me401 and duplicate development StrictMode requests are expected. Preserve earlier CE-014 edits/untracked sources. Next verify, document and managed restart.
+
+
+## CE-014 complete - scoped live synchronisation
+
+- [x] Persist minimal scoped revisions after API/worker/provider writes, retain command lifecycle/evidence distinctions and server membership/room/recipient authorisation.
+- [x] Shared page-cache invalidation, ordering/abort guards, foreground/reconnect snapshots, stale statuses and exact socket/document lifecycle cleanup.
+- [x] Verify105 application tests,6 independent-profile/two-tab browser workflows,72 syntax files,build,12-asset secret scan and managed local rollout.
+- [x] Update API/architecture/database/security/testing/setup/continuity with non-atomic journal and production limits.
+
+
+## CE-014 active ? scoped live synchronisation
+
+User authorises persisted scoped events for API/worker/provider changes, shared frontend reconciliation, ordering/stale status and multi-browser/tab isolation verification. Reuse Socket.IO, Mongo persistence and shared useData/version state; no new transport or database. Inspecting current unconditional 3s refresh timer and one-shot page state. Plan: persisted minimal change journal from operational model writes, authorised socket invalidations, revisioned snapshot reconciliation and UI lifecycle cleanup. Preserve all existing data/palette/institution boundaries. No code changes yet at checkpoint.
+
+
 ## CE-013 - isolated institution workspaces
 
 - [x] Global email identity plus immutable institution IDs and explicit membership; scoped login, private code/invitation alternative and minimal discoverable suggestions.
