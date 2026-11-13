@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>Campus Energy assistant</title>
+    <link rel="stylesheet" href="/chat.css" />
+  </head>
+  <body>
+    <main class="panel" aria-labelledby="title">
+      <header class="top">
+        <div>
+          <h1 id="title">Assistant</h1>
+          <p id="mode" class="mode" role="status"></p>
+        </div>
+        <button id="close" class="icon" type="button" aria-label="Close assistant" hidden>
+          <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none" /></svg>
+        </button>
+      </header>
+
+      <div id="notice" class="notice" role="status" hidden></div>
+
+      <ol id="log" class="log" role="log" aria-live="polite" aria-relevant="additions" aria-label="Conversation" tabindex="0"></ol>
+
+      <div id="chips" class="chips" role="group" aria-label="Suggested questions"></div>
+
+      <form id="form" class="composer" autocomplete="off">
+        <label for="input" class="sr">Message the assistant</label>
+        <input id="input" name="message" type="text" maxlength="600" placeholder="Ask about rooms, schedule or announcements" enterkeyhint="send" />
+        <button id="send" type="submit">Send</button>
+      </form>
+      <p class="foot">Answers come from the website's live data. Changes always ask you to confirm first.</p>
+    </main>
+    <script src="/chat.js"></script>
+  </body>
+</html>
