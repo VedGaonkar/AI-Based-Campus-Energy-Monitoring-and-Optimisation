@@ -6,7 +6,7 @@
 - [x] Add server-verified profile and distinct management routes for building, spaces, cameras, controllers, timetable, QR, users and automation logs.
 - [x] Bulk floor/space generation, persistent mappings and documentation completed.
 - [x] Final isolated regression: 45 tests passed. Build and 28 syntax checks passed. Dedicated admin browser run: 14 checks passed with no runtime errors.
-- [ ] Local-session rollout: replace invalid short admin key and restart API after the pending configuration choice; existing `.env` and services are preserved meanwhile.
+- [x] Local-session rollout: user chose an eight-digit numeric key; validation/generation/forms updated, new key saved in ignored `.env`, managed API/worker/frontend restart succeeded, live administrator authentication and management API verified. Existing MongoDB/data preserved. 46 application tests passed.
 
 ## CE-008 — Stitch frontend redesign (13 November 2026)
 

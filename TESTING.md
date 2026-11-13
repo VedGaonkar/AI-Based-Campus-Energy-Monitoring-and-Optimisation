@@ -1,5 +1,9 @@
 # Validation and Acceptance Plan
 
+## Eight-digit key follow-up
+
+User-authorised numeric-key update: `npm test` passed 46 tests, including exact eight-digit validation (leading zeros accepted, wrong length/nonnumeric values rejected, blank disables admin access). Build, 28 syntax checks and 14 isolated admin browser checks passed with zero browser runtime errors. Live local admin login using the saved key, management API authorization, frontend readiness and logout passed. Managed restart preserved MongoDB and existing records. Earlier 16-character rollout blocker notes below are historical; the configured key has been replaced with the requested eight-digit value without printing it.
+
 ## CE-009 administrator architecture verification
 
 - `npm test`: 45 passed, zero failures in isolated MongoDB databases. Added coverage rejects invalid/missing/disabled admin keys without viewer fallback, verifies admin registration and login, audits password/key-based viewer activation, rotates sessions, prevents role/profile forgery and self-lockout, and rejects admin access from an unverified session after a role change.

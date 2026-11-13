@@ -1,5 +1,15 @@
 # Session handoff
 
+## Current checkpoint — eight-digit admin key and live rollout
+
+The user explicitly requested an eight-digit numeric key instead of the previous 16-character minimum and authorised generating/saving it. Updated configuration validation to exactly eight digits (blank disables admin access), setup generation/rotation to cryptographically random eight-digit values, login/signup/profile input constraints, test credentials and current README/security/example guidance. Other password/session-secret requirements remain intact.
+
+Generated and saved a new key in the ignored `.env` using `npm run setup -- --generate-admin-key`; its value was never printed. The prior pending question is resolved. Managed stop/dev restart succeeded, preserving the existing MongoDB and user records. The app is running at localhost:5173 with API port 5000 and the persistent worker; retained dev tool session 30636. Consult `.local/dev-session.json` for the new run's ownership metadata.
+
+Verification: 46 application tests, production build and 28 syntax checks passed. Actual local seeded administrator login using the saved key, management API access, frontend readiness and logout all passed without exposing credentials. The isolated admin browser repeat passed all 14 checks with zero runtime errors; the latest evidence is `.local/admin-browser-verification.json`. Live viewer accounts were not silently promoted; users can authenticate with password/key or activate admin through My profile.
+
+Older CE-009 notes below describe the pre-authorisation configuration blocker and are historical.
+
 ## Latest checkpoint — CE-009 administrator authentication and architecture
 
 The code is implemented and independently verified; current local-service rollout awaits the user's response about replacing the invalid short admin invite key. Do not treat the older CE-008 snapshot below as current. PLAN.md remains unchanged; the one-building/simulator architecture is preserved.

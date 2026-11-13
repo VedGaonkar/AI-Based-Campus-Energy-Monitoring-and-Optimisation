@@ -1,5 +1,11 @@
 # Implementation progress
 
+## Eight-digit admin key and rollout — 13 November 2026
+
+- User requested exactly eight numeric digits and authorised generating/saving the key. Updated config, generation/rotation, login/signup/profile inputs, fixtures and current docs. Generated key saved to ignored `.env`; value never printed and other settings preserved.
+- Managed stop/restart succeeded; existing MongoDB/data preserved. API, worker and Vite are running with the new key. Initial Vite requests during API startup briefly failed; readiness and real authenticated management access subsequently passed.
+- 46 application tests, production build and 28 syntax checks passed. Live seeded-admin password/key login, management API, frontend readiness and verification-session logout passed. Isolated admin browser rerun passed all 14 checks with no runtime errors; no user account silently promoted.
+
 ## CE-009 — administrator identity and management architecture
 
 - Reproduced silent viewer fallback: invalid registration keys were not rejected; login never accepted/verified a key. Implemented explicit invalid/disabled-key errors, password+key admin login, authenticated viewer-to-admin activation and regenerated key-verified sessions. Profile shows the server role and provides profile editing/admin activation.
