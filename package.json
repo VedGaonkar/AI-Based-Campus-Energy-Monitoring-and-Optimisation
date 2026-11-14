@@ -16,7 +16,8 @@
     "db": "node scripts/database.mjs",
     "start": "node backend/src/server.js",
     "worker": "node backend/src/workers/run.js",
-    "seed": "node backend/src/seed.js",
+    "seed": "node scripts/seed-demo-workspace.mjs",
+    "migrate:institutions": "node scripts/migrate-institutions.mjs",
     "build": "npm run build --workspace frontend && npm run build:demo",
     "build:demo": "node scripts/check-demo-apps.mjs",
     "demo:camera": "node scripts/demo-app.mjs camera",
@@ -26,10 +27,17 @@
     "test": "node --test --test-concurrency=1 tests/*.test.js",
     "test:unit": "node --test tests/policies.test.js tests/energy.test.js",
     "check": "node scripts/check.mjs",
+    "check:client-secrets": "node scripts/check-client-secrets.mjs",
     "test:browser": "node scripts/browser-smoke.mjs",
+    "test:auth-browser": "node scripts/institutions-browser.mjs",
     "test:admin-browser": "node scripts/admin-browser-smoke.mjs",
     "test:devices-browser": "node scripts/connected-devices-browser.mjs",
-    "stop": "node scripts/stop-dev.mjs"
+    "stop": "node scripts/stop-dev.mjs",
+    "test:realtime-browser": "node scripts/realtime-browser.mjs",
+    "test:consumption-browser": "node scripts/consumption-browser.mjs",
+    "setup:ocr": "node scripts/setup-ocr.mjs",
+    "test:meter-browser": "node scripts/meter-camera-browser.mjs",
+    "test:meter-camera": "node --test tests/meter-camera.test.js"
   },
   "devDependencies": {
     "mongodb-memory-server": "11.3.0",

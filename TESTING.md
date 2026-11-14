@@ -1,5 +1,29 @@
 # Validation and Acceptance Plan
 
+## Meter-camera acceptance (CE-016)
+
+Run node --test tests/meter-camera.test.js after npm run setup:ocr. Pure/parser and source/scheduler checks remain separate from optional real OCR tests; missing engine skips are explicit and never count as recognition. Executed tests cover point/comma/implied decimals,Wh conversion,wrong registers,duplicates,real synthetic image/orientation,review/correction without lost evidence,automatic permission reset,paired scheduled capture,hourly calculations/CSV overlap,non-monotonic/future/stale data,gap aggregates,loss/expiry,no occupancy effects,reset isolation and retention.
+
+After build, npm run test:meter-browser uses isolated Chrome profiles and a synthetic canvas video substituted for getUserMedia. JPEG capture,capability transport,Tesseract,review and image preview are real; the meter and video source are synthetic. No actual phone/physical meter accuracy claim is made. The test checks administrator registration/60min default,real OCR review/acceptance,paired source isolation and stopped-camera health. Existing occupancy/demo and energy regressions must also pass. Physical positioning/lighting/cycling-register/hour-long rehearsals remain in METER_CAMERA.md.
+
+
+## Live synchronisation verification (CE-014)
+
+node --test tests/live-sync.test.js uses isolated MongoDB and independent admin/viewer/foreign sockets. It verifies persisted mutations, denied writes/no events, every required resource, requested vs failed vs simulator ACK, event uniqueness, another database connection's background/provider writes, reconnect checkpoint/current data, room permission removal, membership revocation, ordering/coalescing, foreground recovery, aborted/old responses and listener cleanup.
+
+After npm run build, node scripts/realtime-browser.mjs uses three independent installed-Chromium profiles and two real tabs in one profile. The isolated simulator workflow checks authorised supply OFF propagation, rename propagation/isolation, native OFF request/transport failure, stale disconnect banner and missed-update recovery, single inbox notification and stable connection count across navigation. Network emulation blocks reconnect HTTP; the harness also closes the established viewer transport because some Chromium versions retain existing WebSockets during offline emulation. All data/credentials are temporary. This is no physical-device/real-phone/production-network verification. Run the existing regressions and npm run check:client-secrets as well.
+
+
+## Building authentication verification (CE-018)
+
+`npm test` includes tests/building-auth.test.js, institutions.test.js and auth-environment.test.js alongside all existing policy/integration suites. Coverage includes empty admin signup with the correct server registration key and rejection of wrong/missing keys, correct/invalid/disabled Viewer code, strong validation/password confirmation, hash/member preservation, unique code races, rotation serialization, rename, role/ID injection, caught failure rollback, secret-free APIs/audit and registration throttling. Cross-building API/job/socket/source/migration/demo checks remain. Retired-flow assertions now test rejection instead of obsolete grants.
+
+Build, then `npm run test:auth-browser`: isolated temporary MongoDB/Chrome checks exact login fields, both forms, confirmation, empty building, write-only rotation, old-code failure without account, Viewer building/role, password-only logins, authorised multi-membership choice, pending access denial and 390px layout. Configured user data is never used. Current executed counts are recorded in HANDOFF.md.
+
+## Retired authentication verification
+
+Earlier key-based sign-in, promotion and invitation behavior is retired. The creation-only Administrator key requirement is covered by the current tests. Historical execution records remain in HANDOFF.md/PROGRESS.md; current checks cover password-only memberships and Building Join Codes.
+
 ## CE-011 - two-phone software demonstration (13-14 November 2026)
 
 - Final `npm test`: **86 passed, 0 failed**, including all prior 70 application/HA checks and 16 new phone-demo tests. Actual QR pixels, foreign-session/role/command isolation, one-use expiry/revocation/re-pair generations, configured-origin CORS, MIME/size/timestamp/sequence/processing bounds, HOG unknown/injection separation, room-lock contention, persistent stages and API/database-client restart, booking/QR/override/occupancy cancellation, missing ACK/expiry/reconnect, all-load effective OFF and original load/restoration/live gates were exercised in isolated MongoDB.
@@ -31,9 +55,9 @@ Evidence is ignored under `.local/`: `native-final-tests.log`, `native-final-che
 
 These checks establish software/protocol behaviour only. Mock provider-reported OFF and simulated OFF are not physical verification, measured zero power or measured savings. No HA host, authorised token, exact model/firmware/entity or genuine field occupancy source was supplied. Follow [HOME_ASSISTANT.md](HOME_ASSISTANT.md) for live prerequisites and supervised acceptance; live automation remains disabled by default. Other vendor/assistant adapters remain deferred.
 
-## Eight-digit key follow-up
+## Current role checks
 
-User-authorised numeric-key update: `npm test` passed 46 tests, including exact eight-digit validation (leading zeros accepted, wrong length/nonnumeric values rejected, blank disables admin access). Build, 28 syntax checks and 14 isolated admin browser checks passed with zero browser runtime errors. Live local admin login using the saved key, management API authorization, frontend readiness and logout passed. Managed restart preserved MongoDB and existing records. Earlier 16-character rollout blocker notes below are historical; the configured key has been replaced with the requested eight-digit value without printing it.
+Code-based Viewer promotion has been removed. Existing role/hash/member preservation, profile/login forgery rejection and existing-session privilege checks remain in the current suites.
 
 ## CE-009 administrator architecture verification
 
@@ -158,3 +182,24 @@ For documentation changes, check Markdown links and section anchors, documented 
 At the earlier documentation-only checkpoint on 13 November 2026, 67 Markdown files, 111 project links, 48 plan route entries and 20 planned collections were checked. That historical count predates implementation, continuity files and additional workflow routes; it is not the current application validation result. PLAN.md remains unchanged. Consult PROGRESS.md/HANDOFF.md and the table above for current checks.
 
 Final implementation documentation check: twelve root Markdown files, 113 local links/anchors and 30 actual implementation paths passed, along with exact dependency pins, ignored artifact boundaries and Git whitespace. PLAN's initial SHA-256 and reusable skill files are unchanged. Broader field/production acceptance remains explicitly pending.
+
+CE-013 final executed results (14 November 2026): 99/99 application tests, 6 isolated institution browser checks without runtime errors, production/buildless build, 68 syntax checks and 12 client assets secret scan passed. Logs are ignored .local/institution-*.log. Actual local migration/account preservation and dedicated demo repeat were separately verified.
+
+CE-014 final executed results:105/105 application tests (original transport test retained),6 multi-profile/two-tab browser checks without runtime errors,production/buildless build,72 syntax files and12 client assets secret scan passed. Running-stack viewer snapshot/readiness and unauthenticated denial verified separately. See HANDOFF.md for exact logs, rollout and unverified live/production limits.
+
+CE-016 executed results:116full application tests passed,0skipped;17meter+energy targeted and10final meter tests passed. Five meter browser checks passed with actual OCR on synthetic video/images,not a physical meter. Production/buildless build,83syntax files and17client assets secret scan passed. Running Tesseract health/admin/viewer scopes/static pages verified separately. See HANDOFF for exact logs and remaining physical checks.
+
+
+## CE-017 consumption and help verification
+
+`node --test tests/consumption.test.js tests/energy.test.js` verifies interpolated upward/downward/asymmetric crossings, equality, timestamp-specific baseline changes, above-baseline vs anomaly tolerance, missing readings, aggregate gaps, epoch/duration breaks, missing actual/baseline values, source/date filters, CSV consistency/formula escaping and absent/recent/stale/simulated freshness. Eight new calculation tests join the seven existing energy tests.
+
+Build with `npm run build`, then run `npm run test:consumption-browser`. The browser script uses the existing Chrome driver, isolated headless profile and temporary real MongoDB/institution. It checks accepted manual-reading provenance and tolerance separation; rendered red/green paths and palette; delayed hover, focus, Tab and Escape; native keyboard dialog opening, focus return, interval/summary/CSV consistency and related records; accepted-reading updates; offline/corrected-reading reconnect; 390px dialog/table layout and help interaction; future-range no-data and stale reading independent of connected transport. Synthetic fixtures do not establish physical metering or real-phone accessibility. Ignored evidence: `.local/consumption-browser.json`, `.local/consumption-browser.log`, `.local/screenshots/consumption-{chart,mobile}.png`.
+
+Completed verification counts/results are recorded in the latest HANDOFF.md checkpoint. Remaining acceptance: real touchscreen/screen-reader review, actual source cadence/physical offline detection (the energy feed reports recorded intervals and a freshness heuristic), histories outside the 1,500-record read window, and field meter accuracy. No physical device actuation or savings verification is implied.
+
+## Authentication debugging follow-up
+
+The current browser fixture uses a real six-character password and eight-character Building Join Codes. The API suite tests those boundaries, forbidden role/building injection, correct/missing/wrong/disabled Administrator creation keys, write-only unique codes, rotation/disable/rename, account/member/hash preservation, persisted lock serialization, rollback and throttling. Session tests verify anonymous bootstrap 200, protected reads 401, logout revocation of old cookies, fresh CSRF and subsequent password-only login. Browser checks cover Administrator/Viewer signup, field labels, invalid key/code messages, sign-in/out, code rotation, linked building labels, pending-choice refresh and 390px layouts. No real user registration or password change is performed.
+
+Console diagnostics: contentscript.js/ObjectMultiplex/app-init-liveness/background-liveness strings are absent from application sources; the exact injecting extension is unverified. Existing tests launch extension-free Chrome and collect runtime errors. React development StrictMode may issue an extra startup effect; cleanup aborts/ignores stale responses. React DevTools guidance is informational. Do not increase listener limits to hide an untraced warning.

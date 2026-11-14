@@ -35,6 +35,7 @@ export function registerManagement(api, { models, config }) {
   api.put("/management/building", async (req, res) => {
     const input = buildingInput.parse(req.body);
     await models.Settings.updateOne({ _id: "installation" }, { $set: { ...input, setupCompleted: true } }, { upsert: true });
+    if (models.workspaceDirectory) await models.workspaceDirectory.rename(models.workspaceDirectory.current(), input.installationName);
     await audit(models, req.user._id, "building.save", "installation");
     res.json({ data: await getSettings(models) });
   });
@@ -129,7 +130,7 @@ export function registerManagement(api, { models, config }) {
       return source;
     });
     await audit(models, req.user._id, "camera.create", result._id);
-    const serviceToken = input.connectionMethod === "gateway" ? createHmac("sha256", config.ingestToken).update(result._id).digest("hex") : undefined;
+    const serviceToken = input.connectionMethod === "gateway" ? createHmac("sha256", config.ingestToken).update(`${models.institutionId ? `${models.institutionId}:` : ""}${result._id}`).digest("hex") : undefined;
     res.status(201).json({ data: { integration: result, ...(serviceToken ? { serviceToken } : {}) } });
   });
   api.get("/management/automation", async (req, res) => {

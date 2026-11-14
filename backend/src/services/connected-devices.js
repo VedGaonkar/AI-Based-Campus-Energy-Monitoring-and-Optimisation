@@ -17,6 +17,7 @@ export function publicConnection(row) {
   return safe;
 }
 export function getConnectedDeviceService(models, config) {
+  if (models.resolveInstitutionModels) return models.workspaceDirectory.service("connected-devices", bound => getConnectedDeviceService(bound, config));
   let configs = services.get(models);
   if (!configs) { configs = new WeakMap(); services.set(models, configs); }
   if (!configs.has(config)) configs.set(config, createService(models, config));
@@ -253,6 +254,7 @@ function createService(models, config) {
       return publicConnection(await connection(id));
     },
     async testConnection(id) {
+      await connection(id); // Preserve not-found/authorization errors before normalising provider failures.
       try {
         const { client } = await provider(id), result = await client.testConnection();
         await models.DeviceConnection.updateOne({ _id: id }, { $set: { health: "online", lastTestedAt: new Date(), lastSeenAt: new Date(), version: result.version, lastError: null } });

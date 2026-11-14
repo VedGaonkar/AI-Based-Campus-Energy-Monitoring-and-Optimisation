@@ -1,0 +1,11 @@
+import { z } from "zod";
+import { joinCodeHint } from "./building-auth-policy.js";
+const email = z.email().max(200).transform(v => v.toLowerCase());
+const text = z.string().trim().min(1).max(200);
+export const buildingJoinCode = z.string().trim().min(8, joinCodeHint).max(64, joinCodeHint).regex(/^[A-Za-z0-9_-]+$/, joinCodeHint).refine(v => /[A-Za-z]/.test(v) && /[0-9]/.test(v) && new Set(v).size >= 6, joinCodeHint);
+export const workspaceLogin = z.object({ email, password: z.string().min(1).max(200) }).strict();
+const fields = { name: text, email, password: z.string().min(6).max(200), confirmPassword: z.string().min(6).max(200), joinCode: buildingJoinCode };
+export const workspaceRegistration = z.discriminatedUnion("accountType", [z.object({ ...fields, accountType: z.literal("administrator"), institutionName: text, adminKey: z.string().trim().min(1).max(200).optional() }).strict(), z.object({ ...fields, accountType: z.literal("viewer") }).strict()]).refine(v => v.password === v.confirmPassword, { path: ["confirmPassword"], message: "Passwords do not match" });
+export const workspaceSelection = z.object({ institutionId: z.string().min(1).max(100) }).strict();
+export const workspaceRename = z.object({ displayName: text }).strict();
+export const workspaceJoinCode = z.union([z.object({ joinCode: buildingJoinCode }).strict(), z.object({ enabled: z.literal(false) }).strict()]);

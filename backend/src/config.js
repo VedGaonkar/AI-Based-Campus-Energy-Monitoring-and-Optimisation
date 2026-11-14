@@ -1,13 +1,24 @@
-import { config as dotenv } from "dotenv";
+import { parse } from "dotenv";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 
-dotenv({
-  path: fileURLToPath(new URL("../../.env", import.meta.url)),
-  quiet: true,
-});
+// Do not populate process.env: dev launcher children must read their own fresh
+// file rather than inherit a stale copy loaded by their parent. Deployment-set
+// environment variables explicitly take precedence over the local file.
+export function readServerEnvironment(env = process.env, path = fileURLToPath(new URL("../../.env", import.meta.url))) {
+  let file = {};
+  try {
+    const contents = readFileSync(path, "utf8");
+    if ((contents.match(/^\s*(?:export\s+)?ADMIN_INVITE_KEY\s*=/gm) ?? []).length > 1)
+      throw new Error("Duplicate ADMIN_INVITE_KEY entries in server .env. Keep one entry; values withheld.");
+    file = parse(contents);
+  }
+  catch (error) { if (error.code !== "ENOENT") throw error; }
+  return { ...file, ...env };
+}
 const bool = z.enum(["true", "false"]).transform((v) => v === "true");
-export function loadConfig(env = process.env) {
+export function loadConfig(env = readServerEnvironment()) {
   const parsed = z
     .object({
       NODE_ENV: z
@@ -37,7 +48,16 @@ export function loadConfig(env = process.env) {
       HA_ALLOWED_ORIGINS: z.string().default(""),
       HA_ALLOW_HTTP: bool.default(false),
       HA_ALLOW_LOOPBACK: bool.default(false),
+      OCR_PYTHON: z.string().min(1).default("python"),
+      OCR_MODULE_PATH: z.string().optional(),
+      OCR_TESSDATA_PATH: z.string().optional(),
       DEMO_VISION_PYTHON: z.string().min(1).default("python"),
+      ENABLE_DEMO_SETUP: bool.default(false),
+      ALLOW_PRODUCTION_DEMO_SEED: bool.default(false),
+      DEMO_ADMIN_EMAIL: z.email().optional(),
+      DEMO_ADMIN_PASSWORD: z.string().min(20).optional(),
+      DEMO_VIEWER_EMAIL: z.email().optional(),
+      DEMO_VIEWER_PASSWORD: z.string().min(20).optional(),
       DEMO_PHONE_ORIGINS: z.string().default("http://localhost:5174,http://localhost:5175"),
       DEVICE_ADAPTER: z.literal("simulator").default("simulator"),
       DEMO_TIME_SCALE: z.coerce.number().min(1).max(60).default(60),
@@ -65,12 +85,8 @@ export function loadConfig(env = process.env) {
         .default(120),
       QR_EXPIRY_WARNING_MINUTES: z.coerce.number().min(0).max(30).default(10),
       NOTIFICATIONS_MODE: z.literal("in_app").default("in_app"),
-      ADMIN_INVITE_KEY: z
-        .string()
-        .trim()
-        .regex(/^\d{8}$/, "ADMIN_INVITE_KEY must be exactly 8 digits or left empty to disable admin access")
-        .optional()
-        .or(z.literal("").transform(() => undefined)),
+      ADMIN_INVITE_KEY: z.string().trim().min(8).max(200).optional().or(z.literal("").transform(() => undefined)),
+
     })
     .parse(env);
   if (parsed.ALLOW_PHYSICAL_CONTROL)
@@ -84,13 +100,21 @@ export function loadConfig(env = process.env) {
     port: parsed.PORT,
     mongoUri: parsed.MONGODB_URI,
     sessionSecret: parsed.SESSION_SECRET,
+    adminInviteKey: parsed.ADMIN_INVITE_KEY ?? null,
     ingestToken: parsed.SERVICE_INGEST_TOKEN,
     frontendOrigin: parsed.FRONTEND_ORIGIN,
     publicAppUrl: parsed.PUBLIC_APP_URL,
     demoMode: parsed.DEMO_MODE,
     allowPhysicalControl: parsed.ALLOW_PHYSICAL_CONTROL,
     allowNativeControl: parsed.ALLOW_NATIVE_DEVICE_CONTROL,
+    ocrPython: parsed.OCR_PYTHON, ocrModulePath: parsed.OCR_MODULE_PATH, ocrTessdataPath: parsed.OCR_TESSDATA_PATH,
     demoVisionPython: parsed.DEMO_VISION_PYTHON,
+    enableDemoSetup: parsed.ENABLE_DEMO_SETUP,
+    allowProductionDemoSeed: parsed.ALLOW_PRODUCTION_DEMO_SEED,
+    demoAdminEmail: parsed.DEMO_ADMIN_EMAIL,
+    demoAdminPassword: parsed.DEMO_ADMIN_PASSWORD,
+    demoViewerEmail: parsed.DEMO_VIEWER_EMAIL,
+    demoViewerPassword: parsed.DEMO_VIEWER_PASSWORD,
     demoPhoneOrigins: parsed.DEMO_PHONE_ORIGINS.split(",").map(value => value.trim()).filter(Boolean),
     haAllowedOrigins: parsed.HA_ALLOWED_ORIGINS.split(",").map((value) => value.trim()).filter(Boolean),
     haAllowHttp: parsed.HA_ALLOW_HTTP,
@@ -111,6 +135,6 @@ export function loadConfig(env = process.env) {
     qrWarningMs:
       (parsed.QR_EXPIRY_WARNING_MINUTES * 60000) /
       (parsed.DEMO_MODE ? parsed.DEMO_TIME_SCALE : 1),
-    adminInviteKey: parsed.ADMIN_INVITE_KEY ?? null,
+    demoPassword: env.DEMO_PASSWORD,
   };
 }

@@ -63,19 +63,26 @@ export function registerDemoAdminRoutes(api, { models, service }) {
   });
 }
 
-export function registerDemoSockets(io, { models, config, service }) {
+export function registerDemoSockets(io, { models, config, service, workspaceDirectory }) {
   const namespace = io.of("/demo-phone");
+  const scoped = async (socket, operation) => {
+    if (!workspaceDirectory) return operation();
+    const id = String(socket.handshake.auth?.token ?? "").split(".")[0];
+    const realm = await workspaceDirectory.realm(id);
+    return workspaceDirectory.run(realm, operation);
+  };
   namespace.use(async (socket, next) => {
-    try { socket.data.grant = await demoGrant(models, config, socket.handshake.auth?.token); next(); }
+    try { socket.data.grant = await scoped(socket, () => demoGrant(models, config, socket.handshake.auth?.token)); next(); }
     catch { next(new Error("PAIR_REQUIRED")); }
   });
   namespace.on("connection", socket => {
-    socket.join(`demo:${socket.data.grant.sessionId}:${socket.data.grant.role}`);
+    const institution = workspaceDirectory ? `${String(socket.handshake.auth.token).split(".")[0]}:` : "";
+    socket.join(`demo:${institution}${socket.data.grant.sessionId}:${socket.data.grant.role}`);
     socket.on("demo:heartbeat", async () => {
-      try { socket.data.grant = await demoGrant(models, config, socket.handshake.auth?.token); }
+      try { socket.data.grant = await scoped(socket, () => demoGrant(models, config, socket.handshake.auth?.token)); }
       catch { socket.disconnect(true); }
     });
-    socket.on("disconnect", () => service.offline(socket.data.grant).catch(() => {}));
+    socket.on("disconnect", () => scoped(socket, () => service.offline(socket.data.grant)).catch(() => {}));
   });
   let running = false;
   const timer = setInterval(async () => {
@@ -83,9 +90,11 @@ export function registerDemoSockets(io, { models, config, service }) {
     try {
       for (const socket of namespace.sockets.values()) {
         try {
-          const grant = await demoGrant(models, config, socket.handshake.auth?.token, new Date(), false);
-          socket.emit("demo:state", await service.state(grant));
-          for (const command of await service.commands(grant)) socket.emit("demo:command", command);
+          await scoped(socket, async () => {
+            const grant = await demoGrant(models, config, socket.handshake.auth?.token, new Date(), false);
+            socket.emit("demo:state", await service.state(grant));
+            for (const command of await service.commands(grant)) socket.emit("demo:command", command);
+          });
         } catch (error) { if (error.code !== "ROOM_BUSY") socket.disconnect(true); }
       }
     } finally { running = false; }

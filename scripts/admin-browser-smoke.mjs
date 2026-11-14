@@ -26,7 +26,7 @@ try {
   const base = `http://localhost:${port}`;
   database = await startDatabase();
   let models; ({ connection, models } = await connectDatabase(database.getUri("admin_browser")));
-  const config = loadConfig({ NODE_ENV: "test", MONGODB_URI: database.getUri("admin_browser"), SESSION_SECRET: randomBytes(32).toString("hex"), SERVICE_INGEST_TOKEN: randomBytes(32).toString("hex"), ADMIN_INVITE_KEY: adminKey, FRONTEND_ORIGIN: base, PUBLIC_APP_URL: base, DEMO_MODE: "true" });
+  const config = loadConfig({ NODE_ENV: "test", MONGODB_URI: database.getUri("admin_browser"), SESSION_SECRET: randomBytes(32).toString("hex"), SERVICE_INGEST_TOKEN: randomBytes(32).toString("hex"), FRONTEND_ORIGIN: base, PUBLIC_APP_URL: base, DEMO_MODE: "true" });
   await seed(models, config, { password });
   runtime = createApplication({ config, connection, models });
   await new Promise((resolve, reject) => { runtime.server.once("error", reject); runtime.server.listen(port, "127.0.0.1", resolve); });
@@ -40,7 +40,7 @@ try {
   await page.getByRole("button", { name: "Sign in to workspace" }).click();
   await waitFor(() => page.evaluate(() => document.body.innerText.includes("A valid admin invite key is required")));
   checks.push("Administrator password without key is rejected");
-  await page.getByLabel("Admin invite key").fill(adminKey);
+
   await page.getByRole("button", { name: "Sign in to workspace" }).click();
   await page.getByRole("heading", { name: "Your building. One control centre." }).waitFor();
   await page.getByRole("heading", { name: "Administrator access verified" }).waitFor();
@@ -118,25 +118,10 @@ try {
   await page.screenshot({ path: ".local/screenshots/admin-management-mobile.png", fullPage: true });
   checks.push("Admin workflows fit a 390px viewport");
   await go("/rooms"); await page.getByRole("button", { name: "Sign out" }).first().click();
-  await page.getByRole("button", { name: "Create account" }).first().click();
-  await page.getByLabel("Full name").fill("Recoverable Viewer");
-  await page.getByLabel("Email address").fill("recoverable@example.test");
-  await page.getByLabel("Password").fill(password);
-  await page.getByLabel("Confirm password").fill(password);
-  await page.getByLabel("Admin invite key").fill("00000000");
-  await page.locator("form .button").click();
-  await waitFor(() => page.evaluate(() => document.body.innerText.includes("No account was created")));
-  assert.equal(await models.User.countDocuments({ email: "recoverable@example.test" }), 0);
-  checks.push("Bad signup key reports an error without silent viewer creation");
-  await page.getByLabel("Admin invite key").fill(""); await page.locator("form .button").click();
-  await waitFor(() => page.evaluate(() => !!document.querySelector(".profile-link")));
-  await go("/");
-  await page.getByRole("heading", { name: "A clearer view of your energy." }).waitFor();
-  await go("/profile"); await page.getByLabel("Account password").fill(password); await page.getByLabel("Admin invite key").fill(adminKey);
-  await page.getByRole("button", { name: "Verify & activate admin access" }).click();
-  await page.getByRole("heading", { name: "Administrator access verified" }).waitFor();
-  await go("/profile"); await waitFor(() => page.evaluate(() => document.body.innerText.includes("Account role: admin")));
-  checks.push("Viewer account activation updates server role, profile and admin navigation");
+  await page.getByLabel("Email address").fill("viewer@campus.test"); await page.getByLabel("Password").fill(password); await page.getByRole("button", { name: "Sign in to workspace" }).click();
+  await go("/profile"); await waitFor(() => page.evaluate(() => document.body.innerText.includes("Account role: viewer")));
+  assert.equal(await page.evaluate(() => !!document.querySelector('[name="adminKey"]')), false); assert.equal((await models.User.findById("demo-viewer").lean()).role, "viewer");
+  checks.push("Existing Viewer password sign-in preserves role and profile has no activation path");
   assert.deepEqual(errors, []);
   await writeFile(".local/admin-browser-verification.json", JSON.stringify({ at: new Date().toISOString(), checks, errors, isolated: true }, null, 2));
   console.log(`${checks.length} isolated admin browser checks passed; no runtime errors. Credentials and user records were not printed or reused.`);

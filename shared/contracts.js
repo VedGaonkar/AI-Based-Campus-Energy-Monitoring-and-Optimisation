@@ -9,7 +9,7 @@ export const id = z
 export const timestamp = z.iso.datetime({ offset: true });
 const text = z.string().trim().min(1).max(200);
 export const loginInput = z
-  .object({ email: z.email().max(200), password: z.string().min(1).max(200), adminKey: z.string().trim().max(500).optional() })
+  .object({ email: z.email().max(200), password: z.string().min(1).max(200) })
   .strict();
 export const roomInput = z
   .object({

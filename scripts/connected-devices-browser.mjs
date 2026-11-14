@@ -26,14 +26,14 @@ try {
   const port = probe.address().port; await new Promise((resolve) => probe.close(resolve));
   const base = `http://localhost:${port}`;
   db = await startDatabase(); ({ connection, models } = await connectDatabase(db.getUri("connected_browser")));
-  const config = loadConfig({ NODE_ENV: "test", SESSION_SECRET: randomBytes(32).toString("hex"), SERVICE_INGEST_TOKEN: randomBytes(32).toString("hex"), ADMIN_INVITE_KEY: adminKey, DEMO_MODE: "true", DEMO_TIME_SCALE: "60", FRONTEND_ORIGIN: base, PUBLIC_APP_URL: base });
+  const config = loadConfig({ NODE_ENV: "test", SESSION_SECRET: randomBytes(32).toString("hex"), SERVICE_INGEST_TOKEN: randomBytes(32).toString("hex"), DEMO_MODE: "true", DEMO_TIME_SCALE: "60", FRONTEND_ORIGIN: base, PUBLIC_APP_URL: base });
   await seed(models, config, { password });
   runtime = createApplication({ config, connection, models }); await new Promise((resolve, reject) => { runtime.server.once("error", reject); runtime.server.listen(port, "127.0.0.1", resolve); });
   worker = (async () => { while (running) { try { await tick(models, config); workerTicks++; } catch (error) { if (error.code !== "ROOM_BUSY") errors.push(`Worker: ${error.code ?? error.name}`); } await new Promise((resolve) => setTimeout(resolve, 250)); } })();
   await mkdir(".local/screenshots", { recursive: true });
   browser = await launchChrome(executable); page = await browser.newPage({ viewport: { width: 1440, height: 1080 } });
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto(base); await page.getByLabel("Email address").fill("admin@campus.test"); await page.getByLabel("Password").fill(password); await page.getByLabel("Admin invite key").fill(adminKey);
+  await page.goto(base); await page.getByLabel("Email address").fill("admin@campus.test"); await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in to workspace" }).click(); await page.getByRole("heading", { name: "Your building. One control centre." }).waitFor();
   await page.goto(`${base}/connected-devices`); await page.getByRole("heading", { name: "Connected devices" }).waitFor();
   await page.getByRole("button", { name: "Add connection" }).click(); await page.getByLabel("Connection name").fill("Browser equipment simulator");

@@ -1,3 +1,4 @@
+import Help from "./components/Help.jsx";
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { api, post } from "./services/api.js";
@@ -5,33 +6,21 @@ import { api, post } from "./services/api.js";
 const modeLabel = mode => ({ instrumented: "Instrumented demo vision", camera_inference: "Camera inference · person positives only", scenario_injection: "Explicit scenario injection · no pixels" }[mode] ?? mode);
 const time = value => value ? new Date(value).toLocaleTimeString() : "Not yet";
 
-export function PhoneDemoSummary({ user }) {
-  const [sessions, setSessions] = useState([]);
-  useEffect(() => { if (user?.role === "admin") api("/demo/sessions").then(setSessions).catch(() => {}); }, [user?.role]);
+export function PhoneDemoSummary({ user, useData }) {
+  const [rows] = useData("/demo/sessions"), sessions = rows ?? [];
   if (user?.role !== "admin") return null;
   return <section className="panel section-gap phone-demo-summary"><div><div className="eyebrow">TWO PHONES / ONE CONNECTED LOOP</div><h2>Camera to classroom</h2><p className="caption">{sessions.filter(item => item.active).length} active demo sessions. Pixel evidence, persistent escalation and virtual-classroom acknowledgements stay separate.</p></div><Link className="button secondary" to="/phone-demo">Open two-phone demo</Link></section>;
 }
 
 export function PhoneDemo({ ui }) {
   const { PageHead, Field, Button, Badge, ErrorText, useApp, useData } = ui;
-  const { user, act } = useApp();
-  const [rooms] = useData("/rooms"), [sessions, setSessions] = useState([]), [selected, setSelected] = useState(""), [detail, setDetail] = useState(null), [error, setError] = useState(""), [pairings, setPairings] = useState({}), [now, setNow] = useState(Date.now());
-  const [candidates, setCandidates] = useState(null);
-  async function refresh() {
-    try {
-      const rows = await api("/demo/sessions"); setSessions(rows);
-      setCandidates(await api("/demo/available-rooms"));
-      if (selected) setDetail(await api(`/demo/sessions/${selected}`));
-      setError("");
-    } catch (failure) { setError(failure.message); }
-  }
-  useEffect(() => {
-    if (user.role !== "admin") return;
-    let pending = false, stopped = false;
-    async function poll() { if (pending || stopped) return; pending = true; await refresh(); pending = false; }
-    poll(); const timer = setInterval(() => { setNow(Date.now()); poll(); }, 1000);
-    return () => { stopped = true; clearInterval(timer); };
-  }, [selected, user.role]);
+  const { user, act, refresh } = useApp();
+  const [selected, setSelected] = useState(""), [pairings, setPairings] = useState({}), [now, setNow] = useState(Date.now());
+  const [rooms] = useData("/rooms"), [rows, sessionsError] = useData(user.role === "admin" ? "/demo/sessions" : null);
+  const [candidates, candidatesError] = useData(user.role === "admin" ? "/demo/available-rooms" : null);
+  const [detail, detailError] = useData(user.role === "admin" && selected ? `/demo/sessions/${selected}` : null);
+  const sessions = rows ?? [], error = sessionsError || candidatesError || detailError;
+  useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); }, []);
   if (user.role !== "admin") return <ErrorText>Administrator access is required to manage phone demonstrations.</ErrorText>;
   const session = detail?.session;
   const availableRooms = (candidates ?? []).filter(room => !room.unavailableReason);
@@ -61,7 +50,7 @@ export function PhoneDemo({ ui }) {
       {!!unavailableRooms.length && <details><summary>{unavailableRooms.length} rooms unavailable for demo setup</summary><ul>{unavailableRooms.map(room => <li key={room._id}>{room.code} · {room.name}: {room.unavailableReason}</li>)}</ul></details>}
       <p className="caption">Demo only: first alert after confirmed vacancy; escalate after 10 seconds, final recheck after another 15 seconds. Production timings remain unchanged. Camera-inference mode cannot establish vacancy from a missing detection.</p>
     </section>
-    <section className="panel section-gap"><Field label="Session"><select value={selected} onChange={event => { setSelected(event.target.value); setDetail(null); setPairings({}); }}><option value="">Select a session</option>{sessions.map(item => <option key={item._id} value={item._id}>{(rooms ?? []).find(room => room._id === item.roomId)?.code ?? item.roomId} · {item._id.slice(0, 8)} · {item.active ? "active" : "ended"}</option>)}</select></Field></section>
+    <section className="panel section-gap"><Field label="Session"><select value={selected} onChange={event => { setSelected(event.target.value); setPairings({}); }}><option value="">Select a session</option>{sessions.map(item => <option key={item._id} value={item._id}>{(rooms ?? []).find(room => room._id === item.roomId)?.code ?? item.roomId} · {item._id.slice(0, 8)} · {item.active ? "active" : "ended"}</option>)}</select></Field></section>
     {session && <>
       <section className="panel section-gap"><div className="section-title"><div><div className="eyebrow">{detail.room.code} / {session._id.slice(0, 8)}</div><h2>{modeLabel(session.visionMode)}</h2></div><Badge tone={session.active ? "success" : "neutral"}>{session.active ? "Demo active" : "Ended"}</Badge></div>
         <p className="caption">Vacancy confirmation: {session.vacancyConfirmationMs / 1000}s. Escalation: +10s / +15s. Session expires {time(session.expiresAt)}. Live physical control is disabled.</p>
@@ -73,7 +62,7 @@ export function PhoneDemo({ ui }) {
         <div className="inline-actions section-gap"><Button secondary disabled={!session.active} onClick={async () => { const result = await act(() => post(`/demo/sessions/${session._id}/stop`), "Demo ended; pairing and jobs revoked"); if (result) { setPairings({}); refresh(); } }}>Stop session</Button><Button secondary onClick={async () => { const result = await act(() => post(`/demo/sessions/${session._id}/reset`), "New session created; pair both phones again"); if (result) { setSelected(result._id); setPairings({}); } }}>Reset & re-pair</Button></div>
       </section>
       <div className="phone-demo-evidence section-gap"><section className="panel"><h2>Latest camera frame</h2>{session.lastFrameAt && session.active && now - new Date(session.lastFrameAt) < 120000 ? <img className="phone-frame" src={`/api/v1/demo/sessions/${session._id}/frame?v=${session.lastFrameSequence}`} alt="Latest private demo camera thumbnail" /> : <p>No current camera thumbnail.</p>}<p className="caption">Last accepted {time(session.lastFrameAt)} · {session.processedFrames} processed frames. Latest thumbnail only, expires after two minutes; never public.</p></section>
-        <section className="panel"><h2>Observation & room protections</h2><dl className="phone-evidence-list"><dt>Observed occupancy</dt><dd>{detail.observed.state} · {detail.observed.reason}</dd><dt>Evidence source</dt><dd>{session.latestObservation?.evidenceSource?.replaceAll("_", " ") ?? "Unknown"}</dd><dt>Frame freshness</dt><dd>{session.lastFrameAt ? `${Math.max(0, Math.floor((now - new Date(session.lastFrameAt)) / 1000))}s since accepted` : "No frame"}</dd><dt>Observed equipment</dt><dd>{session.latestObservation?.equipment && Object.keys(session.latestObservation.equipment).length ? Object.entries(session.latestObservation.equipment).map(([key, value]) => `${key}: ${value ? "ON" : "OFF"}`).join(" · ") : "Unknown; object appearance is not operating-state proof"}</dd><dt>Protected use</dt><dd>{detail.protectedBy ?? "None"} · booking {detail.protections.booking ? "active" : "no"}, QR {detail.protections.qr ? "active" : "no"}, override {detail.protections.override ? "active" : "no"}</dd><dt>Simulated master supply</dt><dd>{detail.master?.reportedSupply ?? "unknown"} · separate from camera evidence</dd></dl><p className="caption">HOG scores are uncalibrated; a positive detection protects. Marker decoding is a demonstration convention. Neither establishes measured kWh or savings.</p></section></div>
+        <section className="panel"><h2>Observation & room protections</h2><dl className="phone-evidence-list"><dt>Observed occupancy</dt><dd>{detail.observed.state} · {detail.observed.reason}</dd><dt>Evidence source</dt><dd>{session.latestObservation?.evidenceSource?.replaceAll("_", " ") ?? "Unknown"}</dd><dt>Frame freshness</dt><dd>{session.lastFrameAt ? `${Math.max(0, Math.floor((now - new Date(session.lastFrameAt)) / 1000))}s since accepted` : "No frame"}</dd><dt>Observed equipment</dt><dd>{session.latestObservation?.equipment && Object.keys(session.latestObservation.equipment).length ? Object.entries(session.latestObservation.equipment).map(([key, value]) => `${key}: ${value ? "ON" : "OFF"}`).join(" · ") : "Unknown; object appearance is not operating-state proof"}</dd><dt>Protected use</dt><dd>{detail.protectedBy ?? "None"} · booking {detail.protections.booking ? "active" : "no"}, QR {detail.protections.qr ? "active" : "no"}, override {detail.protections.override ? "active" : "no"}</dd><dt>Simulated master supply</dt><dd>{detail.master?.reportedSupply ?? "unknown"} · separate from camera evidence</dd></dl><p className="caption"><Help topic="confidence" /> HOG scores are uncalibrated; a positive detection protects. Marker decoding is a demonstration convention. Neither establishes measured kWh or savings.</p></section></div>
       <section className="panel section-gap"><h2>Persistent escalation timeline</h2>{!detail.incidents.length && <p>No waste incident yet. Confirmed fresh vacancy, visible equipment ON and no protected use are required.</p>}{detail.incidents.map(incident => <div key={incident._id} className="phone-incident"><strong>{incident.state} · {time(incident.openedAt)}</strong><ul>{incident.timeline.map((entry, i) => <li key={i}>{time(entry.at)} · {entry.event.replaceAll("_", " ")}{entry.reason ? ` · ${entry.reason}` : ""}</li>)}</ul><div className="phone-job-grid">{detail.jobs.filter(job => job.incidentId === incident._id).map(job => <span key={job._id}>{job.stage}: {job.status}{job.status === "pending" ? ` · ${due(job.dueAt)}s` : ""}</span>)}</div></div>)}</section>
       <section className="panel section-gap"><h2>Master commands & classroom acknowledgements</h2>{!detail.commands.length && <p>No master command created.</p>}{detail.commands.map(command => <article key={command._id} className="phone-command"><strong>{command.action.toUpperCase()} · {command.state}</strong><p className="caption">{command.requestId} · created {time(command.issuedAt)} · sent {time(command.sentAt)} · acknowledged {time(command.acknowledgedAt)}</p><p>{command.result?.verification === "simulator_acknowledged" ? `Simulator acknowledged ${command.action.toUpperCase()}` : "No classroom application acknowledgement"}. No physical breaker verification.</p></article>)}</section>
     </>}

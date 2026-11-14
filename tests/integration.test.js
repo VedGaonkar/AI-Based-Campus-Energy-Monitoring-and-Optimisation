@@ -1,7 +1,7 @@
 import { before, after, test } from "node:test";
 import assert from "node:assert/strict";
 import request from "supertest";
-import { randomBytes, createHmac } from "node:crypto";
+import { randomBytes, createHmac, randomInt } from "node:crypto";
 import { startDatabase } from "../scripts/database.mjs";
 import { connectDatabase } from "../backend/src/models/index.js";
 import { loadConfig } from "../backend/src/config.js";
@@ -24,7 +24,7 @@ before(async () => {
     DEMO_TIME_SCALE: "60",
     ALLOW_PHYSICAL_CONTROL: "false",
     PUBLIC_APP_URL: origin,
-    ADMIN_INVITE_KEY: "12345678",
+
   });
   await seed(models, config, { password });
   runtime = createApplication({ config, connection, models });
@@ -34,7 +34,7 @@ before(async () => {
     .post("/api/v1/auth/login")
     .set("Origin", origin)
     .set("X-CSRF-Token", token.body.data.csrfToken)
-    .send({ email: "admin@campus.test", password, adminKey: config.adminInviteKey });
+    .send({ email: "admin@campus.test", password });
   assert.equal(result.status, 200, JSON.stringify(result.body));
   csrf = result.body.data.csrfToken;
 });
@@ -145,7 +145,7 @@ test("CSV preview/commit is durable and repeat-safe; intervals are calculated fr
   assert.equal(interval.averagePowerKw, 6);
   assert.equal(interval.dataMode, "simulated");
 });
-test("manual reading conflict, invalid CSV and OCR unavailable do not fabricate results", async () => {
+test("manual reading conflict, invalid CSV and unregistered meter images do not fabricate results", async () => {
   const result = await mutate("/api/v1/meter-readings", {
     eventId: "conflict",
     meterId: "MAIN-01",
@@ -165,7 +165,7 @@ test("manual reading conflict, invalid CSV and OCR unavailable do not fabricate 
       .status,
     400,
   );
-  assert.equal((await mutate("/api/v1/meter-images", {})).status, 503);
+  assert.equal((await mutate("/api/v1/meter-images", {})).status, 400);
 });
 test("audited manual review preserves provenance and reset configuration separates epochs", async () => {
   const settings = await models.Settings.findById("installation").lean();

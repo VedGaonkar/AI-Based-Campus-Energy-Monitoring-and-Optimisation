@@ -61,8 +61,8 @@ try {
   await page.getByLabel("Email address").fill("admin@campus.test");
   await page
     .getByLabel("Password", { exact: true })
-    .fill(process.env.DEMO_PASSWORD);
-  await page.getByLabel("Admin invite key").fill(process.env.ADMIN_INVITE_KEY ?? "");
+    .fill(config.demoPassword);
+
   await page.getByRole("button", { name: "Sign in to workspace" }).click();
   await page.getByRole("heading", { name: "Your building. One control centre." }).waitFor();
   await page.goto(base);

@@ -1,0 +1,18 @@
+import React, { useEffect, useState } from "react";
+import { api, post, patch } from "./services/api.js";
+import { joinCodeHint } from "../../shared/building-auth-policy.js";
+export function InstitutionSettings({ ui }) {
+  const { useApp, Field, Button, ErrorText } = ui, { user, act, version } = useApp();
+  const [institution, setInstitution] = useState(null), [error, setError] = useState(""), [joinCode, setJoinCode] = useState(""), [choices, setChoices] = useState([]);
+  useEffect(() => { const c = new AbortController(); if (user.institutionId) { api("/institutions/current", { signal: c.signal }).then(v => { if (!c.signal.aborted) setInstitution(v); }).catch(e => { if (e.name !== "AbortError") setError(e.message); }); api("/auth/workspaces", { signal: c.signal }).then(v => { if (!c.signal.aborted) setChoices(v); }).catch(() => {}); } return () => c.abort(); }, [user.institutionId, version]);
+  if (!user.institutionId) return null;
+  return <section className="panel section-gap"><div className="eyebrow">YOUR BUILDING WORKSPACE</div><h2>{institution?.displayName ?? user.institution?.displayName ?? "Building"}</h2><p className="caption">Renaming preserves memberships, room identities and Building Join Code resolution.</p><ErrorText>{error}</ErrorText>
+    {user.role === "admin" && institution && <>
+      <form key={institution.displayName} className="form-grid" onSubmit={async e => { e.preventDefault(); const displayName = new FormData(e.currentTarget).get("displayName"), result = await act(() => patch("/institutions/current", { displayName }), "Building name updated; memberships preserved"); if (result) setInstitution(i => ({ ...i, ...result })); }}><Field label="Institution / building display name"><input name="displayName" defaultValue={institution.displayName} required maxLength={200} /></Field><Button>Save building name</Button></form>
+      <h3 className="section-gap">Building Join Code</h3><p>{institution.joinCodeEnabled ? "Viewer registration is enabled." : "Viewer registration is disabled until a Building Join Code is set."}</p><p className="caption">Write-only: the original code cannot be retrieved. Replacement stops new registrations with the previous code. Existing members keep access.</p>
+      <form className="form-grid" onSubmit={async e => { e.preventDefault(); const result = await act(() => api("/institutions/current/join-code", { method: "PUT", body: { joinCode } }), "Building Join Code replaced; existing members keep access"); if (result) { setJoinCode(""); setInstitution(i => ({ ...i, ...result })); } }}><Field label="Building Join Code" hint={joinCodeHint}><input type="password" autoComplete="off" value={joinCode} onChange={e => setJoinCode(e.target.value)} required minLength={8} maxLength={64} /></Field><Button>Replace Building Join Code</Button></form>
+      <Button secondary disabled={!institution.joinCodeEnabled} onClick={async () => { const result = await act(() => api("/institutions/current/join-code", { method: "PUT", body: { enabled: false } }), "Building Join Code disabled; existing members keep access"); if (result) { setJoinCode(""); setInstitution(i => ({ ...i, ...result })); } }}>Disable Building Join Code</Button>
+    </>}
+    {choices.length > 1 && <div className="section-gap"><h3>Your buildings</h3><div className="workspace-choices">{choices.filter(c => c._id !== user.institutionId).map(c => <Button key={c._id} secondary onClick={async () => { const result = await act(() => post("/auth/select-workspace", { institutionId: c._id }), "Building selected"); if (result) window.location.assign(result.user.role === "admin" ? "/admin" : "/"); }}>{c.displayName}</Button>)}</div></div>}
+  </section>;
+}

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import {
   BrowserRouter,
@@ -9,7 +9,8 @@ import {
   useParams,
   useLocation,
 } from "react-router";
-import { io } from "socket.io-client";
+import { startLiveSync } from "./services/live-sync.js";
+import { setReadState, subscribeReadState } from "./services/read-state.js";
 import {
   Activity,
   LayoutDashboard,
@@ -42,14 +43,19 @@ import {
 } from "lucide-react";
 import { api, post, patch } from "./services/api";
 import { Management, Profile } from "./Management.jsx";
+import { MeterCameras } from "./MeterCameras.jsx";
 import { ConnectedDevices } from "./ConnectedDevices.jsx";
 import { PhoneDemo, PhoneDemoSummary } from "./PhoneDemo.jsx";
+import { Authentication } from "./Authentication.jsx";
+import Help from "./components/Help.jsx";
+import { selectIntervals, sourceLabel, freshness } from "./services/consumption.js";
 import "./styles.css";
 import "./stewardship.css";
 
 const LazyConsumptionChart = React.lazy(
   () => import("./components/ConsumptionChart.jsx"),
 );
+const LazyConsumptionDetails = React.lazy(() => import("./components/ConsumptionChart.jsx").then(m => ({ default: m.ConsumptionDetails })));
 
 const AppContext = createContext();
 const useApp = () => useContext(AppContext);
@@ -73,20 +79,23 @@ const STAFF = ["admin", "hod", "technician", "teacher"],
   RESPONDERS = ["admin", "hod", "technician"];
 
 function useData(path) {
-  const { version } = useApp(),
+  const requestKey = useRef(Symbol("page-read"));
+  const { version, user } = useApp(),
     [data, setData] = useState(null),
     [error, setError] = useState("");
   useEffect(() => {
     const controller = new AbortController();
+    if (!path) { setData(null); setReadState(requestKey.current, null); return; }
     setError("");
+    setReadState(requestKey.current, { pending: true });
     api(path, { signal: controller.signal })
-      .then(setData)
+      .then(value => { if (!controller.signal.aborted) { setData({ path, institutionId: user.institutionId, value }); setReadState(requestKey.current, { pending: false }); } })
       .catch((err) => {
-        if (err.name !== "AbortError") setError(err.message);
+        if (!controller.signal.aborted && err.name !== "AbortError") { setError(err.message); setData(null); setReadState(requestKey.current, { error: true }); }
       });
-    return () => controller.abort();
-  }, [path, version]);
-  return [data, error];
+    return () => { controller.abort(); setReadState(requestKey.current, null); };
+  }, [path, version, user.institutionId]);
+  return [data?.path === path && data.institutionId === user.institutionId ? data.value : null, error];
 }
 function Badge({ children, tone = "neutral" }) {
   return <span className={`badge ${tone}`}>{children}</span>;
@@ -197,30 +206,38 @@ function Clock({ until }) {
 function App() {
   const [user, setUser] = useState(undefined),
     [health, setHealth] = useState(null),
+    [pendingWorkspaces, setPendingWorkspaces] = useState([]),
     [version, setVersion] = useState(0),
     [busy, setBusy] = useState(false),
     [notice, setNotice] = useState(""),
     [error, setError] = useState(""),
     [menu, setMenu] = useState(false);
   const location = useLocation();
-  const refresh = () => setVersion((v) => v + 1);
+  const refresh = useCallback(() => setVersion((v) => v + 1), []);
+  const [syncState, setSyncState] = useState("connecting"), [reads, setReads] = useState({ pending: false, failed: false });
+  useEffect(() => subscribeReadState(setReads), []);
   useEffect(() => {
-    api("/auth/me")
-      .then((d) => setUser(d.user))
-      .catch(() => setUser(null));
-    api("/health")
-      .then(setHealth)
-      .catch(() => {});
+    const controller = new AbortController();
+    api("/auth/session", { signal: controller.signal }).then(d => { if (!controller.signal.aborted) { setPendingWorkspaces(d.workspaces ?? []); setUser(d.user); } }).catch(err => { if (err.name !== "AbortError" && !controller.signal.aborted) setUser(null); });
+    api("/health", { signal: controller.signal }).then(value => { if (!controller.signal.aborted) setHealth(value); }).catch(() => {});
+    return () => controller.abort();
   }, []);
   useEffect(() => {
     setMenu(false);
   }, [location.pathname]);
   useEffect(() => {
     if (!user) return;
-    const socket = io({ withCredentials: true });
-    socket.on("refresh", refresh);
-    return () => socket.disconnect();
-  }, [user]);
+    return startLiveSync({ request: api, invalidate: refresh, status: setSyncState, expectedInstitutionId: user.institutionId ?? "legacy",
+      identity: next => setUser(previous => JSON.stringify(previous) === JSON.stringify(next) ? previous : next),
+      revoked: () => { setPendingWorkspaces([]); setUser(null); },
+    });
+  }, [user?._id, user?.institutionId, refresh]);
+  async function signOut() {
+    setBusy(true); setError("");
+    try { await post("/auth/logout"); setPendingWorkspaces([]); setUser(null); setNotice(""); }
+    catch (failure) { setError(failure.message); }
+    finally { setBusy(false); }
+  }
   async function act(operation, message = "Saved") {
     setBusy(true);
     setError("");
@@ -236,7 +253,7 @@ function App() {
       setBusy(false);
     }
   }
-  const context = { user, version, busy, act, refresh, health, setUser };
+  const context = { user, version, busy, act, refresh, health, setUser, syncState };
   if (user === undefined)
     return (
       <div className="boot">
@@ -247,7 +264,7 @@ function App() {
   return (
     <AppContext.Provider value={context}>
       {!user ? (
-        <Login onLogin={setUser} />
+        <Login pendingWorkspaces={pendingWorkspaces} onLogin={value => { setPendingWorkspaces([]); setUser(value); setError(""); setNotice(""); }} />
       ) : (
         <div className="app-shell">
           <a className="skip" href="#main">
@@ -274,7 +291,7 @@ function App() {
                 ["/recommendations", Lightbulb, "Recommendations"],
                 ["/access", QrCode, "QR access"],
                 ["/connected-devices", PlugZap, "Connected devices"],
-                ...(user.role === "admin" ? [["/phone-demo", Camera, "Two-phone demo"]] : []),
+                ...(user.role === "admin" ? [["/phone-demo", Camera, "Two-phone demo"], ["/meter-cameras", Camera, "Meter cameras"]] : []),
                 ...(user.role === "admin"
                   ? [["/admin", Settings, "Admin management"]]
                   : []),
@@ -312,12 +329,8 @@ function App() {
                 </div>
                 <button
                   className="signout-btn"
-                  onClick={() =>
-                    act(async () => {
-                      await post("/auth/logout");
-                      setUser(null);
-                    }, "Signed out")
-                  }
+                  onClick={signOut}
+                  disabled={busy}
                 >
                   <LogOut size={14} />
                   Sign out
@@ -343,8 +356,8 @@ function App() {
                 <span className="muted terminal-label">Operations terminal</span>
               </div>
               <div className="topbar-right">
-                <span className="online-dot" />
-                <span className="topbar-status">Workspace connected</span>
+                <span className="online-dot" style={syncState === "current" && !reads.failed ? undefined : { background: "#AD512F" }} />
+                <span className="topbar-status">{syncState === "current" && !reads.failed ? "Workspace connected" : "Workspace data may be stale"}</span>
                 <button
                   className="icon-button"
                   aria-label="Refresh data"
@@ -357,12 +370,8 @@ function App() {
                   <Link to="/profile" className="topbar-name">{user.name} / {user.role}</Link>
                   <button
                     className="topbar-signout"
-                    onClick={() =>
-                      act(async () => {
-                        await post("/auth/logout");
-                        setUser(null);
-                      }, "Signed out")
-                    }
+                    onClick={signOut}
+                  disabled={busy}
                   >
                     <LogOut size={14} />
                     Sign out
@@ -382,6 +391,9 @@ function App() {
                 </span>
               </div>
             )}
+            <div className={`sync-status ${syncState === "current" && !reads.failed ? "" : "stale"}`} role="status" data-sync-state={syncState}>
+              {syncState === "current" ? reads.failed ? "Data unavailable: some pages could not refresh" : reads.pending ? "Updating authorised data..." : "Live updates connected" : ({ connecting: "Connecting live updates...", reconciling: "Synchronising with the server...", disconnected: "Disconnected: displayed data may be stale", stale: "Updates unavailable: displayed data may be stale", background: "Background tab: data will reconcile when you return" }[syncState])}
+            </div>
             <main id="main">
               <ErrorText>{error}</ErrorText>
               {notice && (
@@ -398,6 +410,7 @@ function App() {
                 </div>
               )}
               <Routes>
+                <Route path="/meter-cameras" element={<MeterCameras ui={managementUI} />} />
                 <Route path="/connected-devices" element={<ConnectedDevices ui={managementUI} />} />
                 <Route path="/phone-demo" element={<PhoneDemo ui={managementUI} />} />
                 <Route path="/profile" element={<Profile ui={managementUI} />} />
@@ -442,9 +455,9 @@ function App() {
     </AppContext.Provider>
   );
 }
-function Login({ onLogin }) {
+function Login({ onLogin, pendingWorkspaces }) {
   const accessToken = useLocation().pathname.match(
-      /^\/access\/([A-Za-z0-9_-]+)$/,
+      /^\/access\/([A-Za-z0-9_.-]+)$/,
     )?.[1],
     [accessRoom, setAccessRoom] = useState(null);
   useEffect(() => {
@@ -453,249 +466,48 @@ function Login({ onLogin }) {
         .then(setAccessRoom)
         .catch(() => setAccessRoom({ name: "Access URL unavailable" }));
   }, [accessToken]);
-  const { act } = useApp(),
-    [busy, setBusy] = useState(false),
-    [tab, setTab] = useState("login"),
-    [email, setEmail] = useState(""),
-    [password, setPassword] = useState(""),
-    [name, setName] = useState(""),
-    [confirmPassword, setConfirmPassword] = useState(""),
-    [adminKey, setAdminKey] = useState(""),
-    [error, setError] = useState("");
-
-  const switchTab = (t) => {
-    setTab(t);
-    setError("");
-    setEmail("");
-    setPassword("");
-    setName("");
-    setConfirmPassword("");
-    setAdminKey("");
-  };
-
-  return (
-    <div className="login-page">
-      <section className="login-story">
-        <div className="brand">
-          <span className="brand-mark">
-            <Activity />
-          </span>
-          campusenergy
-        </div>
-        <div>
-          <div className="eyebrow">A MORE CONSIDERED CAMPUS</div>
-          <h1>
-            See the energy.
-            <br />
-            Make the difference.
-          </h1>
-          <p>
-            Turn building data into clear insights, responsible action and
-            measurable progress.
-          </p>
-          <div className="story-line" />
-          <div className="story-stats">
-            <span>
-              <strong>01</strong>building, connected
-            </span>
-            <span>
-              <strong>100%</strong>accountable actions
-            </span>
-          </div>
-        </div>
-        <small>LOCAL PROTOTYPE · SIMULATED HARDWARE</small>
-      </section>
-      <section className="login-form">
-        <div className="eyebrow">CAMPUS ENERGY / OPERATIONS</div>
-        <div className="login-tabs">
-          <button
-            className={tab === "login" ? "login-tab active" : "login-tab"}
-            onClick={() => switchTab("login")}
-            type="button"
-          >
-            Sign in
-          </button>
-          <button
-            className={tab === "signup" ? "login-tab active" : "login-tab"}
-            onClick={() => switchTab("signup")}
-            type="button"
-          >
-            Create account
-          </button>
-        </div>
-        {tab === "login" ? (
-          <>
-            <h2>Welcome back</h2>
-            <p>
-              {accessRoom
-                ? `Room access: ${accessRoom.code ?? ""} ${accessRoom.name}. Sign in for server authorisation.`
-                : "Sign in to your building workspace."}
-            </p>
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                setError("");
-                setBusy(true);
-                try {
-                  const result = await post("/auth/login", { email, password, ...(adminKey.trim() ? { adminKey: adminKey.trim() } : {}) });
-                  onLogin(result.user);
-                  if (result.user.role === "admin" && !window.location.pathname.startsWith("/access/")) window.location.assign("/admin");
-                } catch (err) {
-                  setError(err.message || "Sign-in failed. Check your credentials and the API connection.");
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            >
-              <Field label="Email address">
-                <input
-                  type="email"
-                  autoComplete="username"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </Field>
-              <Field label="Password">
-                <input
-                  type="password"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-              </Field>
-              <Field label="Admin invite key" hint="Required for administrator sign-in. Leave blank for a staff or viewer account.">
-                <input type="password" autoComplete="off" inputMode="numeric" pattern="[0-9]{8}" maxLength={8} value={adminKey} onChange={(e) => setAdminKey(e.target.value)} placeholder="8-digit administrator key" />
-              </Field>
-              <ErrorText>{error}</ErrorText>
-              <button className="button" disabled={busy}>
-                {busy ? "Signing in…" : "Sign in to workspace"}
-                <ArrowRight size={18} />
-              </button>
-            </form>
-            <div className="login-help">
-              <ShieldCheck size={20} />
-              <p>
-                Demo accounts use <strong>role@campus.test</strong>. Use the
-                generated local <code>DEMO_PASSWORD</code> from your ignored{" "}
-                <code>.env</code> file. Credentials are never embedded in the
-                website.
-              </p>
-            </div>
-          </>
-        ) : (
-          <>
-            <h2>Create account</h2>
-            <p>New accounts start as viewers. Leave the admin key blank unless you have one.</p>
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                setError("");
-                if (password !== confirmPassword) {
-                  setError("Passwords do not match.");
-                  return;
-                }
-                if (password.length < 8) {
-                  setError("Password must be at least 8 characters.");
-                  return;
-                }
-                setBusy(true);
-                try {
-                  const body = { name, email, password };
-                  if (adminKey.trim()) body.adminKey = adminKey.trim();
-                  const result = await post("/auth/register", body);
-                  onLogin(result.user);
-                  if (result.user.role === "admin") window.location.assign("/admin");
-                } catch (err) {
-                  setError(err.message || "Sign-up failed. Please try again.");
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            >
-              <Field label="Full name">
-                <input
-                  type="text"
-                  autoComplete="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                />
-              </Field>
-              <Field label="Email address">
-                <input
-                  type="email"
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </Field>
-              <Field label="Password" hint="Minimum 8 characters">
-                <input
-                  type="password"
-                  autoComplete="new-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={8}
-                />
-              </Field>
-              <Field label="Confirm password">
-                <input
-                  type="password"
-                  autoComplete="new-password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                />
-              </Field>
-              <Field label="Admin invite key" hint="Optional — leave blank for a viewer account">
-                <input
-                  type="password"
-                  autoComplete="off"
-                  inputMode="numeric"
-                  pattern="[0-9]{8}"
-                  maxLength={8}
-                  value={adminKey}
-                  onChange={(e) => setAdminKey(e.target.value)}
-                  placeholder="8-digit key to register as admin"
-                />
-              </Field>
-              <ErrorText>{error}</ErrorText>
-              <button className="button" disabled={busy}>
-                {busy ? "Creating account…" : "Create account"}
-                <ArrowRight size={18} />
-              </button>
-            </form>
-            <div className="login-help">
-              <ShieldCheck size={20} />
-              <p>
-                Already have an account?{" "}
-                <button
-                  type="button"
-                  className="text-link"
-                  style={{ display: "inline", padding: 0 }}
-                  onClick={() => switchTab("login")}
-                >
-                  Sign in
-                </button>
-              </p>
-            </div>
-          </>
-        )}
-      </section>
-    </div>
-  );
+  return <Authentication onLogin={onLogin} initialWorkspaces={pendingWorkspaces} accessRoom={accessRoom} Field={Field} ErrorText={ErrorText} />;
 }
 
-function ConsumptionChart({ intervals = [], range = 7 }) {
+function ConsumptionChart({ intervals = [], range = 7, expanded, setExpanded, focus }) {
+  const { syncState } = useApp();
+  const [settings] = useData("/settings");
+  const [localOpen, setLocalOpen] = useState(false), [meter, setMeter] = useState(""), [mode, setMode] = useState(""), [from, setFrom] = useState(""), [to, setTo] = useState("");
+  const [dayScope, setDayScope] = useState(false);
+  const timezone = settings?.timezone ?? "Asia/Kolkata";
+  useEffect(() => { setDayScope(false); setFrom(""); setTo(""); }, [range]);
+  useEffect(() => {
+    if (!focus) return;
+    if (focus.kind === "today") { setMeter("*"); setMode("*"); setFrom(""); setTo(""); setDayScope(true); }
+    else if (focus.interval) { const inputTime = value => { const d = new Date(value); return new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, -1); }; setMeter(focus.interval.meterId); setMode(focus.interval.dataMode); setFrom(inputTime(focus.interval.startAt)); setTo(inputTime(focus.interval.endAt)); setDayScope(false); }
+  }, [focus]);
+  const open = expanded ?? localOpen, setOpen = setExpanded ?? setLocalOpen;
+  const [incidents, incidentError] = useData(open ? "/incidents" : null), [recommendations, recommendationError] = useData(open ? "/recommendations" : null);
+  const meters = [...new Set(intervals.map(i => i.meterId))];
+  const selectedMeter = meter === "*" ? "*" : meters.includes(meter) ? meter : meters[0];
+  const modes = [...new Set(intervals.filter(i => selectedMeter === "*" || i.meterId === selectedMeter).map(i => i.dataMode))];
+  const selectedMode = mode === "*" ? "*" : modes.includes(mode) ? mode : modes[0];
+  const localDate = value => new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(value));
+  const selected = dayScope ? intervals.filter(i => localDate(i.startAt) === localDate(Date.now()) && localDate(Date.parse(i.endAt) - 1) === localDate(Date.now())) : selectIntervals(intervals, { range, meter: selectedMeter === "*" ? undefined : selectedMeter, mode: selectedMode === "*" ? undefined : selectedMode, from, to });
+  const latest = intervals.filter(i => (selectedMeter === "*" || i.meterId === selectedMeter) && (selectedMode === "*" || i.dataMode === selectedMode)).sort((a, b) => Date.parse(a.endAt) - Date.parse(b.endAt)).at(-1);
+  const filters = <div className="consumption-filters">
+    <label>Meter<select aria-label="Consumption meter" value={selectedMeter ?? ""} onChange={e => { setMeter(e.target.value); setDayScope(false); }}><option value="*">All authorised meters</option>{meters.map(m => <option key={m}>{m}</option>)}</select></label>
+    <label>Data source<select aria-label="Consumption data source" value={selectedMode ?? ""} onChange={e => { setMode(e.target.value); setDayScope(false); }}><option value="*">All data modes</option>{modes.map(m => <option key={m} value={m}>{m === "live" ? "Metered" : m}</option>)}</select></label>
+    <label>From (browser local time)<input type="datetime-local" step="any" value={from} onChange={e => { setFrom(e.target.value); setDayScope(false); }} /></label>
+    <label>To (browser local time)<input type="datetime-local" step="any" value={to} onChange={e => { setTo(e.target.value); setDayScope(false); }} /></label>
+    {(from || to || dayScope) && <button type="button" className="text-link" onClick={() => { setFrom(""); setTo(""); setDayScope(false); }}>Reset custom range</button>}
+  </div>;
   return (
     <React.Suspense
       fallback={<div className="empty">Loading the consumption profile…</div>}
     >
-      <LazyConsumptionChart intervals={intervals} range={range} />
+      {filters}
+      <p className="caption consumption-source" role="status">{latest ? sourceLabel(latest) : "Source unavailable"} · Last accepted: {date(latest?.endAt)} · Sampling interval: {latest ? `${number(latest.durationHours * 60)} min recorded` : "unknown"} · {freshness(latest)} <Help topic="stale" /> · {syncState === "current" ? "Workspace connected" : "Offline / synchronising: data may be stale"}.</p>
+      <p className="caption">Freshness uses twice the last recorded interval; configured source cadence and physical connection health are not supplied by this energy feed.</p>
+      <p className="caption">{dayScope ? `Today (${timezone}); same complete-interval rule as the Energy today card.` : `Latest accepted data anchors the ${range}-day range. Custom dates take precedence; whole intervals only.`} Up to 1,500 recent intervals available; older records are outside this view.</p>
+      {from && to && Date.parse(from) >= Date.parse(to) && <p role="alert">Choose an end time after the start time.</p>}
+      <LazyConsumptionChart intervals={selected} timezone={settings?.timezone ?? "Asia/Kolkata"} onOpen={() => setOpen(true)} />
+      {open && <LazyConsumptionDetails intervals={selected} timezone={settings?.timezone ?? "Asia/Kolkata"} onClose={() => setOpen(false)} incidents={incidents ?? []} recommendations={recommendations ?? []} relatedError={incidentError || recommendationError} loadingRelated={!incidents || !recommendations} syncState={syncState} filters={filters} />}
     </React.Suspense>
   );
 }
@@ -711,9 +523,9 @@ function Overview() {
     [integrations] = useData("/integrations"),
     [recommendations] = useData("/recommendations"),
     [rooms] = useData("/rooms");
-  const [range, setRange] = useState(7);
+  const [range, setRange] = useState(7), [consumptionOpen, setConsumptionOpen] = useState(false), [consumptionFocus, setConsumptionFocus] = useState(null);
   const open = (incidents ?? []).filter((i) => i.active),
-    latest = intervals?.at(-1);
+    latest = intervals ? [...intervals].sort((a, b) => Date.parse(a.endAt) - Date.parse(b.endAt)).at(-1) : null;
   if (!summary || !intervals || !incidents)
     return (
       <>
@@ -748,19 +560,19 @@ function Overview() {
         </span>
       </PageHead>
       <ErrorText>{error}</ErrorText>
-      <PhoneDemoSummary user={user} />
+      {user.role === "admin" && <PhoneDemoSummary user={user} useData={useData} />}
       <div className="metric-grid">
         {[
           [
             PlugZap,
             "Energy today",
-            `${number(summary?.todayKwh)} kWh`,
+            summary.coverageHours ? `${number(summary.todayKwh)} kWh` : "Unavailable",
             `${number(summary?.coverageHours)} hours covered · ${summary?.partialDay ? "partial day" : "full day"}`,
           ],
           [
             ChartNoAxesCombined,
             "Average interval power",
-            `${number(latest?.averagePowerKw)} kW`,
+            latest ? `${number(latest.averagePowerKw)} kW` : "Unavailable",
             "Latest accepted interval · not instantaneous",
           ],
           [
@@ -779,10 +591,13 @@ function Overview() {
           <section className="metric-card" key={label}>
             <div className="metric-top">
               <span>{label}</span>
+              {i === 1 && <Help topic="power" />}
+              {i === 2 && <Help topic="anomaly" />}
               <Icon size={19} />
             </div>
             <strong>{value}</strong>
             <small>{note}</small>
+            {i < 2 && <button type="button" className="text-link" onClick={() => { setConsumptionFocus({ kind: i === 0 ? "today" : "latest", interval: latest }); setConsumptionOpen(true); }}>View consumption details</button>}
             <div className={`metric-line line-${i}`} />
           </section>
         ))}
@@ -808,12 +623,7 @@ function Overview() {
           </div>
           <div className="chart-summary">
             <strong>
-              {number(
-                (intervals ?? [])
-                  .slice(-24)
-                  .reduce((s, i) => s + i.energyKwh, 0),
-              )}
-              <span>kWh · latest 24 intervals</span>
+              <span>Recorded energy · select source and range below</span>
             </strong>
             <Badge
               tone={summary?.sourceLabel === "Simulated" ? "amber" : "sage"}
@@ -821,7 +631,7 @@ function Overview() {
               {summary?.sourceLabel ?? "Unknown"}
             </Badge>
           </div>
-          <ConsumptionChart intervals={intervals ?? []} range={range} />
+          <ConsumptionChart intervals={intervals ?? []} range={range} expanded={consumptionOpen} setExpanded={setConsumptionOpen} focus={consumptionFocus} />
           <p className="caption">
             Latest accepted meter time: {date(summary.latestMeterAt)} · Today's
             energy-only cost: {money(summary.energyCost)} estimated at{" "}
@@ -916,7 +726,7 @@ function Overview() {
           <Link className="button" to="/recommendations">
             Explore opportunities <ArrowUpRight size={16} />
           </Link>
-          <small>Estimates are not verified savings.</small>
+          <small>Estimates are not verified savings. <Help topic="savings" /></small>
         </section>
       </div>
       <section className="panel section-gap overview-ledger">
@@ -1104,7 +914,7 @@ function RoomDetail({ roomId }) {
       <p>{status.observed.reason}</p>
       <div className="detail-metrics">
         <div><span>OBSERVED OCCUPANCY</span><strong>{status.observed.state}</strong><small>Latest available evidence</small></div>
-        <div><span>AUTHORISED USE</span><strong>{status.protectedBy?.replaceAll("_", " ") ?? "None active"}</strong><small>Booking, access or override</small></div>
+        <div><span>AUTHORISED USE <Help topic="override" /></span><strong>{status.protectedBy?.replaceAll("_", " ") ?? "None active"}</strong><small>Booking, access or override</small></div>
         <div><span>MASTER SUPPLY / SIMULATED</span><strong>{status.breaker.reportedSupply.toUpperCase()}</strong><small>{status.room.roomBreakerId}</small></div>
       </div>
       <p className="caption">
@@ -1495,7 +1305,7 @@ function Energy() {
             <div className="callout">
               <TriangleAlert size={19} />
               <p>
-                OCR is currently unavailable. Enter the meter value manually
+                Use Meter cameras for reviewed image OCR, or enter the value manually
                 after checking the register. Hourly readings show average power,
                 not instantaneous demand.
               </p>
@@ -1833,7 +1643,7 @@ function IncidentDetail({ incidentId }) {
           <p>
             <strong>
               Supply {c.action.toUpperCase()} ·{" "}
-              {c.result?.verification ?? "unverified"}
+              {c.result?.verification ?? "unverified"} <Help topic="verification" />
             </strong>
             {c.result?.dataMode ?? "Unknown"} · transport{" "}
             {c.result?.transportStatus ?? "unknown"}. No independent physical
@@ -1999,7 +1809,7 @@ function RecommendationCard({ record: r }) {
         </span>
         <strong>
           {number(r.estimate?.lowKwh)}–{number(r.estimate?.highKwh)}
-          <small> kWh estimated</small>
+          <small> kWh estimated <Help topic="savings" /></small>
         </strong>
         <span>
           {money((r.estimate?.lowKwh ?? 0) * (r.estimate?.tariff ?? 0))}–
@@ -3114,7 +2924,7 @@ function AdministrationExtras({ settings, rooms }) {
               name="password"
               type="password"
               autoComplete="new-password"
-              minLength={12}
+              minLength={6}
               required
             />
           </Field>

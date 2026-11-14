@@ -9,6 +9,7 @@ import {
 } from "../domain/energy.js";
 import { getSettings, audit, cancelRoomWork } from "./context.js";
 import { fail, withRoomLock } from "../security/access.js";
+import { publishChange } from "../realtime/journal.js";
 
 const hash = (value) =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -29,7 +30,7 @@ export async function addReading(
   input,
   actorId,
   config,
-  { now = new Date(), refresh = true } = {},
+  { now = new Date(), refresh = true, initialReviewReason } = {},
 ) {
   const row = readingInput.parse(input);
   if (config.demoMode) row.dataMode = "simulated";
@@ -58,6 +59,10 @@ export async function addReading(
   }
   let validationState = "accepted",
     validationReason = "Validated input";
+  if (meter.closedAt && Date.parse(row.capturedAt) >= Date.parse(meter.closedAt) || meter.startedAt && Date.parse(row.capturedAt) < Date.parse(meter.startedAt)) {
+    validationState = "needs_review";
+    validationReason = "Reading lies outside this recorded meter epoch";
+  }
   if (
     row.sourceType === "camera_ocr" &&
     (!row.quality.registerMatched ||
@@ -92,8 +97,7 @@ export async function addReading(
       validationReason =
         "Counter discontinuity; check digit, reset or replacement epoch";
     }
-    const reference = before ?? after;
-    if (reference) {
+    for (const reference of [before, after].filter(Boolean)) {
       const hours =
         Math.abs(
           Date.parse(row.capturedAt) - new Date(reference.capturedAt).getTime(),
@@ -114,6 +118,7 @@ export async function addReading(
     validationReason = "Interval exceeds configured supply bound";
   }
   let saved;
+  if (initialReviewReason) { validationState = "needs_review"; validationReason = initialReviewReason; }
   try {
     saved = await models.MeterReading.create({
       ...row,
@@ -276,6 +281,9 @@ export async function refreshAnalytics(models, config) {
       },
     },
   );
+  // Reading writes can invalidate before recalculation finishes. Publish the
+  // completed snapshot through the same scoped journal, including non-anomalies.
+  await publishChange(models.EnergyInterval.db, { resource: "energy", operation: "recalculated" });
   return intervals;
 }
 
@@ -511,6 +519,7 @@ export async function reviewReading(
       "UNKNOWN_METER_EPOCH",
       "Configure the original meter epoch before review",
     );
+  if (meter.closedAt && +row.capturedAt >= Date.parse(meter.closedAt) || meter.startedAt && +row.capturedAt < Date.parse(meter.startedAt)) fail(409, "EPOCH_TIME_CONFLICT", "Review cannot move a reading across a recorded reset/replacement boundary; use the correct epoch");
   if (row.kind === "cumulative") {
     const neighbors = await models.MeterReading.find({
       _id: { $ne: row._id },
@@ -584,6 +593,7 @@ export async function reviewReading(
     row._id,
     `Value ${row.value} to ${value}; manual evidence recorded`,
   );
+  await models.MeterCapture.updateMany({ readingId }, { $set: { reviewedValue: value }, $push: { reviews: { at: new Date(), actorId, action: "reading_corrected", value, reason } } });
   await refreshAnalytics(models, config);
   return updated;
 }

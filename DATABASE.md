@@ -1,5 +1,21 @@
 # Database design and consistency
 
+## Meter-camera persistence (CE-016)
+
+Institution-bound meterCameras stores meter/epoch,purpose=meter,display configuration,60min default schedule,revision,review-first permission,source health and write-only hashed codes/tokens. meterCaptureJobs persists due slot/expiry/revision and pending/processing/completed/missed/cancelled state separately from room-control jobs. meterCaptures retains immutable source/time/configuration/image hashes/original OCR text/candidate/validation plus mutable review history/reading link. One guarded internal initial raw update fills original OCR fields exactly once after recognition, with an explicit scoped invalidation; later corrections do not change them. meterImages holds query-excluded bounded image pairs with TTL24h and latest12/camera retention; metadata persists. meterEpochTransitions records pending/completed procedure evidence; no reading crosses epochs.
+
+Accepted values reuse meterReadings/import keys/audited corrections/energyIntervals; CSV/OCR alternatives do not double count. Closed/started meter epochs are recorded in existing Settings.meters and checked on ingestion/review. Additive collections/indexes only: no destructive migration or data reseed required. Multi-document review/epoch operations are guarded/resumable or operator-reconciled, not cross-collection transactions. See [METER_CAMERA.md](METER_CAMERA.md).
+
+
+## Institution persistence (CE-013)
+
+The configured MongoDB database holds the shared directory: institutions (immutable UUID, editable display/search name, backend-only dbName, kind/active/migration flags, secure join-code verifier/lookup and admission lock), workspaceAccounts (global unique email, name, query-excluded passwordHash/active), workspaceMemberships (unique userId/institutionId pair, active) and workspaceInvitations (historical retained admission records; retired endpoints cannot use them). Local User records retain membership role/permissions; authentication uses the global account hash.
+
+Each institution's operational models use its own database and immutable institutionId, including Settings, User role profiles, rooms/floors/readings/schedules/cameras/devices/integration credentials/incidents/jobs/notifications/reports/audit/imports. Existing deterministic IDs/indexes remain local to each database. Database names come exclusively from the trusted directory. Cached Mongoose useDb connections/models, service state and provider clients are bound per institution. Source DB remains the legacy institution on migration; records are annotated in place, not moved to a random administrator.
+
+Migration is explicit, dry-run first, blocks ambiguous ownership and retains original IDs, hashes, roles and records. Directory and operational writes are resumable, not cross-database transactions. Caught provisioning failures remove only new records; crash-interrupted inactive provisioning needs operator reconciliation; preserve evidence and backups. Startup refuses unmigrated original installations. See [INSTITUTIONS.md](INSTITUTIONS.md) for exact commands, backup and token reissue. Normal startup never seeds fixtures. Dedicated demo seeding is explicitly enabled, isolated and repeat-safe without role/password reset.
+
+
 ## Two-phone demo extension (CE-011)
 
 `demoSessions` binds an existing room, author, source/mode/coverage convention, expiry, previous owned room configuration, marker epoch/scene, timing, latest observation and processing lease. A unique partial active-room index prevents concurrent sessions. The latest thumbnail alone is retained (query-excluded), with two-minute expiry/worker cleanup and explicit erasure on end. Observation/command metadata remains for audit, never measured energy.
@@ -139,3 +155,9 @@ TTL cleanup may remove expired sessions/observations according to retention poli
 Store password hashes and protected/referenced integration secrets, redact credentials from audits, and restrict evidence-image access. Retain minimal occupancy metadata by default and define a short configurable image retention period; no fixed retention duration has been selected. See [SECURITY.md](SECURITY.md).
 
 Meter/epoch configuration and holidays live in settings; public tokens in rooms; inbox state in notificationOutbox; previews in importBatches. Manual reading review is implemented; raw image/OCR review and production retention/migrations remain pending. Jobs reconcile partial writes; row/document idempotency and room leases are not transactions or exactly-once guarantees. Track work in [TASKS.md](TASKS.md) and verify through [TESTING.md](TESTING.md).
+
+CE-014 adds per-operational-database syncEvents (unique revision, UUID event ID, resource/target scope, lifecycle/evidence labels, at/expiresAt; TTL 24h) and syncCounters (workspace revision). These are invalidation metadata, never document/credential copies. The legacy ownership migration recognises these infrastructure collections. Existing records require no new data migration. Append is post-write, not an atomic transaction; authorised repair snapshots cover gaps.
+
+## Building Join Code storage (CE-018)
+
+Institutions add query-excluded joinCodeLookup, joinCodeVerifier, joinLockOwner/joinLockAt and joinCodeEnabled (default false). A partial unique string index reserves each lookup. Existing records without fields require no destructive migration. Rotation swaps verifier/lookup under the admission mutex; disabling removes them. No plaintext/default code or retrieval endpoint exists. Immutable building/member IDs, roles, hashes and operational records remain. INSTITUTIONS.md describes stable-secret and fail-closed recovery requirements.

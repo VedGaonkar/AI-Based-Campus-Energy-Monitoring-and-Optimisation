@@ -1,5 +1,37 @@
 # API and integration contracts
 
+## Meter cameras (CE-016)
+
+Admin GET/POST /meters selects/adds a configured cumulative meter. Admin GET/POST /meter-cameras and PATCH /meter-cameras/:id manage exact meter/epoch binding and validated interval/register/unit/ROI/orientation/decimal configuration. No URL feed input exists. POST /meter-cameras/:id/pairing returns one-time camera-only credentials. GET /meter-ocr/health runs the actual optional engine check. POST /meter-cameras/:id/test or POST /meter-images (cameraId required) accepts captureId,capturedAt,images (one/two bounded JPEG/PNG objects) and stores reviewable real OCR evidence; a test does not imply accepted energy.
+
+Admin GET /meter-captures?cameraId=, GET /meter-captures/:id/images/:index and POST /meter-captures/:id/review (action accept|correct|reject,value?,reason) expose retained evidence and audited review. Original candidate/text/configuration are immutable; preview checks24h/latest12 retention. Auto acceptance is disabled by default and requires a clear matching reviewed two-frame test at the same revision. Failed/ambiguous candidates never reach accepted analytics. Existing /meter-readings/:id/review updates linked capture review values without replacing OCR evidence.
+
+Separate /meter-phone/pair accepts the institution-qualified code; bearer /state?active=1 returns only its camera/current persisted capture request, POST /frames requires that jobId,captureId,capturedAt,images, and POST /offline reports camera stop. Exact allowed origins, token expiry/generation, input/rate limits and institution-bound models apply. It cannot authenticate occupancy or command routes. Capture intervals use wall time and expire; outage backlogs are not replayed. Admin GET/POST /meter-epoch-transitions records reset/replacement/rollover and revokes old source access. See [METER_CAMERA.md](METER_CAMERA.md) for contracts, dependency/setup and limitations.
+
+
+## Scoped live updates (CE-014)
+
+Authenticated GET /sync/snapshot returns { institutionId, revision, serverTime, degraded, user, reconcile }. This is a membership-checked reconciliation checkpoint: the frontend refetches every mounted page's existing authorised GET resources, not an unrestricted database dump. Cache-Control: no-store. Permission/session checks and room-scoped mutation rules remain unchanged. Clients never submit an institution ID to authorize this endpoint.
+
+Root Socket.IO emits sync:change { eventId, institutionId, revision, resource, entityId?, roomId?, operation, phase?, verification?, at }. Payloads invalidate reads; they are not state replacements, notifications or permission grants. No documents, secret values, names, recipient IDs, thumbnails or command request bodies are broadcast. Resources cover rooms/floors/institution, inventory/master/native devices and commands, schedules, QR leases, overrides, incidents/acknowledgements, notifications, jobs, sources, energy and recommendations. Command phase and verification are separate: requested/pending/sent/accepted do not imply confirmed OFF; simulated/provider_reported_off/simulator_acknowledged retain their existing evidence meanings.
+
+Socket handshake authenticates the session/current institution. Every feed batch reloads the session and verifies active account/membership/role/room scope. Room subscriptions additionally validate the room in that institution. Updates target the authorised institution and room; notifications target their recipient (admins retain existing inbox access). Admin-only configuration resources remain admin-only. Permission changes remove room subscriptions and emit sync:reset; revoked/expired sessions receive sync:revoked and disconnect. sync:heartbeat reports health/time without private change counts. sync:degraded marks delivery uncertain. sync:reset means refetch (initial connect/permission change), not replay successful commands.
+
+Revisions are monotonic per operational database and event IDs are unique; duplicates/older/wrong-institution events are ignored. Reconnect/foreground refetch authorised snapshots and page resources. A 15s repair snapshot covers missed delivery, TTL expiry, time-derived protections and a process failure between operational write and journal append. No exactly-once or atomic cross-collection outbox claim is made. Persisted journal entries expire after 24h; there is no public event-history API or client-driven service execution. The legacy unconditional 3s refresh event is replaced.
+
+
+## Building authentication contracts (CE-018)
+
+All paths are relative to /api/v1. POST /auth/login accepts only {email,password}. One valid membership returns {user,institution,csrfToken}. Multiple memberships return {selectionRequired:true,workspaces:[{_id,displayName}],csrfToken} and a five-minute pending session without operational access. GET /auth/workspaces accepts only authenticated/pending identities. POST /auth/select-workspace {institutionId} rechecks the requested active membership, role and account; the ID is a selection hint, never authorization. The final session/CSRF token rotates.
+
+POST /auth/register accepts {name,email,password,confirmPassword,accountType,joinCode}; institutionName and adminKey are used only for accountType=administrator and forbidden for viewer. The adminKey must match server ADMIN_INVITE_KEY; missing/incorrect keys return 403 INVALID_ADMIN_KEY before any account/building write. Missing server configuration returns 503 ADMIN_REGISTRATION_DISABLED. Password-only login rejects adminKey. Passwords require 6+ characters and matching confirmation. Codes require 8-64 ASCII letters/numbers/optional hyphen/underscore, letters and digits and six distinct characters. Administrator registration always creates a separate empty building; a code grants only Viewer. Strict schemas reject role/building IDs and obsolete fields; adminKey is accepted only for new Administrator registration. Invalid/disabled code returns 403 JOIN_CODE_INVALID, unavailable code 409 JOIN_CODE_UNAVAILABLE, duplicate email 409, invalid shape 400. Registration is limited to 20 attempts/IP/15 minutes, login/selection to 30, including localhost/demo.
+
+GET /institutions/current returns {_id,displayName,demo,joinCodeEnabled}. Admin PATCH /institutions/current {displayName} preserves IDs. Admin PUT /institutions/current/join-code accepts {joinCode} to replace/enable or {enabled:false} to disable, and returns only {joinCodeEnabled}. No plaintext code/verifier/lookup is returned. Rotation/disabling/rename retain existing members. Persisted registration/rotation mutual exclusion can return 503 JOIN_CODE_BUSY; crash recovery is in INSTITUTIONS.md.
+
+GET /institutions/suggestions, POST /institutions/resolve, POST /auth/accept-invitation, POST /institutions/current/access-code and POST /institutions/current/invitations are retired (410). Historical records are retained. The production server uses the workspace directory. Legacy single-database test harnesses support existing-user login but reject registration with 410 WORKSPACE_REGISTRATION_REQUIRED.
+
+Operational databases, roles, room scopes, socket subscriptions, source ingestion and public capabilities retain their existing membership isolation. A query/body building ID cannot override trusted request context.
+
 ## Two-phone demonstration (CE-011)
 
 `GET /demo/available-rooms` is admin-only and returns room `_id`, code, name and unavailableReason (null when available). Shared checks cover existing session/native policy, mapped simulator, health/interlocks, independent infrastructure and reviewed load inventory; missing legacy nativeOffMode defaults to alert_only. Session creation rechecks the same rules under its room lock. Availability is setup eligibility, not permission to bypass current occupancy/booking/QR/override or command-time checks.
@@ -51,7 +83,7 @@ Provider errors are normalised AUTHENTICATION, AUTHORIZATION, UNSUPPORTED, UNAVA
 
 ## Administrator authentication and management (CE-009)
 
-`POST /auth/register` accepts `{name,email,password,adminKey?}`. No key creates a viewer; a valid key creates an admin. An incorrect key returns `403 INVALID_ADMIN_KEY` without creating an account; a supplied key with disabled server configuration returns `503 ADMIN_ACCESS_DISABLED`. `POST /auth/login` requires the password plus configured key for admin accounts. An existing non-admin supplying a correct password and key is explicitly promoted and audited. Sessions regenerate and record server-side `adminVerified`; old/unverified sessions cannot acquire admin API/socket access from a database role change alone.
+Authentication follows CE-018 above. Admin proof records successful password authentication and the selected current role. A database role change alone cannot upgrade an existing session; profile/login cannot self-promote. Existing management permissions remain.
 
 | Method/path (relative to `/api/v1`) | Implemented behavior |
 | --- | --- |
@@ -70,12 +102,12 @@ Provider errors are normalised AUTHENTICATION, AUTHORIZATION, UNSUPPORTED, UNAVA
 
 Room create/PATCH additionally validates floorId, spaceType and cameraConfiguration (`installed`, `planned`, `none`, `offline`). Unavailable/no-camera choices invalidate camera coverage and obsolete vacancy work; camera evidence does not establish occupancy for a room explicitly configured without an available camera. Presence evidence and timetable/QR protection remain separate. `/management` routes require a verified admin session and origin/CSRF checks for writes. Existing timetable, QR, command, audit, inventory and user APIs remain authoritative.
 
-**Status:** The local Express application implements the core routes below in `backend/src/app.js`, with inputs in `shared/contracts.js`. Physical device ingestion and meter-image OCR return explicit `503` unavailable errors. Python internal endpoints and native MQTT/vendor protocols remain planned. [PLAN.md](PLAN.md) is authoritative; no OpenAPI artifact or physical integration is claimed.
+**Status:** The local Express application implements the core routes below in `backend/src/app.js`, with inputs in `shared/contracts.js`. Physical device ingestion remains unavailable. Registered meter-image OCR uses the optional local engine; missing dependencies return an actionable error without invented readings. Python internal endpoints and native MQTT/vendor protocols remain planned. [PLAN.md](PLAN.md) is authoritative; no OpenAPI artifact or physical integration is claimed.
 
 ## Implemented HTTP conventions
 
 - Successful responses use `{ "data": ... }`; string MongoDB identifiers are exposed as `_id`. Errors use `{ "error": { "code", "message", "requestId", "details"? } }`. `X-Request-Id` is returned on every response. Validation is `400`, authentication `401`, permission/origin/CSRF `403`, missing resources `404`, conflicts/interlocks `409`, oversized JSON `413`, unavailable integration `503`. Unhandled failures return redacted `500` errors.
-- `GET /api/v1/auth/csrf` establishes a session and returns `data.csrfToken`. Mutations require an exact configured `Origin`, session cookie and `X-CSRF-Token`, including login/logout. Login accepts `{email,password,adminKey?}` (the key is required for every administrator login), regenerates the session and returns `{user,csrfToken}`; `GET /auth/me` returns the same shape. Service ingestion uses its separate boundary below.
+- `GET /api/v1/auth/csrf` establishes a session and returns data.csrfToken. Mutations require configured Origin, cookie and X-CSRF-Token, including login/logout. Password authentication/authorised selection rotate the session. GET /auth/me returns server-verified user and CSRF token. Login/registration remain throttled; ingestion uses its separate boundary below.
 - List responses are arrays in `data`; supported lists accept a bounded `limit` (default 100, maximum 200). Charts return up to 1,500 original intervals. Cursor pagination is not implemented.
 - Room create accepts code, name, roomBreakerId and optional fields from the strict room contract. Defaults are alert-only/unvalidated. Inventory writes never operate an individual appliance. A room/master remap cannot silently replace a current mapping.
 - Meter POST accepts the PLAN event contract plus optional `epoch` (default `initial`) and `intervalStart` for interval input. Returns `{reading,duplicate}`. Configured meter/epoch, original time, supply growth and quality determine acceptance/review. Demo mode forces supplied readings to `simulated`.
@@ -93,7 +125,7 @@ All paths below are relative to `/api/v1` and remain subject to role and room sc
 | --- | --- |
 | `GET /auth/csrf` | Obtain session CSRF token; does not switch supply |
 | `POST /imports/:id/commit` | Commit a valid persistent preview created by the authenticated admin |
-| `GET/POST /users` | Admin account creation: name, email, password (minimum 12), role and permittedRoomIds; password never returned |
+| `GET/POST /users` | Admin account creation: name, email, password (minimum 6), role and permittedRoomIds; password never returned |
 | `POST /incidents/:id/inspect` | Record inspection without resolving |
 | `POST /incidents/:id/reassign` | Admin assigns validated first/second responder IDs |
 | `POST /recommendations/:id/schedule` | Accepted recommendation plus ISO `dueAt` |
@@ -202,4 +234,24 @@ Optional private MQTT topics follow [PLAN.md §13.5](PLAN.md#135-application-mqt
 
 Schemas and HTTP envelopes for implemented inputs now exist. Socket.IO uses the session cookie, validates source origin and active accounts, accepts a checked `subscribe-room` request, and emits a payload-free `refresh` signal with server time every three seconds. Room state is retrieved through scoped HTTP routes; it is not broadcast globally. Account/session state is rechecked before refresh. Native MQTT events, cursor pagination and a generated OpenAPI contract remain pending.
 
-Service observation ingestion requires `X-Source-Id` and `Authorization: Bearer <source-specific token>`. Tokens are derived server-side with HMAC from the protected root secret and source ID. Source/type/room, five-minute timestamp bounds and uniqueness are checked. Repeated identical evidence returns the stored event; conflicting occupancy/mode/time for the same event ID is rejected. Replay remains isolated to demo mode. Native device events are unavailable; meter telemetry requires a registered meter scope. Manual meter correction is implemented; raw OCR/image processing, full account lifecycle and external transports remain pending. Track work in [TASKS.md](TASKS.md), with evidence in [TESTING.md](TESTING.md).
+Service observation ingestion requires `X-Source-Id` and `Authorization: Bearer <source-specific token>`. Tokens are derived server-side with HMAC from the protected root secret and source ID. Source/type/room, five-minute timestamp bounds and uniqueness are checked. Repeated identical evidence returns the stored event; conflicting occupancy/mode/time for the same event ID is rejected. Replay remains isolated to demo mode. Native device events are unavailable; meter telemetry requires a registered meter scope. Manual meter correction is implemented; dedicated bounded meter OCR is implemented, while physical-camera commissioning, full account lifecycle and other external transports remain pending. Track work in [TASKS.md](TASKS.md), with evidence in [TESTING.md](TESTING.md).
+
+CE-014 checked current official documentation through Context7 on14 November2026: Mongoose9.12.1 post document/query/model middleware (https://mongoosejs.com/docs/middleware.html); Socket.IO4.8.4 ordering/at-most-once delivery and unload lifecycle (https://socket.io/docs/v4/delivery-guarantees/ and https://socket.io/docs/v4/client-options/). Existing pinned dependencies retained; no added package. The browser harness uses documented Chrome DevTools Protocol page targets/offline/foreground commands; its legacy network-emulation command is still supported by installed Chrome but deprecated upstream.
+
+
+
+## CE-017 analytics presentation and refresh
+
+`GET /analytics/intervals` retains the existing workspace-authorised newest-1,500 interval contract (returned ascending by start time), enriched with `sourceTypes`, resolved from linked meter-reading IDs. Missing provenance returns an empty list; no camera configuration, OCR image or credentials are exposed. This is response enrichment, not a schema migration. Baseline `expectedKwh` drives chart comparison; `thresholdKwh` and `anomalous` continue to drive the existing anomaly policy. No threshold changes were made.
+
+After `refreshAnalytics` completes all interval/anomaly/recommendation reconciliation, it publishes an `energy/recalculated` invalidation through the existing institution journal. This repairs the race where the reading-write invalidation could precede computed intervals. The same HTTP snapshot cache, reconnect repair and ordering/abort guards refresh cards, charts and open details. Non-atomic journal/recalculation and periodic repair limitations still apply.
+
+Detailed consumption is a client view of these authorised records. Range/source filters, original resolution, totals and local CSV export use the same pure calculation helper; no new export endpoint/role bypass was introduced. Custom date/time bounds include whole intervals only, without prorating energy. Related incidents/recommendations retain their existing endpoint permissions and result bounds. Default source selection separates meter/data mode; explicit combined views retain provenance and must not be interpreted as an independently metered live total.
+
+The Administrator form labels its chosen code **Set Building Join Code** and includes **Administrator registration key**. Viewer registration keeps **Building Join Code** and never submits adminKey. Sign-in remains email/password only.
+
+### Session bootstrap and revised minimums
+
+GET /auth/session returns {user:null,workspaces:[],csrfToken} for an anonymous caller with Cache-Control:no-store. It returns only the current verified user or a pending password-authenticated account's authorised workspace choices; it never publicly enumerates buildings. The frontend uses this cancellable bootstrap instead of calling authenticated endpoints while signed out. GET /auth/me, GET /auth/workspaces and operational routes remain protected. Logout destroys the stored session and clears its cookie; the API wrapper discards its CSRF token. The next bootstrap/login establishes a fresh session. Pending workspace selection survives page reload within its five-minute limit.
+
+New-account and administrator-created staff passwords require at least 6 characters. Building Join Codes require at least 8 characters with existing allowed characters and composition checks; the same rules apply in forms and backend schemas. Existing password hashes are not rewritten. Validation errors are displayed with field labels rather than a generic 400 message.

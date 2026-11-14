@@ -1,4 +1,6 @@
 import express from "express";
+import { registerMeterPhoneRoutes, registerMeterCameraRoutes } from "./meter-camera-routes.js";
+import { startRealtime, syncSnapshot } from "./realtime/transport.js";
 import session from "express-session";
 import MongoStore from "connect-mongo";
 import helmet from "helmet";
@@ -53,6 +55,7 @@ import { registerManagement } from "./management.js";
 import { registerConnectedDevices } from "./connected-device-routes.js";
 import { createPhoneDemoService } from "./services/phone-demo.js";
 import { registerDemoPhoneRoutes, registerDemoAdminRoutes, registerDemoSockets } from "./phone-demo-routes.js";
+import { workspaceMiddleware, registerWorkspaceAuth, registerWorkspaceAdministration } from "./workspaces/auth.js";
 
 const admin = (user) => requireRole(user, ["admin"]);
 const staff = (user) =>
@@ -66,7 +69,7 @@ const limit = (req) =>
   Math.min(200, Math.max(1, Number(req.query.limit) || 100));
 const cleanRoom = ({ commandLockOwner, commandLockUntil, ...room }) => room;
 
-export function createApplication({ config, connection, models }) {
+export function createApplication({ config, connection, models, workspaceDirectory }) {
   const app = express(),
     server = createServer(app),
     adapter = createRoomMaster(models, config);
@@ -103,6 +106,7 @@ export function createApplication({ config, connection, models }) {
     },
   });
   app.use(sessions);
+  if (workspaceDirectory) app.use(workspaceMiddleware(workspaceDirectory));
   const origins = new Set([
     config.frontendOrigin,
     new URL(config.publicAppUrl).origin,
@@ -110,10 +114,12 @@ export function createApplication({ config, connection, models }) {
   const api = express.Router();
   const phoneDemo = createPhoneDemoService(models, config);
   registerDemoPhoneRoutes(api, { models, config, service: phoneDemo, origins });
+  registerMeterPhoneRoutes(api, { models, config, origins });
   api.get("/health", (req, res) =>
     res.json({
       data: {
         status: "ok",
+        institutionWorkspaces: !!workspaceDirectory,
         demoMode: config.demoMode,
         physicalControl: false,
         nativeControl: config.allowNativeControl && !config.demoMode,
@@ -146,7 +152,9 @@ export function createApplication({ config, connection, models }) {
       )
         fail(403, "CSRF_REJECTED", "Refresh the session and retry");
     }
-    if (req.session.userId)
+    if (workspaceDirectory) {
+      if (req.session.userId && req.workspaceRealm) req.user = await workspaceDirectory.user(req.workspaceRealm, req.session.userId);
+    } else if (req.session.userId)
       req.user = await models.User.findOne({
         _id: req.session.userId,
         active: true,
@@ -161,6 +169,11 @@ export function createApplication({ config, connection, models }) {
         requestId: req.requestId,
       },
     });
+  if (workspaceDirectory) registerWorkspaceAuth(api, { directory: workspaceDirectory, config });
+  api.get("/auth/session", (req, res) => {
+    res.setHeader("Cache-Control", "no-store"); req.session.csrf ??= randomBytes(32).toString("hex");
+    res.json({ data: { user: req.user && (req.user.role !== "admin" || req.session.adminVerified) ? req.user : null, workspaces: [], csrfToken: req.session.csrf } });
+  });
   api.post(
     "/auth/login",
     rateLimit({
@@ -180,17 +193,6 @@ export function createApplication({ config, connection, models }) {
           .lean();
       if (!user || !(await bcrypt.compare(input.password, user.passwordHash)))
         fail(401, "INVALID_LOGIN", "Email or password is incorrect");
-      if (input.adminKey || user.role === "admin") {
-        if (!config.adminInviteKey)
-          fail(503, "ADMIN_ACCESS_DISABLED", "Admin key access is not configured. Set ADMIN_INVITE_KEY on the server and restart it.");
-        if (!input.adminKey || !equalSecret(input.adminKey, config.adminInviteKey))
-          fail(403, "INVALID_ADMIN_KEY", "A valid admin invite key is required for administrator sign-in.");
-        if (user.role !== "admin") {
-          await models.User.updateOne({ _id: user._id }, { $set: { role: "admin" } });
-          await audit(models, user._id, "auth.admin_access_granted", user._id, "Password and admin invite key verified");
-          user.role = "admin";
-        }
-      }
       await new Promise((resolve, reject) =>
         req.session.regenerate((err) => (err ? reject(err) : resolve())),
       );
@@ -205,59 +207,7 @@ export function createApplication({ config, connection, models }) {
       res.json({ data: { user: publicUser, csrfToken: req.session.csrf } });
     },
   );
-  api.post(
-    "/auth/register",
-    rateLimit({
-      windowMs: 900000,
-      limit: config.demoMode ? 50 : 10,
-      standardHeaders: "draft-8",
-      legacyHeaders: false,
-      handler: authRateLimitHandler,
-      skip: (req) => config.demoMode && req.ip === "127.0.0.1",
-    }),
-    async (req, res) => {
-      const input = z
-        .object({
-          name: z.string().min(1).max(200),
-          email: z.email().max(200),
-          password: z.string().min(8).max(200),
-          adminKey: z.string().trim().min(1).max(500).optional(),
-        })
-        .strict()
-        .parse(req.body);
-      const existing = await models.User.findOne({
-        email: input.email.toLowerCase(),
-      }).lean();
-      if (existing) fail(409, "EMAIL_TAKEN", "An account with that email already exists");
-      if (input.adminKey && !config.adminInviteKey)
-        fail(503, "ADMIN_ACCESS_DISABLED", "Admin registration is not configured. Set ADMIN_INVITE_KEY on the server and restart it.");
-      if (input.adminKey && !equalSecret(input.adminKey, config.adminInviteKey))
-        fail(403, "INVALID_ADMIN_KEY", "The admin invite key is incorrect. No account was created.");
-      const isAdmin =
-        input.adminKey &&
-        config.adminInviteKey &&
-        equalSecret(input.adminKey, config.adminInviteKey);
-      const user = await models.User.create({
-        name: input.name,
-        email: input.email.toLowerCase(),
-        passwordHash: await bcrypt.hash(input.password, 12),
-        role: isAdmin ? "admin" : "viewer",
-        permittedRoomIds: [],
-      });
-      await new Promise((resolve, reject) =>
-        req.session.regenerate((err) => (err ? reject(err) : resolve())),
-      );
-      req.session.userId = user._id;
-      req.session.adminVerified = user.role === "admin";
-      req.session.csrf = randomBytes(32).toString("hex");
-      await new Promise((resolve, reject) =>
-        req.session.save((err) => (err ? reject(err) : resolve())),
-      );
-      const { passwordHash, ...publicUser } = user.toObject();
-      await audit(models, user._id, "auth.register", user._id);
-      res.status(201).json({ data: { user: publicUser, csrfToken: req.session.csrf } });
-    },
-  );
+  api.post("/auth/register", () => fail(410, "WORKSPACE_REGISTRATION_REQUIRED", "Register through the building workspace service"));
   api.get("/access/:publicToken", async (req, res) => {
     const room = found(
       await models.Room.findOne({ publicToken: req.params.publicToken }).lean(),
@@ -279,7 +229,7 @@ export function createApplication({ config, connection, models }) {
     const sourceId = id.parse(req.get("X-Source-Id"));
     const source = await models.Integration.findById(sourceId).lean();
     const expected = createHmac("sha256", config.ingestToken)
-      .update(sourceId)
+      .update(`${workspaceDirectory ? `${models.institutionId}:` : ""}${sourceId}`)
       .digest("hex");
     if (!source || !equalSecret(req.get("Authorization"), `Bearer ${expected}`))
       fail(401, "SERVICE_AUTH_REQUIRED", "Invalid scoped service credential");
@@ -376,10 +326,13 @@ export function createApplication({ config, connection, models }) {
   api.use((req, res, next) => {
     if (!req.user) fail(401, "AUTH_REQUIRED", "Sign in to continue");
     if (req.user.role === "admin" && !req.session.adminVerified && req.path !== "/auth/logout")
-      fail(401, "ADMIN_KEY_REQUIRED", "Sign in again with your password and admin invite key.");
+      fail(401, "REAUTHENTICATION_REQUIRED", "Sign in again with your email and password.");
     next();
   });
+  if (workspaceDirectory) registerWorkspaceAdministration(api, { directory: workspaceDirectory });
+  api.get("/sync/snapshot", async (req, res) => { res.setHeader("Cache-Control", "no-store"); res.json({ data: await syncSnapshot({ connection, models, workspaceDirectory }, req.user) }); });
   registerManagement(api, { models, config });
+  registerMeterCameraRoutes(api, { models, config });
   const connectedDevices = registerConnectedDevices(api, { models, config });
   registerDemoAdminRoutes(api, { models, service: phoneDemo });
   api.get("/auth/me", (req, res) =>
@@ -419,7 +372,7 @@ export function createApplication({ config, connection, models }) {
       .object({
         name: z.string().min(1).max(200),
         email: z.email(),
-        password: z.string().min(12).max(100),
+        password: z.string().min(6).max(100),
         role: z.enum(["admin", "hod", "technician", "teacher", "viewer"]),
         permittedRoomIds: z.array(id).max(100),
       })
@@ -809,13 +762,6 @@ export function createApplication({ config, connection, models }) {
       ),
     });
   });
-  api.post("/meter-images", () =>
-    fail(
-      503,
-      "OCR_UNAVAILABLE",
-      "OCR adapter is not configured; use reviewed manual readings or CSV",
-    ),
-  );
   api.get("/analytics/summary", async (req, res) =>
     res.json({ data: await analyticsSummary(models) }),
   );
@@ -824,7 +770,9 @@ export function createApplication({ config, connection, models }) {
       .sort({ startAt: -1 })
       .limit(1500)
       .lean();
-    res.json({ data: intervals.reverse() });
+    const readings = await models.MeterReading.find({ _id: { $in: intervals.flatMap(i => i.sourceReadingIds) } }).select("sourceType").lean();
+    const sourceTypes = new Map(readings.map(r => [r._id, r.sourceType]));
+    res.json({ data: intervals.reverse().map(i => ({ ...i, sourceTypes: [...new Set(i.sourceReadingIds.map(id => sourceTypes.get(id)).filter(Boolean))] })) });
   });
   api.get("/analytics/anomalies", async (req, res) =>
     res.json({
@@ -1309,7 +1257,7 @@ export function createApplication({ config, connection, models }) {
       capabilities: meterId ? { meterId } : {},
     });
     const token = createHmac("sha256", config.ingestToken)
-      .update(integration._id)
+      .update(`${workspaceDirectory ? `${models.institutionId}:` : ""}${integration._id}`)
       .digest("hex");
     await audit(models, req.user._id, "integration.create", integration._id);
     res.status(201).json({ data: { integration, serviceToken: token } });
@@ -1504,10 +1452,20 @@ export function createApplication({ config, connection, models }) {
       callback(null, req.headers.origin ? socketOrigins.has(req.headers.origin) : hostAllowed && sameSite);
     },
   });
-  const closeDemoSockets = registerDemoSockets(io, { models, config, service: phoneDemo });
-  io.engine.use(sessions);
+  const closeDemoSockets = registerDemoSockets(io, { models, config, service: phoneDemo, workspaceDirectory });
+  // Bind identity on the initial handshake. Poll/upgrade responses must not
+  // touch a session concurrently destroyed by logout; active sockets reload
+  // their original session and membership in the refresh loop below.
+  io.engine.use((req, res, next) => req._query.sid === undefined ? sessions(req, res, next) : next());
   io.use(async (socket, next) => {
     try {
+      if (workspaceDirectory) {
+        const realm = await workspaceDirectory.realm(socket.request.session?.institutionId);
+        const user = await workspaceDirectory.user(realm, socket.request.session?.userId);
+        if (!user || (user.role === "admin" && !socket.request.session.adminVerified)) return next(new Error("AUTH_REQUIRED"));
+        socket.data.user = user; socket.data.institutionId = realm.institution._id;
+        return next();
+      }
       const user = await models.User.findOne({
         _id: socket.request.session?.userId,
         active: true,
@@ -1520,11 +1478,17 @@ export function createApplication({ config, connection, models }) {
     }
   });
   io.on("connection", (socket) => {
-    socket.on("subscribe-room", (roomId, ack) => {
+    socket.on("subscribe-room", async (roomId, ack) => {
       try {
         id.parse(roomId);
+        if (workspaceDirectory) {
+          const realm = await workspaceDirectory.realm(socket.data.institutionId);
+          const user = await workspaceDirectory.user(realm, socket.request.session?.userId);
+          if (!user || !await realm.models.Room.exists({ _id: roomId })) throw new Error("ROOM_FORBIDDEN");
+          socket.data.user = user;
+        }
         requireRoom(socket.data.user, roomId);
-        socket.join(`room:${roomId}`);
+        socket.join(`room:${socket.data.institutionId ?? "legacy"}:${roomId}`);
         if (typeof ack === "function") ack({ ok: true });
       } catch {
         if (typeof ack === "function")
@@ -1532,29 +1496,14 @@ export function createApplication({ config, connection, models }) {
       }
     });
   });
-  const interval = setInterval(() => {
-    for (const socket of io.sockets.sockets.values())
-      socket.request.session.reload(async (err) => {
-        if (err) return socket.disconnect(true);
-        const user = await models.User.findOne({
-          _id: socket.request.session.userId,
-          active: true,
-        })
-          .lean()
-          .catch(() => null);
-        if (!user || (user.role === "admin" && !socket.request.session.adminVerified)) return socket.disconnect(true);
-        socket.data.user = user;
-        socket.emit("refresh", { serverTime: new Date().toISOString() });
-      });
-  }, 3000);
-  interval.unref();
+  const closeRealtime = startRealtime(io, { connection, models, workspaceDirectory });
   return {
     app,
     server,
     io,
     store,
     close: async () => {
-      clearInterval(interval);
+      await closeRealtime();
       closeDemoSockets();
       await phoneDemo.close();
       await connectedDevices.close();

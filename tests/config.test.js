@@ -34,9 +34,8 @@ test("startup rejects placeholder and short session/ingest credentials", () => {
   assert.throws(() => loadConfig({ ...env(), SERVICE_INGEST_TOKEN: "short" }));
 });
 
-test("administrator key requires exactly eight digits while other secret requirements stay unchanged", () => {
-  assert.equal(loadConfig({ ...env(), ADMIN_INVITE_KEY: "01234567" }).adminInviteKey, "01234567");
-  assert.equal(loadConfig({ ...env(), ADMIN_INVITE_KEY: "" }).adminInviteKey, null);
-  for (const value of ["1234567", "123456789", "abcdefgh", "1234abcd", "1234567890123456"])
-    assert.throws(() => loadConfig({ ...env(), ADMIN_INVITE_KEY: value }));
+test("administrator creation key is optional for startup and loaded only server-side", () => {
+ assert.equal(loadConfig({ ...env(), ADMIN_INVITE_KEY: "" }).adminInviteKey, null);
+ assert.equal(loadConfig({ ...env(), ADMIN_INVITE_KEY: "server-only-registration-key" }).adminInviteKey, "server-only-registration-key");
+ assert.throws(() => loadConfig({ ...env(), ADMIN_INVITE_KEY: "short" }));
 });

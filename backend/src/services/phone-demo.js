@@ -18,6 +18,11 @@ export function safeDemoSession(session) {
 }
 export async function demoGrant(models, config, token, now = new Date(), touch = true) {
   gate(config);
+  if (models.institutionId) {
+    const prefix = `${models.institutionId}.`;
+    if (typeof token !== "string" || !token.startsWith(prefix)) fail(401, "PAIR_REQUIRED", "Pair this phone with its institution workspace");
+    token = token.slice(prefix.length);
+  }
   if (typeof token !== "string" || token.length < 30 || token.length > 100) fail(401, "PAIR_REQUIRED", "Pair this phone with a current session");
   const client = await models.DemoClient.findOne({ tokenHash: hash(token), pairedAt: { $ne: null }, expiresAt: { $gt: now } }).lean();
   const session = client && await models.DemoSession.findOne({ _id: client.sessionId, roomId: client.roomId, active: true, expiresAt: { $gt: now } }).lean();
@@ -64,6 +69,7 @@ export async function stopPhoneDemo(models, config, id, actorId, now = new Date(
 }
 
 export function createPhoneDemoService(models, config) {
+  if (models.resolveInstitutionModels) return models.workspaceDirectory.service("phone-demo", bound => createPhoneDemoService(bound, config));
   const vision = createDemoVision(config);
   const getSession = async (id, now = new Date()) => found(await models.DemoSession.findOne({ _id: id, active: true, expiresAt: { $gt: now } }).lean());
   async function observe(session, data, capturedAt, sequence, now, cameraClient) {
@@ -126,17 +132,23 @@ export function createPhoneDemoService(models, config) {
       await models.DemoClient.findOneAndUpdate({ sessionId: id, role }, { $set: { roomId: session.roomId, codeHash: hash(code), codeExpiresAt, expiresAt: session.expiresAt, lastSequence: -1, captureActive: false }, $inc: { generation: 1 }, $unset: { tokenHash: "", pairedAt: "", lastSeenAt: "", offlineAt: "" } }, { upsert: true });
       await audit(models, actorId, "demo.pairing_issued", id, `Scoped ${role} role; code expires within five minutes`);
       const path = role === "camera" ? "cctv-camera" : "circuit-board";
-      const url = new URL(`/demo/${path}/`, config.publicAppUrl); url.hash = `pair=${code}`;
-      return { code, codeExpiresAt, role, url: url.toString(), qr: await QRCode.toDataURL(url.toString(), { width: 220, margin: 2 }) };
+      const scopedCode = `${models.institutionId ? `${models.institutionId}.` : ""}${code}`;
+      const url = new URL(`/demo/${path}/`, config.publicAppUrl); url.hash = `pair=${scopedCode}`;
+      return { code: scopedCode, codeExpiresAt, role, url: url.toString(), qr: await QRCode.toDataURL(url.toString(), { width: 220, margin: 2 }) };
     },
     async pair(code, now = new Date()) {
       gate(config); const token = randomBytes(32).toString("base64url");
+      if (models.institutionId) {
+        const prefix = `${models.institutionId}.`;
+        if (!code.startsWith(prefix)) fail(401, "PAIR_INVALID", "Pairing belongs to a different institution");
+        code = code.slice(prefix.length);
+      }
       const candidate = await models.DemoClient.findOne({ codeHash: hash(code), codeExpiresAt: { $gt: now }, expiresAt: { $gt: now } }).lean();
       if (!candidate) fail(401, "PAIR_INVALID", "Pairing code expired or was already used");
       await getSession(candidate.sessionId, now);
       const row = await models.DemoClient.findOneAndUpdate({ _id: candidate._id, codeHash: hash(code), codeExpiresAt: { $gt: now } }, { $set: { tokenHash: hash(token), pairedAt: now, lastSeenAt: now }, $unset: { codeHash: "", offlineAt: "" } }, { returnDocument: "after" }).lean();
       if (!row) fail(401, "PAIR_INVALID", "Pairing code expired or was already used");
-      return { token, role: row.role, sessionId: row.sessionId, roomId: row.roomId, expiresAt: row.expiresAt };
+      return { token: `${models.institutionId ? `${models.institutionId}.` : ""}${token}`, role: row.role, sessionId: row.sessionId, roomId: row.roomId, expiresAt: row.expiresAt };
     },
     async state(grant, now = new Date()) {
       const session = await getSession(grant.sessionId, now), room = found(await models.Room.findById(session.roomId).lean());

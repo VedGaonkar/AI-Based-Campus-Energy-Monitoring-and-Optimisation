@@ -10,33 +10,23 @@ Follow [HOME_ASSISTANT.md](HOME_ASSISTANT.md) for exact setup, supported routes,
 
 Validation for this feature: `npm test`, `npm run check`, `npm run build`, then `npm run test:devices-browser`. The device browser runner uses temporary databases/credentials and isolated simulation, not a saved live gateway.
 
-## Administrator access and setup
+## Accounts and Building Join Codes
 
-Use your account password and `ADMIN_INVITE_KEY` from the local ignored `.env` to sign in as administrator. The key must contain exactly 8 digits and requires an API restart after changes. It is required for every admin login. Incorrect registration keys now return an error rather than creating viewer accounts.
+Sign in with **Email address** and **Password** only. One active building membership opens automatically. Existing users with multiple legitimate memberships choose an authorised building after password verification. No registration code is required on later logins.
 
-If your existing account shows Viewer, open **My profile** and verify your account password plus the valid key to activate admin access. You can also supply both during sign-in. The server audits the role change; the profile displays the role verified by `/auth/me`.
+Choose **Administrator** registration to create a new empty building: full name, email, password/confirmation, building name, a strong **Set Building Join Code** value you choose, and the **Administrator registration key** matching the server ADMIN_INVITE_KEY. Matching an existing name never grants access to it. Choose **Viewer** registration to supply full name, email, password/confirmation and the building administrator's Building Join Code. The backend resolves the building and grants only Viewer membership.
 
-**Admin management** at `/admin` has dedicated Building setup, Rooms & corridors, Camera mapping, Smart controllers, Timetable, Room QR & overrides, Automation & control logs, Users & permissions and Advanced settings pages. Building setup persists organisation details, generates floors and supports named spaces with stable identities. Existing rooms can be assigned to floors without replacing their records. Hardware transport remains simulated or unavailable until commissioned.
+Manage the write-only code in **Admin management / Building setup** or **My profile**. Codes are case-sensitive, 8-64 ASCII letters/numbers/optional hyphen/underscore, with letters, numbers and at least six distinct characters. Share privately. The original cannot be retrieved; replace or disable it. Rotation blocks the old code for new admissions and preserves existing members. Renaming preserves membership IDs and code resolution. Existing buildings have registration disabled until an administrator sets a code.
 
-To explicitly generate a new key while preserving other existing settings:
+The old sign-in enrollment, identity-code and invitation workflow is retired. ADMIN_INVITE_KEY is retained solely as the server-side gate for creating a new Administrator account; it is never required for sign-in or Viewer registration. Existing accounts, hashes, roles, memberships and building data remain intact. Roles are managed by authorised administrators; a registration code cannot promote a Viewer. No Building Join Code belongs in environment/public configuration or documentation.
 
-```bash
-npm run setup -- --generate-admin-key
-```
-
-Read the generated key only from `.env`, restart the API, and sign in again. This command rotates the previous shared invite key. A fresh `npm run setup` also generates a key when creating a new `.env`; ordinary setup preserves an existing file.
-
-`npm run test:admin-browser` runs the admin registration/login/profile/building/floors/rooms/cameras/controllers/timetable/QR/automation workflow against an isolated temporary database with generated credentials and the built frontend. Run `npm run build` first; the check requires installed Chrome/Edge or `BROWSER_EXECUTABLE`.
-
-A local single-building energy prototype for a 24-hour hackathon. It combines building meter readings, room timetables and available occupancy evidence to identify avoidable use, assign action and track outcomes.
-
-[PLAN.md](PLAN.md) is the authoritative implementation plan. [PROGRESS.md](PROGRESS.md) and [HANDOFF.md](HANDOFF.md) record current implementation and session recovery details.
+After installing source changes, use `npm run stop` then `npm run dev`. Code changes through the setting take effect immediately. `npm run setup` preserves existing configuration. Configure ADMIN_INVITE_KEY privately on the server to enable new Administrator registration; blank disables that registration path while existing-user sign-in remains available. Read [INSTITUTIONS.md](INSTITUTIONS.md) for storage, limits and recovery. Verify with `npm test`, `npm run build`, `npm run test:auth-browser` and `npm run check:client-secrets`. Tests use isolated databases/profiles.
 
 ## Current status
 
 The repository now contains a React/Vite frontend, Express API, MongoDB/Mongoose persistence, a separate durable worker, shared validated contracts, deterministic synthetic seed data and application tests. Reusable `.agents/skills/` tooling remains independent of the application.
 
-Implemented workflows include session login and room-scoped roles, CSV preview/commit and manual meter entry, timetable editing/cancellation, interval/baseline analytics, anomaly investigation, recommendation decisions/outcome review, in-app notifications, persistent vacancy escalation, QR leases/extensions, staff overrides and guarded room-level simulation. Physical room hardware, general CCTV/RTSP inference, OCR, MQTT and SMTP remain unavailable integrations; the separate phone-demo pixel pipeline is implemented; the application does not claim they work. Further acceptance coverage and installation work remain documented in TASKS.md.
+Implemented workflows include session login and room-scoped roles, CSV preview/commit and manual meter entry, timetable editing/cancellation, interval/baseline analytics, anomaly investigation, recommendation decisions/outcome review, in-app notifications, persistent vacancy escalation, QR leases/extensions, staff overrides and guarded room-level simulation. Physical room hardware, general CCTV/RTSP inference, MQTT and SMTP remain unavailable integrations. The phone-demo pixel pipeline and optional dedicated meter OCR are implemented; physical commissioning is not claimed. Further acceptance coverage and installation work remain documented in TASKS.md.
 
 ## Intended prototype
 
@@ -50,7 +40,7 @@ Building meter readings do not establish unmetered room consumption. Camera obse
 
 Physical installation is outside the hackathon deliverable. A qualified electrician must approve the feeder, downstream protection and every connected load before physical operation. Cameras, sensors, networking and essential supplies remain available when ordinary room supply is OFF. AC stop/restart requirements can block the entire room cutoff.
 
-The scope excludes multiple-building operation/comparisons, new per-appliance actuators, smart-plug purchases, per-button modules, AC IR blasters, facial recognition and attendance monitoring. The approved optional Home Assistant extension permits native OFF for reviewed existing smart appliances; room-master controls remain independent. Core functionality requires neither an LLM nor paid cloud services. See [scope and exclusions](PLAN.md#1-product-objective-and-agreed-decisions).
+Separate institution workspaces, each containing one building, are supported. The scope excludes multi-building portfolios/comparisons, new per-appliance actuators, smart-plug purchases, per-button modules, AC IR blasters, facial recognition and attendance monitoring. The approved optional Home Assistant extension permits native OFF for reviewed existing smart appliances; room-master controls remain independent. Core functionality requires neither an LLM nor paid cloud services. See [scope and exclusions](PLAN.md#1-product-objective-and-agreed-decisions).
 
 ## Local setup and startup
 
@@ -66,9 +56,9 @@ npm run setup
 npm run dev
 ```
 
-Open `http://localhost:5173`. Setup creates an ignored `.env` with generated secrets, an `ADMIN_INVITE_KEY` and a local `DEMO_PASSWORD`; existing configuration is preserved. Demo account names are `admin@campus.test`, `hod@campus.test`, `technician@campus.test`, `teacher@campus.test` and `viewer@campus.test`. Read the generated password locally; it is not published in documentation or embedded in browser code. Never commit `.env`.
+Open `http://localhost:5173`. Setup creates ignored server configuration while preserving existing settings. New administrators register an institution/building name and start empty. Email/password login selects the existing membership automatically, or asks after authentication when several exist. Read [INSTITUTIONS.md](INSTITUTIONS.md) for migration, Building Join Codes, authorised membership choice and optional dedicated demo setup. Never commit `.env`.
 
-Development starts the API at `http://localhost:5000`, worker and Vite. The initial database is seeded once; subsequent starts preserve it. `npm run seed` idempotently adds missing synthetic records/accounts without resetting existing policies/passwords. Use `npm run stop` from another terminal for explicit owned-service cleanup, or Ctrl+C. A reachable existing local MongoDB is reused; an existing Campus Energy Vite server on port 5173 is also reused. Reused services are never stopped by the helper. Ignored `.local/dev-session.json` records process ownership; verify it rather than assuming all local listeners belong to this run.
+Development starts the API at `http://localhost:5000`, worker and Vite. Startup never seeds samples. Existing installations require `npm run migrate:institutions` (dry-run), backup/stopped writers, then `npm run migrate:institutions -- --apply`. Explicit local demo: `npm run setup -- --enable-demo`, then `npm run seed`; dedicated credentials live only in ignored `.env`, existing identities/passwords/roles remain intact. Use `npm run stop` from another terminal for explicit owned-service cleanup, or Ctrl+C. A reachable existing local MongoDB is reused; an existing Campus Energy Vite server on port 5173 is also reused. Reused services are never stopped by the helper. Ignored `.local/dev-session.json` records process ownership; verify it rather than assuming all local listeners belong to this run.
 
 The official npm registry reset connections in the implementation environment; `npm install --registry=https://registry.npmmirror.com` was the per-command workaround. No global npm setting was changed. Normal network environments can use the standard registry; the lockfile records the selected package artifacts and integrity hashes.
 
@@ -100,8 +90,25 @@ Supporting documents identify implemented behaviour separately from remaining re
 
 ## Demonstration and rollout
 
-The seed supplies 30 calendar days of visibly synthetic intervals (only completed intervals on the current day), three rooms and test roles. Open a room to start normal-class, forgotten-lights, person-return or camera-offline fixture replay. Forgotten-lights demonstrates 15 seconds of vacancy confirmation, a first alert, escalation 10 seconds later and a final simulated recheck 15 seconds after that at the default 60× scale. In-app notifications are persisted; nobody is emailed. QR access uses its normal authenticated form; analytics and recommendation scenarios use seeded data. These are explicit fixtures, not genuine vision/OCR output.
+The explicitly enabled dedicated demo seed supplies 30 calendar days of visibly synthetic intervals (only completed intervals on the current day), three rooms and test roles. Open a room to start normal-class, forgotten-lights, person-return or camera-offline fixture replay. Forgotten-lights demonstrates 15 seconds of vacancy confirmation, a first alert, escalation 10 seconds later and a final simulated recheck 15 seconds after that at the default 60× scale. In-app notifications are persisted; nobody is emailed. QR access uses its normal authenticated form; analytics and recommendation scenarios use seeded data. These are explicit fixtures, not genuine vision/OCR output.
 
 Installation estimates require one suitable breaker quote per controlled room plus feeder/protection, labour, sensing, connectivity and commissioning costs. [Budget assumptions](PLAN.md#23-budget-purchasing-and-operating-cost-plan) are planning references, not current purchase quotes or verified payback. [Commercial options](PLAN.md#24-customer-segmentation-and-business-model) are future evaluation work; checkout, tenant management and ESG reporting are not MVP requirements.
 
 Remaining work includes field vision coverage/OCR/model validation, actual device/notification transports, broader field/production acceptance, full account lifecycle, baseline history/version management, retention/migrations and deployment/commissioning. Manual reading correction, reset epochs and normal-stop confirmation are implemented with evidence/audit records. The engine rebuilds at most 20,000 readings and returns at most 1,500 chart intervals; it is a prototype, not a production utility ledger. Import commits are repeat-safe row operations, not transactions. Tariffs and seed equipment approvals are hypothetical and cannot authorise physical installation.
+
+Live updates use the existing server connection across users/tabs. A status strip marks synchronising/disconnected/stale data; reconnect or foreground return refetches authorised backend state. For isolated multi-profile/two-tab verification, build then run `npm run test:realtime-browser` (installed Chrome/Edge). See API/ARCHITECTURE/TESTING for scopes and delivery limits.
+
+Dedicated cumulative meter OCR now has its own Meter cameras admin panel,paired phone source and bounded local Tesseract worker. Run npm run setup:ocr explicitly; normal startup never installs it. Manual review is the default; accepted values reuse energy imports/intervals,not occupancy or control. Images are admin-only and retained latest12 pairs/camera for24h; original OCR/correction metadata persists. Physical verification remains unverified and accuracy is not guaranteed. See [METER_CAMERA.md](METER_CAMERA.md) for setup,provenance,capture loss/reset procedures and remaining physical checks.
+
+
+## Consumption dashboard evidence
+
+Overview and Energy use the existing Recharts charts and scoped live synchronisation. Actual interval energy is green at/below its own baseline and red above it, with linear segments split at the calculated crossing. Red alone is not an anomaly: configured tolerance thresholds and alert policy remain unchanged. Original readings use circle/diamond markers, flagged anomalies add a ring, and the labelled dashed baseline has square reference markers. Missing intervals, meter epochs and resolution changes break lines; gap aggregates remain isolated totals, never invented hourly points. Baselines disclose the configured hourly expectation or comparable-history median (hour/day type/schedule activity/duration).
+
+Choose meter, data mode, 1/7/30-day lookback or custom date/time range. Lookbacks end at the latest accepted interval; custom inputs use the browser's local timezone and include whole intervals only. Card details use the latest original interval or the building-calendar daily rule. The chart/detail/export share the filtered records. Details include source-reading IDs, kWh, derived average kW, quality, baseline method/samples/version, tolerance and authorised related records; CSV downloads only this already-authorised snapshot. The energy feed returns at most 1,500 recent intervals, and related incident feeds remain bounded. Wider history and a new export permission model are not added.
+
+The feed shows accepted-reading time, source and recorded interval length. Reading freshness is a disclosed heuristic (twice that interval), separate from workspace connectivity; physical source health/configured capture cadence are not asserted. Hourly energy is labelled hourly consumption; interval-derived kW is average power, never instantaneous power. No synthetic animation generates readings. Help icons explain baseline, power, savings, camera confidence, stale data, overrides and command verification: approximately 800ms hover, immediate keyboard focus/tap, Escape or outside-tap dismissal. A help Escape inside details leaves the dialog open; closing the dialog restores focus.
+
+Verification command: `npm run test:consumption-browser` (build first). It uses an isolated temporary institution/database and headless Chrome, not existing accounts or meter records. See TESTING.md for checks and remaining field limits.
+
+Authentication minimums: new passwords require **6 characters** and Building Join Codes **8 characters** (up to 64, including letters/numbers and six distinct characters). Sign-in accepts existing passwords unchanged. The Administrator registration key is required only for creating a new Administrator and must match server ADMIN_INVITE_KEY. Registration errors identify the invalid field. The anonymous /auth/session bootstrap does not require a signed-in account; protected /auth/me still returns 401 without one. Development StrictMode may repeat a cancelled startup request; the React DevTools message is informational. Browser-extension contentscript/ObjectMultiplex warnings are not emitted by this repository.

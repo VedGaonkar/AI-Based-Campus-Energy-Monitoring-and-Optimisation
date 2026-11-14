@@ -86,13 +86,19 @@ export async function audit(models, actorId, action, target, summary = "") {
   await models.AuditEvent.create({ actorId, action, target, summary });
 }
 export async function getSettings(models) {
-  const settings = await models.Settings.findById("installation").lean();
+  // Only declared installation fields may leave storage. Legacy/foreign secret
+  // fields in Mongo must neither configure authentication nor appear in APIs.
+  const settings = await models.Settings.findById("installation").select(Object.keys(models.Settings.schema.paths).join(" ")).lean();
   if (!settings)
     throw new HttpError(
       503,
       "NOT_SEEDED",
       "Run the documented seed command first",
     );
+  if (models.workspaceDirectory && models.institutionId) {
+    const institution = await models.workspaceDirectory.Institution.findById(models.institutionId).select("displayName").lean();
+    if (institution) { settings.installationName = institution.displayName; settings.organisationName = institution.displayName; }
+  }
   return settings;
 }
 export async function cancelRoomWork(models, roomId, reason, now = new Date()) {

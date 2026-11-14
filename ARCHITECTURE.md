@@ -1,5 +1,30 @@
 # Architecture
 
+## Dedicated meter source and OCR (CE-016)
+
+A separate MeterCamera service/routes/capability domain reuses existing institution context, static phone hosting, bounded image encoder, worker and change journal. Meter imagery never enters occupancy inference. The worker persists hourly capture requests; the paired source only satisfies unexpired server requests. Manual authenticated image tests are also supported; arbitrary website/RTSP URLs are not.
+
+Node invokes a bounded local Python/Tesseract worker, applying orientation/ROI and returning raw text/scores. Parser, neighbour/time/plausibility/decimal checks and review remain backend-owned. Immutable evidence is stored separately from accepted cumulative readings, then the existing energy importer/calculator handles accepted values. Manual review enters the core as needs_review until the existing audited validator accepts it; failed review cannot briefly create anomalies. Automatic acceptance requires explicit tested configuration and never guarantees accuracy. Image retention is latest12 pairs/camera24h with a site budget; separate metadata/audit survives expiry. See [METER_CAMERA.md](METER_CAMERA.md).
+
+
+## Persisted change feed and frontend reconciliation (CE-014)
+
+Existing Socket.IO, MongoDB and shared App/useData version state remain. backend/src/realtime/journal.js installs operational Mongoose post-write hooks before model compilation. Successful saves, query writes/deletes, insertMany and bulk imports append minimal syncEvents after the operational write; syncCounters allocates revisions per database. Lock-only/timestamp-only/no-op writes do not create refresh loops. Room remapping invalidates both old and new scoped views. Raw migration writes are deliberately offline; direct database edits outside application models require snapshot repair. No change-stream/Redis/replica-set dependency was added.
+
+transport.js tails the same journal from each API process (600ms batches), so separate worker/provider connections produce equivalent invalidations. Each socket is reauthorised before dispatch; permission changes clear room subscriptions, expiry/revocation disconnects. Broadcasters never trust a client institution ID, mutate control policy or publish stored document/credential bodies. Floor/configuration events are restricted to their existing admin access; institution display-name updates use unchanged immutable IDs and reach member labels.
+
+frontend/src/services/live-sync.js owns one socket per authenticated App. Revision ordering, 120ms coalescing, abort/generation checks and exact handler cleanup prevent duplicate work and stale overwrite. No cross-tab channel is required: each tab/user uses the server independently. Existing useData hooks refetch on invalidation; failed reads clear stale protected page data, and active-read tracking distinguishes updating/unavailable data from a connected transport. Profile, institution identity and phone-demo admin pages now participate instead of relying on one-shot/polling state. UI clocks do not schedule controls.
+
+Reconnect, foreground/focus and 15s repair reconcile identity/checkpoint and mounted authorised resources. A stale in-flight checkpoint cannot apply after a newer event; aborted responses cannot apply after disconnect/unmount. The connection banner distinguishes connecting, synchronising, updating, disconnected/stale/background and connected; a 5s missing-heartbeat limit avoids presenting a silent channel as current. Operational writes and journal append are not a Mongo transaction: a crash/journal outage may lose an invalidation; backend snapshots repair it without replaying a physical command. TTL is 24h. Bounded feed batches and 1,001-row query capture suit this MVP; large bulk/admin operations may rely on repair snapshots. Production scale/retention tuning remains operator work.
+
+
+## Independent institution workspaces (CE-013)
+
+The approved scope now permits multiple independent institution workspaces, each with one building. No portfolio aggregation or cross-building comparison was added. backend/src/workspaces provides the shared account/membership directory, immutable identity, migration, scoped auth and runtime. AsyncLocalStorage supplies fail-closed trusted request context; operational models use a separate database per institution on the existing MongoDB deployment. Provider/phone caches bind actual models rather than a shared mutable global scope. Workers enumerate active institutions with separate tick/locking context; one workspace failure does not starve another. Sessions, sockets, ingestion and public capabilities are separately validated and institution-qualified. Existing controllers/interlocks stay unchanged.
+
+Global email uniqueness is preserved. Display names never form authorization keys. New admin onboarding is empty and private. An explicit dedicated demo institution owns its simulated samples and configured administrator/viewer identities; startup does not seed. Existing original data remains in a legacy workspace through an operator-reviewed, resumable migration. See [INSTITUTIONS.md](INSTITUTIONS.md), [API.md](API.md) and [DATABASE.md](DATABASE.md).
+
+
 ## Two-phone demonstration (CE-011)
 
 `demo/cctv-camera/` uploads sampled video-only pixels; `demo/circuit-board/` illustrates loads and acts as the existing room-master simulator's visible endpoint. PhoneDemo.jsx provides admin session/evidence/command controls. `phone-demo-routes.js`, `services/phone-demo.js` and shared phone contracts use existing Express/Mongo/auth/Socket.IO. No second database, auth provider, policy engine or scheduler is introduced.
@@ -127,3 +152,18 @@ Installed dependency versions are pinned in manifests/lockfile. API gaps were re
 Manual meter review, reset-epoch configuration and staff normal-stop confirmation are implemented with retained evidence. Still pending: real input/tariff validation, field model/coverage validation, general RTSP/OCR processing, exact breaker/firmware/gateway, physical coverage/commissioning, external transports and installed quotes. Socket.IO sends authenticated refresh signals without room payloads; clients refetch scoped HTTP data. The API validates room subscriptions and active sessions. [TASKS.md](TASKS.md) and [TESTING.md](TESTING.md) distinguish completed checks from remaining acceptance work.
 
 Operational follow-up includes source uptime, OCR review/gaps, false-alert reviews, response times, command verification, recommendation outcomes and baseline age. Revalidate coverage/mappings after room or wiring changes. Commercial subscriptions, savings-performance contracts and ESG reporting in the plan describe future evaluation; they do not expand this single-building MVP.
+
+CE-013 documentation checked 14 November 2026 through Context7: Mongoose 9.12.1 uses cached useDb connections with separately registered models (https://mongoosejs.com/docs/connections.html); Socket.IO 4.8.4 uses independent Managers for separate test identities and handshake-only session middleware with explicit periodic membership reload (https://socket.io/docs/v4/client-api/ and https://socket.io/docs/v4/middlewares/). Existing pinned dependencies/licenses were retained; no new package was installed.
+
+CE-014 checked current official documentation through Context7 on14 November2026: Mongoose9.12.1 post document/query/model middleware (https://mongoosejs.com/docs/middleware.html); Socket.IO4.8.4 ordering/at-most-once delivery and unload lifecycle (https://socket.io/docs/v4/delivery-guarantees/ and https://socket.io/docs/v4/client-options/). Existing pinned dependencies retained; no added package. The browser harness uses documented Chrome DevTools Protocol page targets/offline/foreground commands; its legacy network-emulation command is still supported by installed Chrome but deprecated upstream.
+
+
+## CE-017 consumption read views
+
+`frontend/src/services/consumption.js` owns whole-interval selection, comparison/status, exact linear crossing insertion, continuity breaks, totals, quality/freshness descriptions and CSV serialization. Existing Recharts renders the resulting green/red/neutral series and dashed baseline without value animations. Synthetic crossing vertices carry no accepted-reading identity and do not appear in tables/exports. Native dialog details share the selected original records with the chart. `components/Help.jsx` provides delayed pointer help, keyboard/tap activation, viewport-aware placement, dismissal and cleanup; help does not move/trap focus.
+
+Interval API provenance is joined from existing reading IDs. Completed analytics recalculation emits a minimal journal invalidation on its own institution connection; it introduces no new real-time transport or browser calculation authority for anomalies/control. Existing API permissions, snapshot reconciliation and alert policy remain authoritative.
+
+## Simplified building authentication (CE-018)
+
+Global identity and immutable memberships remain authoritative. Workspace auth accepts email/password and automatically selects one membership or creates a short-lived authorised selection session. Separate registration branches create an empty Administrator building or admit a Viewer through a verified code. workspaces/join-code.js owns secure code storage and persisted registration/rotation mutual exclusion. Authentication.jsx retains the established visual classes; InstitutionSettings provides write-only code management. Historical admission records remain but retired endpoints cannot grant membership. Control policies and existing data/roles are unchanged.

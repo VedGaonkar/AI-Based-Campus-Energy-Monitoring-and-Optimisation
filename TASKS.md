@@ -1,5 +1,76 @@
 # Implementation Tasks
 
+## CE-018 complete - authentication and registration
+
+- [x] Email/password-only login, automatic sole membership and authorised post-password choice for existing multiple memberships.
+- [x] Empty Administrator building creation requires server ADMIN_INVITE_KEY; Set Building Join Code wording. Viewer-only Building Join Code registration.
+- [x] Eight-character code/six-character password minimums shared by frontend/backend; role/hash/member/data/palette preserved.
+- [x] Secure write-only unique code storage, rotation/disabling, admission lock, fail-closed recovery guidance and clean invalid-request rollback.
+- [x] Anonymous bootstrap, detailed validation, cancellable startup reads, guarded sign-out, fresh session/CSRF, retired legacy flows and retained history.
+- [x] 133 application tests, 8 isolated browser workflows, production build, 89 syntax files, 17 assets secret scan and whitespace passed; mobile screenshots inspected.
+- [x] Documentation/examples/setup and continuity updated; managed local stack restarted without data/environment changes.
+
+## CE-017 - consumption views and contextual help
+
+- [x] Interval baselines, exact linear crossings, gap breaks, units and separate anomaly policy.
+- [x] Existing live journal completion event; shared filters/details/CSV and reusable accessible help.
+- [x] Build, 124 application tests, 15 calculation checks, 85 syntax files, 17-asset secret scan.
+- [x] Ten isolated browser checks: crossings/provenance, keyboard/help, matching details/card/CSV, accepted updates, reconnect, mobile, no-data and stale source; zero runtime errors. Screenshots inspected, documentation updated,managed dev restarted; external Mongo/user data preserved.
+
+
+## CE-016 complete - dedicated meter camera OCR
+
+- [x] Institution-scoped meter/camera registration,hashed pairing,persisted hourly capture requests,health/preview/ROI/decimal setup,separate meter source and labelled virtual fixture.
+- [x] Real bounded local Tesseract,immutable evidence,review/correction,retention,epoch procedure and accepted cumulative consumption/deduplication integration.
+- [x] Verify116full tests,17meter/energy targeted,10final meter tests,5browser flows,build,83syntax files,17client assets scan and running-stack health/permissions.
+- [x] Dependency/setup/positioning/lighting/register/retention/recovery limits and contracts/continuity documented; local restart completed.
+- [ ] Physical meter/camera commissioning and hour-long real-image calibration/network-loss rehearsal (hardware/reachable trusted HTTPS/reference log not supplied).
+
+
+## CE-016 active - dedicated meter camera and reviewed OCR
+
+Starting clean at user HEAD34f845c. Inspected imports/calculation/review and paired phone transport. OCR currently only503 placeholder; Python Pillow/pytesseract installed but no engine executable. Implement bounded local Tesseract path (workspace-local embedded tesserocr fallback), separate meter camera pairing/capture schedule, immutable OCR evidence/review, existing accepted-reading import/interval integration and explicit epoch transitions. Default review, no suspicious auto anomalies; source isolation retained. Current official OCR docs checked via Context7. No data/env/account edits; preserve palette/stack. Next implement contracts/models/OCR/service/UI/paired phone and real-image regressions.
+
+
+## CE-015 complete - explicit create/join registration
+
+- [x] Separate new institution/admin key from existing institution membership invitation; clear inactive values and reject mixed requests server-side without fallback/accounts.
+- [x] Eleven institution/auth tests,seven browser checks,build,syntax andsecret scan passed; managed backend restarted, existing data/env preserved.
+
+
+## CE-015 active - clarify registration setup
+
+Screenshot showed institutionName plus an eight-character membership invitation and admin key. Existing backend prioritised any invitationToken, causing INVITATION_INVALID403; no account created. Implemented explicit create/join selector, mutually exclusive fields and cleared mode state; backend rejects ambiguous combinations, requires join invitation and retains all admin-key/invitation/email/role checks. No key/env/account changes. Added institution API regressions and browser mode-switch coverage. Build passed; targeted checks/browser pending. Contentscript/ObjectMultiplex/liveness strings absent from app source; likely extension injection, no emitter limit changes. Signed-out auth/me401 and duplicate development StrictMode requests are expected. Preserve earlier CE-014 edits/untracked sources. Next verify, document and managed restart.
+
+
+## CE-014 complete - scoped live synchronisation
+
+- [x] Persist minimal scoped revisions after API/worker/provider writes, retain command lifecycle/evidence distinctions and server membership/room/recipient authorisation.
+- [x] Shared page-cache invalidation, ordering/abort guards, foreground/reconnect snapshots, stale statuses and exact socket/document lifecycle cleanup.
+- [x] Verify105 application tests,6 independent-profile/two-tab browser workflows,72 syntax files,build,12-asset secret scan and managed local rollout.
+- [x] Update API/architecture/database/security/testing/setup/continuity with non-atomic journal and production limits.
+
+
+## CE-014 active ? scoped live synchronisation
+
+User authorises persisted scoped events for API/worker/provider changes, shared frontend reconciliation, ordering/stale status and multi-browser/tab isolation verification. Reuse Socket.IO, Mongo persistence and shared useData/version state; no new transport or database. Inspecting current unconditional 3s refresh timer and one-shot page state. Plan: persisted minimal change journal from operational model writes, authorised socket invalidations, revisioned snapshot reconciliation and UI lifecycle cleanup. Preserve all existing data/palette/institution boundaries. No code changes yet at checkpoint.
+
+
+## CE-013 - isolated institution workspaces
+
+- [x] Global email identity plus immutable institution IDs and explicit membership; scoped login, private code/invitation alternative and minimal discoverable suggestions.
+- [x] Operational database isolation across APIs, worker/jobs, sockets/camera sessions, integrations/caches and exports; safe resumable legacy migration.
+- [x] Empty administrator onboarding, editable workspace name and explicit dedicated demo setup/seeding with environment-only credentials.
+- [x] Two-workspace API/job/socket/rename/membership/demo/migration regressions, build and continuity; document operator migration steps.
+
+Verification: 99 application tests, 6 isolated browser checks, production/buildless build, 68 syntax files and 12 client assets passed. Local legacy migration/backed-up data preservation and explicit dedicated demo repeat verified; managed stack restarted. INSTITUTIONS.md records operator rollout/recovery limits. Physical/production acceptance remains separate.
+
+## CE-012 - environment-authoritative administrator enrollment
+
+- [x] Trace UI/backend/config/seed/settings path; remove parent-process dotenv mutation and test-fixture key constants, preserve explicit deployment variable precedence and existing account scope.
+- [x] Missing key disables enrollment/activation while existing-user login remains available; remove demo-localhost enrollment throttling bypass and filter legacy undeclared settings from responses.
+- [x] Full suite 89/89, targeted final rotation/duplicate checks 2/2, admin browser 14/14, 58 syntax checks, build and 12-asset secret scan passed. Actual `.env`/accounts unchanged; managed rollout recorded in HANDOFF/PROGRESS.
+
 - [x] Repair demo room selection for legacy missing native policy; server-checked available-room options only, excluded reasons, matching creation checks. 17 demo tests and production/buildless build passed.
 
 ## CE-011 — Two-phone camera and acknowledged room-master demonstration

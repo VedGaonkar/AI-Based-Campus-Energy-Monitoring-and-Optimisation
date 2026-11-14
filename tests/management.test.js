@@ -8,59 +8,32 @@ import { loadConfig } from "../backend/src/config.js";
 import { createApplication } from "../backend/src/app.js";
 import { seed } from "../backend/src/seed.js";
 let db, connection, models, runtime, config, admin, csrf, floorId, roomId;
-const password = randomBytes(18).toString("hex"), adminKey = randomInt(10000000, 100000000).toString();
+const password = randomBytes(18).toString("hex");
 const origin = "http://localhost:5000";
 const mutate = (agent, token, path, body, method = "post") => agent[method](`/api/v1${path}`).set("Origin", origin).set("X-CSRF-Token", token).send(body);
-async function authenticate(email, key, agent = request.agent(runtime.app)) {
+async function authenticate(email, agent = request.agent(runtime.app)) {
   const { body } = await agent.get("/api/v1/auth/csrf");
-  const response = await mutate(agent, body.data.csrfToken, "/auth/login", { email, password, ...(key !== undefined ? { adminKey: key } : {}) });
+  const response = await mutate(agent, body.data.csrfToken, "/auth/login", { email, password });
   return { agent, response, token: response.body.data?.csrfToken ?? body.data.csrfToken };
 }
 before(async () => {
   db = await startDatabase();
   ({ connection, models } = await connectDatabase(db.getUri("management_test")));
-  config = loadConfig({ NODE_ENV: "test", MONGODB_URI: db.getUri("management_test"), SESSION_SECRET: randomBytes(32).toString("hex"), SERVICE_INGEST_TOKEN: randomBytes(32).toString("hex"), ADMIN_INVITE_KEY: adminKey, DEMO_MODE: "true", PUBLIC_APP_URL: origin });
+  config = loadConfig({ NODE_ENV: "test", MONGODB_URI: db.getUri("management_test"), SESSION_SECRET: randomBytes(32).toString("hex"), SERVICE_INGEST_TOKEN: randomBytes(32).toString("hex"), DEMO_MODE: "true", PUBLIC_APP_URL: origin });
   await seed(models, config, { password });
   runtime = createApplication({ config, connection, models });
-  const login = await authenticate("admin@campus.test", adminKey);
+  const login = await authenticate("admin@campus.test");
   assert.equal(login.response.status, 200); admin = login.agent; csrf = login.token;
 });
 after(async () => { if (runtime) await runtime.close(); if (connection) await connection.close(); if (db) await db.stop(); });
 
-test("admin registration rejects a wrong key without creating a viewer fallback", async () => {
-  const agent = request.agent(runtime.app), token = (await agent.get("/api/v1/auth/csrf")).body.data.csrfToken;
-  const result = await mutate(agent, token, "/auth/register", { name: "Rejected admin", email: "invalid-key@test.example", password, adminKey: "wrong-key" });
-  assert.equal(result.status, 403); assert.equal(result.body.error.code, "INVALID_ADMIN_KEY");
-  assert.equal(await models.User.countDocuments({ email: "invalid-key@test.example" }), 0);
+test("existing admin/viewer password login preserves role and rejects key-based upgrades", async () => {
+ const logged = await authenticate("admin@campus.test"); assert.equal(logged.response.status, 200); assert.equal(logged.response.body.data.user.role, "admin");
+ const viewer = await authenticate("viewer@campus.test"); assert.equal(viewer.response.body.data.user.role, "viewer");
+ assert.equal((await mutate(viewer.agent, viewer.token, "/auth/login", { email: "viewer@campus.test", password, adminKey: "untrusted" })).status, 400);
+ assert.equal((await models.User.findById("demo-viewer").lean()).role, "viewer");
 });
-test("valid admin registration persists the role and returns an admin session", async () => {
-  const agent = request.agent(runtime.app), token = (await agent.get("/api/v1/auth/csrf")).body.data.csrfToken;
-  const result = await mutate(agent, token, "/auth/register", { name: "New admin", email: "valid-admin@test.example", password, adminKey });
-  assert.equal(result.status, 201); assert.equal(result.body.data.user.role, "admin");
-  assert.equal((await agent.get("/api/v1/auth/me")).body.data.user.role, "admin");
-  assert.equal((await agent.get("/api/v1/management/building")).status, 200);
-  assert.ok(!JSON.stringify(result.body).includes("passwordHash"));
-});
-test("admin login needs both a correct password and the current admin key", async () => {
-  for (const key of [undefined, "wrong-key"]) {
-    const { agent, response } = await authenticate("admin@campus.test", key);
-    assert.equal(response.status, 403); assert.equal((await agent.get("/api/v1/auth/me")).status, 401);
-  }
-  const { response } = await authenticate("admin@campus.test", adminKey);
-  assert.equal(response.status, 200); assert.equal(response.body.data.user.role, "admin");
-});
-test("viewer can only activate admin access with their password and a valid key; session rotates", async () => {
-  const login = await authenticate("viewer@campus.test");
-  assert.equal(login.response.body.data.user.role, "viewer");
-  const failed = await mutate(login.agent, login.token, "/auth/login", { email: "viewer@campus.test", password, adminKey: "incorrect" });
-  assert.equal(failed.status, 403); assert.equal((await models.User.findById("demo-viewer").lean()).role, "viewer");
-  const oldCookie = login.response.headers["set-cookie"]?.[0];
-  const upgraded = await mutate(login.agent, login.token, "/auth/login", { email: "viewer@campus.test", password, adminKey });
-  assert.equal(upgraded.status, 200); assert.equal(upgraded.body.data.user.role, "admin");
-  assert.notEqual(upgraded.headers["set-cookie"]?.[0], oldCookie);
-  assert.equal((await login.agent.get("/api/v1/management/building")).status, 200);
-  assert.equal(await models.AuditEvent.countDocuments({ actorId: "demo-viewer", action: "auth.admin_access_granted" }), 1);
-});
+
 test("non-admin routes remain usable; management writes and profile role forgery are forbidden", async () => {
   const { agent, token, response } = await authenticate("teacher@campus.test");
   assert.equal(response.status, 200);
@@ -142,11 +115,8 @@ test("gateway camera registration issues a scoped one-time credential without le
   assert.ok(!JSON.stringify(sources.body).includes(result.body.data.serviceToken));
   assert.equal(result.body.data.integration.health, "unavailable");
 });
-test("disabled admin invitation configuration rejects supplied keys explicitly", async () => {
-  const disabled = createApplication({ config: { ...config, adminInviteKey: null }, connection, models });
-  try {
-    const agent = request.agent(disabled.app), token = (await agent.get("/api/v1/auth/csrf")).body.data.csrfToken;
-    const registered = await mutate(agent, token, "/auth/register", { name: "No invite", email: "disabled@test.example", password, adminKey });
-    assert.equal(registered.status, 503); assert.equal(await models.User.countDocuments({ email: "disabled@test.example" }), 0);
-  } finally { await disabled.close(); }
+test("legacy harness cannot create unscoped accounts", async () => {
+ const visitor = request.agent(runtime.app), token = (await visitor.get("/api/v1/auth/csrf")).body.data.csrfToken;
+ assert.equal((await mutate(visitor, token, "/auth/register", { name: "Rejected", email: "unscoped@test.example", password })).status, 410);
+ assert.equal(await models.User.countDocuments({ email: "unscoped@test.example" }), 0);
 });
