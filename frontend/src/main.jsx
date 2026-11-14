@@ -46,7 +46,7 @@ import { Management, Profile } from "./Management.jsx";
 import { MeterCameras } from "./MeterCameras.jsx";
 import { ConnectedDevices } from "./ConnectedDevices.jsx";
 import { PhoneDemo, PhoneDemoSummary } from "./PhoneDemo.jsx";
-import { InstitutionPicker } from "./Institutions.jsx";
+import { Authentication } from "./Authentication.jsx";
 import Help from "./components/Help.jsx";
 import { selectIntervals, sourceLabel, freshness } from "./services/consumption.js";
 import "./styles.css";
@@ -206,6 +206,7 @@ function Clock({ until }) {
 function App() {
   const [user, setUser] = useState(undefined),
     [health, setHealth] = useState(null),
+    [pendingWorkspaces, setPendingWorkspaces] = useState([]),
     [version, setVersion] = useState(0),
     [busy, setBusy] = useState(false),
     [notice, setNotice] = useState(""),
@@ -216,12 +217,10 @@ function App() {
   const [syncState, setSyncState] = useState("connecting"), [reads, setReads] = useState({ pending: false, failed: false });
   useEffect(() => subscribeReadState(setReads), []);
   useEffect(() => {
-    api("/auth/me")
-      .then((d) => setUser(d.user))
-      .catch(() => setUser(null));
-    api("/health")
-      .then(setHealth)
-      .catch(() => {});
+    const controller = new AbortController();
+    api("/auth/session", { signal: controller.signal }).then(d => { if (!controller.signal.aborted) { setPendingWorkspaces(d.workspaces ?? []); setUser(d.user); } }).catch(err => { if (err.name !== "AbortError" && !controller.signal.aborted) setUser(null); });
+    api("/health", { signal: controller.signal }).then(value => { if (!controller.signal.aborted) setHealth(value); }).catch(() => {});
+    return () => controller.abort();
   }, []);
   useEffect(() => {
     setMenu(false);
@@ -230,9 +229,15 @@ function App() {
     if (!user) return;
     return startLiveSync({ request: api, invalidate: refresh, status: setSyncState, expectedInstitutionId: user.institutionId ?? "legacy",
       identity: next => setUser(previous => JSON.stringify(previous) === JSON.stringify(next) ? previous : next),
-      revoked: () => setUser(null),
+      revoked: () => { setPendingWorkspaces([]); setUser(null); },
     });
   }, [user?._id, user?.institutionId, refresh]);
+  async function signOut() {
+    setBusy(true); setError("");
+    try { await post("/auth/logout"); setPendingWorkspaces([]); setUser(null); setNotice(""); }
+    catch (failure) { setError(failure.message); }
+    finally { setBusy(false); }
+  }
   async function act(operation, message = "Saved") {
     setBusy(true);
     setError("");
@@ -259,7 +264,7 @@ function App() {
   return (
     <AppContext.Provider value={context}>
       {!user ? (
-        <Login onLogin={setUser} />
+        <Login pendingWorkspaces={pendingWorkspaces} onLogin={value => { setPendingWorkspaces([]); setUser(value); setError(""); setNotice(""); }} />
       ) : (
         <div className="app-shell">
           <a className="skip" href="#main">
@@ -324,12 +329,8 @@ function App() {
                 </div>
                 <button
                   className="signout-btn"
-                  onClick={() =>
-                    act(async () => {
-                      await post("/auth/logout");
-                      setUser(null);
-                    }, "Signed out")
-                  }
+                  onClick={signOut}
+                  disabled={busy}
                 >
                   <LogOut size={14} />
                   Sign out
@@ -369,12 +370,8 @@ function App() {
                   <Link to="/profile" className="topbar-name">{user.name} / {user.role}</Link>
                   <button
                     className="topbar-signout"
-                    onClick={() =>
-                      act(async () => {
-                        await post("/auth/logout");
-                        setUser(null);
-                      }, "Signed out")
-                    }
+                    onClick={signOut}
+                  disabled={busy}
                   >
                     <LogOut size={14} />
                     Sign out
@@ -458,7 +455,7 @@ function App() {
     </AppContext.Provider>
   );
 }
-function Login({ onLogin }) {
+function Login({ onLogin, pendingWorkspaces }) {
   const accessToken = useLocation().pathname.match(
       /^\/access\/([A-Za-z0-9_.-]+)$/,
     )?.[1],
@@ -469,264 +466,7 @@ function Login({ onLogin }) {
         .then(setAccessRoom)
         .catch(() => setAccessRoom({ name: "Access URL unavailable" }));
   }, [accessToken]);
-  const { act, health } = useApp(),
-    [busy, setBusy] = useState(false),
-    [tab, setTab] = useState("login"),
-    [email, setEmail] = useState(""),
-    [password, setPassword] = useState(""),
-    [name, setName] = useState(""),
-    [confirmPassword, setConfirmPassword] = useState(""),
-    [adminKey, setAdminKey] = useState(""),
-    [institutionId, setInstitutionId] = useState(""),
-    [institutionName, setInstitutionName] = useState(""),
-    [registrationMode, setRegistrationMode] = useState("create"),
-    [invitationToken, setInvitationToken] = useState(""),
-    [error, setError] = useState("");
-
-  const switchTab = (t) => {
-    setTab(t);
-    setError("");
-    setEmail("");
-    setPassword("");
-    setName("");
-    setConfirmPassword("");
-    setAdminKey("");
-    setInstitutionId(""); setInstitutionName(""); setInvitationToken(""); setRegistrationMode("create");
-  };
-
-  return (
-    <div className="login-page">
-      <section className="login-story">
-        <div className="brand">
-          <span className="brand-mark">
-            <Activity />
-          </span>
-          campusenergy
-        </div>
-        <div>
-          <div className="eyebrow">A MORE CONSIDERED CAMPUS</div>
-          <h1>
-            See the energy.
-            <br />
-            Make the difference.
-          </h1>
-          <p>
-            Turn building data into clear insights, responsible action and
-            measurable progress.
-          </p>
-          <div className="story-line" />
-          <div className="story-stats">
-            <span>
-              <strong>01</strong>building, connected
-            </span>
-            <span>
-              <strong>100%</strong>accountable actions
-            </span>
-          </div>
-        </div>
-        <small>LOCAL PROTOTYPE · SIMULATED HARDWARE</small>
-      </section>
-      <section className="login-form">
-        <div className="eyebrow">CAMPUS ENERGY / OPERATIONS</div>
-        <div className="login-tabs">
-          <button
-            className={tab === "login" ? "login-tab active" : "login-tab"}
-            onClick={() => switchTab("login")}
-            type="button"
-          >
-            Sign in
-          </button>
-          <button
-            className={tab === "signup" ? "login-tab active" : "login-tab"}
-            onClick={() => switchTab("signup")}
-            type="button"
-          >
-            Create account
-          </button>
-        </div>
-        {tab === "login" ? (
-          <>
-            <h2>Welcome back</h2>
-            <p>
-              {accessRoom
-                ? `Room access: ${accessRoom.code ?? ""} ${accessRoom.name}. Sign in for server authorisation.`
-                : "Sign in to your building workspace."}
-            </p>
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                setError("");
-                setBusy(true);
-                try {
-                  const result = await post("/auth/login", { email, password, ...(adminKey.trim() ? { adminKey: adminKey.trim() } : {}), ...(health?.institutionWorkspaces ? { institutionId } : {}) });
-                  onLogin(result.user);
-                  if (result.user.role === "admin" && !window.location.pathname.startsWith("/access/")) window.location.assign("/admin");
-                } catch (err) {
-                  setError(err.message || "Sign-in failed. Check your credentials and the API connection.");
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            >
-              {health?.institutionWorkspaces && <InstitutionPicker Field={Field} onSelect={setInstitutionId} />}
-              <Field label="Email address">
-                <input
-                  type="email"
-                  autoComplete="username"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </Field>
-              <Field label="Password">
-                <input
-                  type="password"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-              </Field>
-              <Field label="Admin invite key" hint="Required for administrator sign-in when configured on the server. Leave blank for ordinary login; the server checks enrollment and access.">
-                <input type="password" autoComplete="off" inputMode="numeric" pattern="[0-9]{8}" maxLength={8} value={adminKey} onChange={(e) => setAdminKey(e.target.value)} placeholder="8-digit administrator key" />
-              </Field>
-              {health?.institutionWorkspaces && <details className="section-gap"><summary>Accept an invitation with an existing account</summary><Field label="Invitation for existing account"><input type="password" autoComplete="off" value={invitationToken} onChange={event => setInvitationToken(event.target.value)} maxLength={200} /></Field><button type="button" className="button secondary" disabled={busy || !invitationToken.trim() || !email || !password} onClick={async () => {
-                setBusy(true); setError("");
-                try { const result = await post("/auth/accept-invitation", { email, password, invitationToken: invitationToken.trim() });
-                  if (result.user) onLogin(result.user); else { setInstitutionId(result.institution._id); setError("Membership added. Select your institution and sign in with its administrator requirements."); }
-                } catch (failure) { setError(failure.message); } finally { setBusy(false); }
-              }}>Accept membership invitation</button></details>}
-              <ErrorText>{error}</ErrorText>
-              <button className="button" disabled={busy}>
-                {busy ? "Signing in…" : "Sign in to workspace"}
-                <ArrowRight size={18} />
-              </button>
-            </form>
-            <div className="login-help">
-              <ShieldCheck size={20} />
-              <p>
-                {health?.institutionWorkspaces ? <>Select your institution before signing in. For the optional <strong>Campus Energy Demo</strong>, use the dedicated credentials supplied by your administrator.</> : <>Demo accounts use <strong>role@campus.test</strong>. Use the
-                generated local <code>DEMO_PASSWORD</code> from your ignored{" "}
-                <code>.env</code> file. Credentials are never embedded in the
-                website.</>}
-              </p>
-            </div>
-          </>
-        ) : (
-          <>
-            <h2>Create account</h2>
-            <p>{health?.institutionWorkspaces ? "Create an empty institution as administrator, or join an existing workspace with an invitation." : "New accounts start as viewers. Leave the admin key blank unless you have one."}</p>
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                setError("");
-                if (password !== confirmPassword) {
-                  setError("Passwords do not match.");
-                  return;
-                }
-                if (password.length < (health?.institutionWorkspaces ? 12 : 8)) {
-                  setError(`Password must be at least ${health?.institutionWorkspaces ? 12 : 8} characters.`);
-                  return;
-                }
-                setBusy(true);
-                try {
-                  const body = { name, email, password };
-                  if (adminKey.trim()) body.adminKey = adminKey.trim();
-                  if (health?.institutionWorkspaces) {
-                    body.registrationMode = registrationMode;
-                    if (registrationMode === "create") body.institutionName = institutionName.trim();
-                    else body.invitationToken = invitationToken.trim();
-                  }
-                  const result = await post("/auth/register", body);
-                  onLogin(result.user);
-                  if (result.user.role === "admin") window.location.assign("/admin");
-                } catch (err) {
-                  setError(err.message || "Sign-up failed. Please try again.");
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            >
-              {health?.institutionWorkspaces && <Field label="Account setup"><select value={registrationMode} onChange={event => { setRegistrationMode(event.target.value); setInstitutionName(""); setInvitationToken(""); setAdminKey(""); setError(""); }}><option value="create">Create a new institution (administrator)</option><option value="join">Join an existing institution (invitation)</option></select></Field>}
-              <Field label="Full name">
-                <input
-                  type="text"
-                  autoComplete="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                />
-              </Field>
-              <Field label="Email address">
-                <input
-                  type="email"
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </Field>
-              <Field label="Password" hint={health?.institutionWorkspaces ? "Minimum 12 characters" : "Minimum 8 characters"}>
-                <input
-                  type="password"
-                  autoComplete="new-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={health?.institutionWorkspaces ? 12 : 8}
-                />
-              </Field>
-              <Field label="Confirm password">
-                <input
-                  type="password"
-                  autoComplete="new-password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                />
-              </Field>
-              {health?.institutionWorkspaces && <>
-                {registrationMode === "create" ? <Field label="Institution / building name for new administrator"><input value={institutionName} onChange={event => setInstitutionName(event.target.value)} maxLength={200} required placeholder="Your institution's single-building workspace" /></Field> : <Field label="Membership invitation (joining an existing institution)"><input type="password" value={invitationToken} onChange={event => setInvitationToken(event.target.value)} maxLength={200} required autoComplete="off" placeholder="Invitation issued by your institution administrator" /></Field>}
-                <p className="caption">{registrationMode === "create" ? "Use your server admin key to create an empty, private institution. No membership invitation is needed." : "Use the membership invitation issued by that institution's administrator. This is different from the server admin key. Administrator invitations also require the admin key."}</p>
-              </>}
-              <Field label="Admin invite key" hint="New workspace administrator enrollment; existing-institution members use an invitation">
-                <input
-                  type="password"
-                  autoComplete="off"
-                  inputMode="numeric"
-                  pattern="[0-9]{8}"
-                  maxLength={8}
-                  value={adminKey}
-                  onChange={(e) => setAdminKey(e.target.value)}
-                  required={!!health?.institutionWorkspaces && registrationMode === "create"}
-                  placeholder="8-digit key to register as admin"
-                />
-              </Field>
-              <ErrorText>{error}</ErrorText>
-              <button className="button" disabled={busy}>
-                {busy ? "Creating account…" : "Create account"}
-                <ArrowRight size={18} />
-              </button>
-            </form>
-            <div className="login-help">
-              <ShieldCheck size={20} />
-              <p>
-                Already have an account?{" "}
-                <button
-                  type="button"
-                  className="text-link"
-                  style={{ display: "inline", padding: 0 }}
-                  onClick={() => switchTab("login")}
-                >
-                  Sign in
-                </button>
-              </p>
-            </div>
-          </>
-        )}
-      </section>
-    </div>
-  );
+  return <Authentication onLogin={onLogin} initialWorkspaces={pendingWorkspaces} accessRoom={accessRoom} Field={Field} ErrorText={ErrorText} />;
 }
 
 function ConsumptionChart({ intervals = [], range = 7, expanded, setExpanded, focus }) {
@@ -3184,7 +2924,7 @@ function AdministrationExtras({ settings, rooms }) {
               name="password"
               type="password"
               autoComplete="new-password"
-              minLength={12}
+              minLength={6}
               required
             />
           </Field>

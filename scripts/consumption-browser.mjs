@@ -18,14 +18,14 @@ async function until(fn) { for (let n = 0; n < 180; n++) { if (await fn()) retur
 try {
   await mkdir(".local/screenshots", { recursive: true });
   const probe = createServer(); await new Promise(r => probe.listen(0, "127.0.0.1", r)); const port = probe.address().port; await new Promise(r => probe.close(r)); const base = `http://localhost:${port}`;
-  db = await startDatabase(); const config = loadConfig({ NODE_ENV: "test", MONGODB_URI: db.getUri("consumption_browser"), ADMIN_INVITE_KEY: key, SESSION_SECRET: randomBytes(32).toString("hex"), SERVICE_INGEST_TOKEN: randomBytes(32).toString("hex"), FRONTEND_ORIGIN: base, PUBLIC_APP_URL: base });
+  db = await startDatabase(); const config = loadConfig({ NODE_ENV: "test", MONGODB_URI: db.getUri("consumption_browser"), SESSION_SECRET: randomBytes(32).toString("hex"), SERVICE_INGEST_TOKEN: randomBytes(32).toString("hex"), FRONTEND_ORIGIN: base, PUBLIC_APP_URL: base });
   runtime = await createInstitutionApplication(config);
   const seeded = await seedDedicatedDemo(runtime.directory, { ...config, enableDemoSetup: true, demoAdminEmail: "admin@consumption.test", demoViewerEmail: "viewer@consumption.test", demoAdminPassword: password, demoViewerPassword: password });
   const { models } = await runtime.directory.realm(seeded.institutionId);
   await models.MeterReading.deleteMany({}); await models.EnergyInterval.deleteMany({}); await models.Incident.deleteMany({ type: "energy" }); await models.Recommendation.deleteMany({});
   await models.Settings.updateOne({ _id: "installation" }, { $set: { initialBaselineKwh: 5, absoluteExcessFloorKwh: 3, relativeThreshold: .3 } });
   const agent = request.agent(runtime.app), csrf = (await agent.get("/api/v1/auth/csrf")).body.data.csrfToken;
-  const login = await agent.post("/api/v1/auth/login").set("Origin", base).set("X-CSRF-Token", csrf).send({ email: "admin@consumption.test", password, adminKey: key, institutionId: seeded.institutionId }); assert.equal(login.status, 200);
+  const login = await agent.post("/api/v1/auth/login").set("Origin", base).set("X-CSRF-Token", csrf).send({ email: "admin@consumption.test", password }); assert.equal(login.status, 200);
   const add = async (start, energy, hours = 1) => {
     const response = await agent.post("/api/v1/meter-readings").set("Origin", base).set("X-CSRF-Token", login.body.data.csrfToken).send({ eventId: randomUUID(), meterId: "MAIN-01", epoch: "initial", kind: "interval", register: "import_kwh", intervalStart: new Date(start).toISOString(), capturedAt: new Date(start + hours * 3600000).toISOString(), value: energy, sourceType: "manual", dataMode: "simulated", unit: "kWh" });
     assert.ok(response.status < 300, JSON.stringify(response.body.error));
@@ -40,7 +40,7 @@ try {
   const executable = process.env.BROWSER_EXECUTABLE ?? ["C:/Program Files/Google/Chrome/Application/chrome.exe", "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"].find(existsSync);
   browser = await launchChrome(executable); page = await browser.newPage({ viewport: { width: 1440, height: 1080 } }); page.on("pageerror", e => errors.push(e.message));
   await page.bringToFront();
-  await page.goto(base); await page.getByLabel("Institution / building").fill("Campus Energy Demo"); await page.locator(".institution-suggestions button").click();
+  await page.goto(base);
   await page.getByLabel("Email address").fill("viewer@consumption.test"); await page.getByLabel("Password").fill(password); await page.getByRole("button", { name: "Sign in to workspace" }).click();
   await until(async () => (await text()).includes("Live updates connected")); await page.goto(`${base}/energy`);
   await until(() => page.evaluate(() => document.querySelectorAll(".recharts-line").length >= 5));

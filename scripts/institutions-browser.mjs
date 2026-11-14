@@ -1,99 +1,36 @@
-// Isolated workspace onboarding/login smoke; never touches the configured database.
-import { existsSync } from 'node:fs';
-import { mkdir, writeFile } from 'node:fs/promises';
-import { randomBytes, randomInt } from 'node:crypto';
-import { createServer } from 'node:net';
-import assert from 'node:assert/strict';
-import { startDatabase } from './database.mjs';
-import { launchChrome } from './chrome-driver.mjs';
-import { loadConfig } from '../backend/src/config.js';
-import { createInstitutionApplication } from '../backend/src/workspaces/runtime.js';
-const executable = process.env.BROWSER_EXECUTABLE ?? ['C:/Program Files/Google/Chrome/Application/chrome.exe', 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'].find(existsSync);
-if (!executable) throw new Error('Set BROWSER_EXECUTABLE to installed Chromium');
+// Isolated browser/database; never uses existing accounts or user data.
+import { existsSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
+import { randomBytes } from "node:crypto";
+import { createServer } from "node:net";
+import assert from "node:assert/strict";
+import { startDatabase } from "./database.mjs";
+import { launchChrome } from "./chrome-driver.mjs";
+import { loadConfig } from "../backend/src/config.js";
+import { createInstitutionApplication } from "../backend/src/workspaces/runtime.js";
 let db, runtime, browser, page; const checks = [], errors = [];
-const password = randomBytes(24).toString('base64url'), key = randomInt(10000000, 100000000).toString();
-async function wait(fn) { for (let i = 0; i < 100; i++) { if (await fn()) return; await new Promise(r => setTimeout(r, 150)); } throw new Error('Browser outcome timed out'); }
+const adminKey = randomBytes(24).toString("hex"), password = randomBytes(3).toString("hex"), firstCode = "Ab12Cd34", nextCode = "Ef56Gh78";
+async function wait(fn) { for(let i=0;i<150;i++) { if(await fn()) return; await new Promise(r=>setTimeout(r,100)); } throw new Error(`Timed out after ${checks.length} checks`); }
+async function logout() { await wait(()=>page.evaluate(()=>document.querySelector('.sync-status')?.textContent.includes('Live updates connected'))); await page.getByRole('button',{name:'Sign out'}).first().click(); await page.getByRole('button',{name:'Sign in to workspace'}).waitFor(); }
+async function credentials(email) { await page.getByLabel('Email address').fill(email); await page.getByLabel('Password').fill(password); }
+async function signup(email,type,code) { await page.getByRole('button',{name:'Create account'}).first().click(); await page.getByLabel('Account type').selectOption(type); await page.getByLabel('Full name').fill('Browser member'); await credentials(email); await page.getByLabel('Confirm password').fill(password); if(type==='administrator') await page.getByLabel('Institution / building name').fill('Browser Building'); await page.getByLabel(type==='administrator' ? 'Set Building Join Code' : 'Building Join Code').fill(code); if(type==='administrator') await page.getByLabel('Administrator registration key').fill(adminKey); }
 try {
-  const probe = createServer(); await new Promise(r => probe.listen(0, '127.0.0.1', r));
-  const port = probe.address().port; await new Promise(r => probe.close(r));
-  const base = `http://localhost:${port}`;
-  db = await startDatabase();
-  const config = loadConfig({ NODE_ENV: 'test', MONGODB_URI: db.getUri('institution_browser'), SESSION_SECRET: randomBytes(32).toString('hex'), SERVICE_INGEST_TOKEN: randomBytes(32).toString('hex'), ADMIN_INVITE_KEY: key, PUBLIC_APP_URL: base, FRONTEND_ORIGIN: base });
-  runtime = await createInstitutionApplication(config);
-  await new Promise(r => runtime.server.listen(port, '127.0.0.1', r));
-  browser = await launchChrome(executable); page = await browser.newPage({ viewport: { width: 1440, height: 1080 } });
-  page.on('pageerror', error => errors.push(error.message));
-  await page.goto(base);
-  await page.getByRole('button', { name: 'Create account' }).click();
-  await page.getByLabel('Account setup').waitFor();
-  assert.equal(await page.evaluate(() => [...document.querySelectorAll('label')].some(label => label.textContent.includes('Membership invitation (joining an existing institution)'))), false);
-  await page.getByLabel('Account setup').selectOption('join');
-  await page.getByLabel('Membership invitation (joining an existing institution)').fill('not-an-invitation');
-  assert.equal(await page.evaluate(() => [...document.querySelectorAll('label')].some(label => label.textContent.includes('Institution / building name for new administrator'))), false);
-  await page.getByLabel('Account setup').selectOption('create');
-  checks.push('Create/join selection separates fields and clears an old invitation before administrator registration');
-  await page.getByLabel('Full name').fill('Browser administrator');
-  await page.getByLabel('Email address').fill('browser@institution.test');
-  await page.getByLabel('Password').fill(password); await page.getByLabel('Confirm password').fill(password);
-  await page.getByLabel('Institution / building name for new administrator').fill('Browser Institute');
-  await page.getByLabel('Admin invite key').fill(key);
-  await page.locator('form .button').click();
-  await wait(() => runtime.directory.Institution.exists({ displayName: 'Browser Institute', active: true }));
-  const institution = await runtime.directory.Institution.findOne({ displayName: 'Browser Institute' }).lean();
-  const realm = await runtime.directory.realm(institution._id);
-  assert.equal(await realm.models.Room.countDocuments(), 0); assert.equal(await realm.models.MeterReading.countDocuments(), 0);
-  checks.push('New administrator UI creates an empty private workspace');
-  await page.goto(`${base}/profile`);
-  await page.getByLabel('Institution / building display name').fill('Renamed Browser Institute');
-  await page.locator('input[name="discoverable"]').check();
-  await page.getByRole('button', { name: 'Save institution identity' }).click();
-  await wait(() => runtime.directory.Institution.exists({ _id: institution._id, displayName: 'Renamed Browser Institute', discoverable: true }));
-  checks.push('Profile rename/discoverability persist without changing institution ID');
-  await page.getByRole('button', { name: 'Generate private workspace code' }).click();
-  await wait(() => page.evaluate(() => !!document.querySelector('.institution-secret')?.textContent));
-  const privateCode = await page.evaluate(() => document.querySelector('.institution-secret').textContent);
-  const viewerCreated = await page.evaluate(async password => {
-    const csrf = await fetch('/api/v1/auth/csrf').then(r => r.json());
-    const response = await fetch('/api/v1/users', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf.data.csrfToken }, body: JSON.stringify({ name: 'Browser viewer', email: 'viewer@institution.test', password, role: 'viewer', permittedRoomIds: [] }) });
-    return response.status;
-  }, password);
-  assert.equal(viewerCreated, 201);
-  await page.goto(`${base}/`);
-  await wait(() => page.evaluate(() => document.querySelector('.sync-status')?.textContent.includes('Live updates connected')));
-  await page.getByRole('button', { name: 'Sign out' }).click();
-  await page.getByLabel('Institution / building').fill('Renamed');
-  await page.locator('.institution-suggestions button').click();
-  await page.getByLabel('Email address').fill('browser@institution.test'); await page.getByLabel('Password').fill(password); await page.getByLabel('Admin invite key').fill(key);
-  await page.getByRole('button', { name: 'Sign in to workspace' }).click();
-  await wait(() => page.evaluate(() => document.body.innerText.includes('Sign out')));
-  await wait(() => page.evaluate(() => document.querySelector('.sync-status')?.textContent.includes('Live updates connected')));
-  checks.push('Debounced suggestion selection and membership login succeed after rename');
-  await page.getByRole('button', { name: 'Sign out' }).click();
-  await page.getByRole('button', { name: 'Sign in to workspace' }).waitFor();
-  await page.locator('details summary').first().click();
-  await page.getByLabel('Workspace identity code').fill(privateCode);
-  await page.getByRole('button', { name: 'Find private institution' }).click();
-  await wait(() => page.evaluate(() => document.body.innerText.includes('Selected: Renamed Browser Institute')));
-  checks.push('Private identity code selects the intended workspace');
-  await page.getByLabel('Email address').fill('viewer@institution.test'); await page.getByLabel('Password').fill(password);
-  await page.getByRole('button', { name: 'Sign in to workspace' }).click();
-  await wait(() => page.evaluate(() => document.body.innerText.includes('Sign out')));
-  await page.goto(`${base}/profile`);
-  await wait(() => page.evaluate(() => document.body.innerText.includes('Renamed Browser Institute') && document.body.innerText.includes('Account role: viewer')));
-  assert.equal(await page.evaluate(() => !!document.querySelector('input[name="displayName"]')), false);
-  checks.push('Viewer sees the renamed institution and cannot edit its identity');
-  await wait(() => page.evaluate(() => document.querySelector('.sync-status')?.textContent.includes('Live updates connected')));
-  await page.getByRole('button', { name: 'Sign out' }).click();
-  await page.getByLabel('Institution / building').waitFor();
-  await page.setViewportSize({ width: 390, height: 844 });
-  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
-  await mkdir('.local/screenshots', { recursive: true });
-  await page.screenshot({ path: '.local/screenshots/institution-login-mobile.png', fullPage: true });
-  checks.push('390px institution selector has no horizontal overflow');
-  assert.deepEqual(errors, []);
-  await writeFile('.local/institution-browser.json', JSON.stringify({ checks, runtimeErrors: errors }, null, 2));
-  console.log(`${checks.length} institution browser checks passed; no runtime errors.`);
-} catch (error) {
-  if (page) await writeFile('.local/institution-browser-failure.txt', await page.evaluate(() => document.body.innerText).catch(() => 'No page')).catch(() => {});
-  throw error;
-} finally { await browser?.close(); await runtime?.close(); await db?.stop(); }
+ await mkdir('.local/screenshots',{recursive:true}); const probe=createServer(); await new Promise(r=>probe.listen(0,'127.0.0.1',r)); const port=probe.address().port; await new Promise(r=>probe.close(r)); const base=`http://localhost:${port}`;
+ db=await startDatabase(); runtime=await createInstitutionApplication(loadConfig({NODE_ENV:'test',ADMIN_INVITE_KEY:adminKey,MONGODB_URI:db.getUri('auth_browser'),SESSION_SECRET:randomBytes(32).toString('hex'),SERVICE_INGEST_TOKEN:randomBytes(32).toString('hex'),PUBLIC_APP_URL:base,FRONTEND_ORIGIN:base})); await new Promise(r=>runtime.server.listen(port,'127.0.0.1',r));
+ const exe=process.env.BROWSER_EXECUTABLE ?? ['C:/Program Files/Google/Chrome/Application/chrome.exe','C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'].find(existsSync);
+ browser=await launchChrome(exe); page=await browser.newPage({viewport:{width:1440,height:1080}}); page.on('pageerror',e=>errors.push(e.message)); await page.bringToFront(); await page.goto(base); await page.getByLabel('Email address').waitFor();
+ assert.deepEqual(await page.evaluate(()=>[...document.querySelectorAll('form input')].map(e=>e.type)),['email','password']); assert.ok(!await page.evaluate(()=>/invitation|identity code|find private|admin invite/i.test(document.body.innerText))); checks.push('Only email/password on sign-in; all retired controls absent');
+ await signup('admin@browser.test','administrator',firstCode); await page.getByLabel('Confirm password').fill(`${password}x`); await page.locator('form .button').click(); await wait(()=>page.evaluate(()=>document.body.innerText.includes('Passwords do not match'))); assert.equal(await runtime.directory.Account.countDocuments(),0);
+ await page.getByLabel('Confirm password').fill(password); await page.getByLabel('Administrator registration key').fill('incorrect-registration-key'); await page.locator('form .button').click(); await wait(()=>page.evaluate(()=>document.body.innerText.includes('No account was created'))); assert.equal(await runtime.directory.Account.countDocuments(),0); await page.getByLabel('Administrator registration key').fill(adminKey); await page.locator('form .button').click(); await wait(()=>page.evaluate(()=>location.pathname==='/admin' && /Administrator access verified/i.test(document.body.innerText)));
+ const institution=await runtime.directory.Institution.findOne({displayName:'Browser Building'}).lean(), realm=await runtime.directory.realm(institution._id); assert.equal(await realm.models.Room.countDocuments(),0); assert.equal(await realm.models.MeterReading.countDocuments(),0); checks.push('Administrator requires server registration key, sets Building Join Code; confirmation validated and building empty');
+ await page.goto(`${base}/profile`); await page.getByLabel('Institution / building display name').fill('Renamed Browser Building'); await page.getByRole('button',{name:'Save building name'}).click(); await wait(()=>runtime.directory.Institution.exists({_id:institution._id,displayName:'Renamed Browser Building'}));
+ await page.getByLabel('Building Join Code').fill(nextCode); await page.getByRole('button',{name:'Replace Building Join Code'}).click(); await wait(()=>page.evaluate(()=>document.body.innerText.includes('Building Join Code replaced'))); assert.equal(await page.evaluate(()=>document.querySelector('input[type=password]').value),''); assert.ok(!await page.evaluate(code=>document.body.innerText.includes(code),nextCode)); checks.push('Stable-ID rename and write-only replacement; code never revealed');
+ await logout(); await signup('viewer@browser.test','viewer',firstCode); assert.equal(await page.evaluate(()=>[...document.querySelectorAll('label')].some(l=>l.textContent.includes('Institution / building name'))),false); await page.locator('form .button').click(); await wait(()=>page.evaluate(()=>document.body.innerText.includes('Building Join Code is invalid or disabled'))); assert.equal(await runtime.directory.Account.countDocuments({email:'viewer@browser.test'}),0);
+ await page.getByLabel('Building Join Code').fill(nextCode); await page.locator('form .button').click(); await wait(()=>page.evaluate(()=>!!document.querySelector('.profile-link') && document.body.innerText.includes('Renamed Browser Building'))); const viewer=await runtime.directory.Account.findOne({email:'viewer@browser.test'}).select('+passwordHash').lean(); assert.equal((await realm.models.User.findById(viewer._id).lean()).role,'viewer'); checks.push('Viewer uses code only; old code fails cleanly, new code links correct building and Viewer role');
+ await page.goto(`${base}/profile`); await wait(()=>page.evaluate(()=>document.body.innerText.includes('Account role: viewer'))); assert.equal(await page.evaluate(()=>document.querySelectorAll('input[type=password]').length),0); checks.push('Viewer sees building name and cannot manage code or activate administrator role');
+ await logout(); await credentials('admin@browser.test'); await page.getByRole('button',{name:'Sign in to workspace'}).click(); await wait(()=>page.evaluate(()=>location.pathname==='/admin' && !!document.querySelector('.profile-link'))); await logout(); await credentials('viewer@browser.test'); await page.getByRole('button',{name:'Sign in to workspace'}).click(); await wait(()=>page.evaluate(()=>!!document.querySelector('.profile-link'))); assert.equal((await runtime.directory.Account.findById(viewer._id).select('+passwordHash').lean()).passwordHash,viewer.passwordHash); checks.push('Both roles subsequently sign in with email/password; existing password hash preserved');
+ const foreign=await runtime.directory.createInstitution('Second Authorised Building'); await runtime.directory.addMember(foreign,viewer,{role:'viewer'}); await runtime.directory.activate(foreign); await logout(); await credentials('viewer@browser.test'); await page.getByRole('button',{name:'Sign in to workspace'}).click(); await wait(()=>page.evaluate(()=>/choose your building/i.test(document.body.innerText))); assert.equal(await page.evaluate(async()=> (await fetch('/api/v1/rooms')).status),401); await page.goto(base); await wait(()=>page.evaluate(()=>/choose your building/i.test(document.body.innerText))); await page.getByRole('button',{name:'Renamed Browser Building'}).click(); await wait(()=>page.evaluate(()=>!!document.querySelector('.profile-link'))); checks.push('Multiple existing memberships choose after password; pending identity cannot read operational data');
+ await page.setViewportSize({width:390,height:844}); await logout(); assert.equal(await page.evaluate(()=>document.querySelectorAll('form input').length),2); assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)); await page.screenshot({path:'.local/screenshots/building-login-mobile.png',fullPage:true}); await signup('mobile@browser.test','administrator',firstCode); assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)); await page.screenshot({path:'.local/screenshots/building-signup-mobile.png',fullPage:true}); checks.push('390px login and registration retain palette/layout without overflow');
+ assert.deepEqual(errors,[]); await writeFile('.local/building-auth-browser.json',JSON.stringify({checks,runtimeErrors:errors},null,2)); console.log(`${checks.length} authentication browser checks passed; no runtime errors.`);
+} catch(error) { if(page) { await writeFile('.local/building-auth-browser-failure.txt',await page.evaluate(()=>document.body.innerText).catch(()=> 'Unavailable')); await page.screenshot({path:'.local/screenshots/building-auth-failure.png',fullPage:true}).catch(()=>{}); } throw error; }
+finally { await browser?.close(); await runtime?.close(); await db?.stop(); }

@@ -29,6 +29,7 @@
     "check": "node scripts/check.mjs",
     "check:client-secrets": "node scripts/check-client-secrets.mjs",
     "test:browser": "node scripts/browser-smoke.mjs",
+    "test:auth-browser": "node scripts/institutions-browser.mjs",
     "test:admin-browser": "node scripts/admin-browser-smoke.mjs",
     "test:devices-browser": "node scripts/connected-devices-browser.mjs",
     "stop": "node scripts/stop-dev.mjs",

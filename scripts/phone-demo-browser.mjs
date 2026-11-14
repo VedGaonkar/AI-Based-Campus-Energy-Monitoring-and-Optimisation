@@ -28,13 +28,13 @@ try {
   const port = probe.address().port; await new Promise(resolve => probe.close(resolve)); const base = `http://localhost:${port}`;
   db = await startDatabase(); ({ connection, models } = await connectDatabase(db.getUri("phone_browser")));
   const password = randomBytes(18).toString("hex"), key = randomInt(10000000, 100000000).toString();
-  const config = loadConfig({ NODE_ENV: "test", MONGODB_URI: db.getUri("phone_browser"), SESSION_SECRET: randomBytes(32).toString("hex"), SERVICE_INGEST_TOKEN: randomBytes(32).toString("hex"), ADMIN_INVITE_KEY: key, PUBLIC_APP_URL: base, FRONTEND_ORIGIN: base, DEMO_MODE: "true" });
+  const config = loadConfig({ NODE_ENV: "test", MONGODB_URI: db.getUri("phone_browser"), SESSION_SECRET: randomBytes(32).toString("hex"), SERVICE_INGEST_TOKEN: randomBytes(32).toString("hex"), PUBLIC_APP_URL: base, FRONTEND_ORIGIN: base, DEMO_MODE: "true" });
   await seed(models, config, { password }); runtime = createApplication({ models, connection, config });
   await new Promise(resolve => runtime.server.listen(port, "127.0.0.1", resolve));
   await mkdir(".local/screenshots", { recursive: true });
   async function page(viewport) { const browser = await launchChrome(executable); browsers.push(browser); const page = await browser.newPage({ viewport }); page.on("pageerror", failure => errors.push(failure.message)); return page; }
   dashboard = await page({ width: 1440, height: 1080 }); classroom = await page({ width: 800, height: 1000 }); camera = await page({ width: 390, height: 844 });
-  await dashboard.goto(`${base}/phone-demo`); await dashboard.getByLabel("Email address").fill("admin@campus.test"); await dashboard.getByLabel("Password").fill(password); await dashboard.getByLabel("Admin invite key").fill(key); await dashboard.getByRole("button", { name: "Sign in to workspace" }).click();
+  await dashboard.goto(`${base}/phone-demo`); await dashboard.getByLabel("Email address").fill("admin@campus.test"); await dashboard.getByLabel("Password").fill(password); await dashboard.getByRole("button", { name: "Sign in to workspace" }).click();
   await waitFor(() => dashboard.evaluate(() => location.pathname === "/admin" && document.body.innerText.includes("Building setup")));
   await dashboard.goto(`${base}/phone-demo`); await dashboard.getByLabel("Existing room").selectOption("room-r101"); await dashboard.getByLabel("Vacancy confirmation (seconds)").fill("2");
   await dashboard.locator('form input[type="checkbox"]').check(); await dashboard.locator('input[name="manual"]').check();

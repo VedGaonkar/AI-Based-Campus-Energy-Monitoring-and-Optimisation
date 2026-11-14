@@ -62,7 +62,7 @@ try {
   await page
     .getByLabel("Password", { exact: true })
     .fill(config.demoPassword);
-  await page.getByLabel("Admin invite key").fill(config.adminInviteKey ?? "");
+
   await page.getByRole("button", { name: "Sign in to workspace" }).click();
   await page.getByRole("heading", { name: "Your building. One control centre." }).waitFor();
   await page.goto(base);

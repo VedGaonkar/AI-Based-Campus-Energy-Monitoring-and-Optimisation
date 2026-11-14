@@ -10,12 +10,12 @@ import { createInstitutionApplication } from "../backend/src/workspaces/runtime.
 import { connectDatabase, createModels } from "../backend/src/models/index.js";
 import { startLiveSync } from "../frontend/src/services/live-sync.js";
 let db, runtime, a, b, viewer, sockets = [], base;
-const origin = "http://localhost:5000", password = randomBytes(24).toString("base64url"), adminKey = randomInt(10000000, 100000000).toString();
+const origin = "http://localhost:5000", password = randomBytes(24).toString("base64url"), adminKey = randomBytes(24).toString("hex");
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function until(fn) { for (let i = 0; i < 100; i++) { if (await fn()) return; await delay(60); } throw new Error("Timed out waiting for scoped synchronisation"); }
 async function account(body) {
   const agent = request.agent(runtime.app), csrf = (await agent.get("/api/v1/auth/csrf")).body.data.csrfToken;
-  const result = await agent.post("/api/v1/auth/register").set("Origin", origin).set("X-CSRF-Token", csrf).send({ name: "Test member", password, ...body });
+  const result = await agent.post("/api/v1/auth/register").set("Origin", origin).set("X-CSRF-Token", csrf).send({ name: "Test member", password, confirmPassword: password, ...body });
   assert.equal(result.status, 201);
   return { agent, csrf: result.body.data.csrfToken, user: result.body.data.user, id: result.body.data.institution._id, cookie: result.headers["set-cookie"].map(row => row.split(";")[0]).join("; ") };
 }
@@ -27,16 +27,17 @@ async function socketFor(member) {
   await until(() => resets.length); sockets.push(socket); return { socket, events, resets };
 }
 before(async () => {
-  db = await startDatabase(); runtime = await createInstitutionApplication(loadConfig({ NODE_ENV: "test", MONGODB_URI: db.getUri("realtime_directory"), ADMIN_INVITE_KEY: adminKey, SESSION_SECRET: randomBytes(32).toString("hex"), SERVICE_INGEST_TOKEN: randomBytes(32).toString("hex"), PUBLIC_APP_URL: origin, FRONTEND_ORIGIN: origin }));
+  db = await startDatabase(); runtime = await createInstitutionApplication(loadConfig({ NODE_ENV: "test", ADMIN_INVITE_KEY: adminKey, MONGODB_URI: db.getUri("realtime_directory"), SESSION_SECRET: randomBytes(32).toString("hex"), SERVICE_INGEST_TOKEN: randomBytes(32).toString("hex"), PUBLIC_APP_URL: origin, FRONTEND_ORIGIN: origin }));
   await new Promise(resolve => runtime.server.listen(0, "127.0.0.1", resolve)); base = `http://127.0.0.1:${runtime.server.address().port}`;
-  a = await account({ email: "a@live.test", institutionName: "Alpha live", adminKey }); b = await account({ email: "b@live.test", institutionName: "Beta live", adminKey });
+  a = await account({ email: "a@live.test", institutionName: "Alpha live", accountType: "administrator", adminKey, joinCode: "Alpha-Live-Building-2026" }); b = await account({ email: "b@live.test", institutionName: "Beta live", accountType: "administrator", adminKey, joinCode: "Beta-Live-Building-2026" });
   for (const member of [a, b]) {
     const realm = await runtime.directory.realm(member.id);
     await realm.models.Room.create({ _id: "same-room", code: "R1", name: "Original room", roomBreakerId: "same-master" });
     await realm.models.Breaker.create({ _id: "same-master", roomId: "same-room" });
   }
-  const invite = await write(a, "/institutions/current/invitations", { role: "viewer", email: "viewer@live.test", permittedRoomIds: ["same-room"], expiresInHours: 1 });
-  viewer = await account({ email: "viewer@live.test", invitationToken: invite.body.data.token });
+  viewer = await account({ email: "viewer@live.test", accountType: "viewer", joinCode: "Alpha-Live-Building-2026" });
+  const realm = await runtime.directory.realm(a.id); await realm.models.User.updateOne({ _id: viewer.user._id }, { $set: { permittedRoomIds: ["same-room"] } });
+
 });
 after(async () => { for (const socket of sockets) socket.disconnect(); await runtime?.close(); await db?.stop(); });
 

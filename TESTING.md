@@ -14,20 +14,15 @@ node --test tests/live-sync.test.js uses isolated MongoDB and independent admin/
 After npm run build, node scripts/realtime-browser.mjs uses three independent installed-Chromium profiles and two real tabs in one profile. The isolated simulator workflow checks authorised supply OFF propagation, rename propagation/isolation, native OFF request/transport failure, stale disconnect banner and missed-update recovery, single inbox notification and stable connection count across navigation. Network emulation blocks reconnect HTTP; the harness also closes the established viewer transport because some Chromium versions retain existing WebSockets during offline emulation. All data/credentials are temporary. This is no physical-device/real-phone/production-network verification. Run the existing regressions and npm run check:client-secrets as well.
 
 
-## Institution regression checks (CE-013)
+## Building authentication verification (CE-018)
 
-Run npm test for the isolated two-institution API/database/job/socket/migration/demo suite. It covers overlapping room/master IDs, foreign writes/reads, invitation email/expiry/role/room restrictions, global unique email, rename-stable membership, private identity without membership, bounded suggestions, empty onboarding, separate integration caches and phone/source credentials, durable jobs and socket subscriptions. Repeated explicit demo seed preserves password hashes and refuses role/account reactivation. Migration preserves hashes/IDs/roles and blocks ambiguous records.
+`npm test` includes tests/building-auth.test.js, institutions.test.js and auth-environment.test.js alongside all existing policy/integration suites. Coverage includes empty admin signup with the correct server registration key and rejection of wrong/missing keys, correct/invalid/disabled Viewer code, strong validation/password confirmation, hash/member preservation, unique code races, rotation serialization, rename, role/ID injection, caught failure rollback, secret-free APIs/audit and registration throttling. Cross-building API/job/socket/source/migration/demo checks remain. Retired-flow assertions now test rejection instead of obsolete grants.
 
-After npm run build, node scripts/institutions-browser.mjs runs an isolated installed-Chromium check for empty admin signup, profile rename/discovery, debounced selector/login, private identity code and 390px layout. Never uses the user's configured database. npm run check:client-secrets also scans dedicated configured demo passwords without printing them. Live hardware, real-phone network and production security assessment remain separate.
+Build, then `npm run test:auth-browser`: isolated temporary MongoDB/Chrome checks exact login fields, both forms, confirmation, empty building, write-only rotation, old-code failure without account, Viewer building/role, password-only logins, authorised multi-membership choice, pending access denial and 390px layout. Configured user data is never used. Current executed counts are recorded in HANDOFF.md.
 
+## Retired authentication verification
 
-## CE-012 - environment-authoritative admin key, 14 November 2026
-
-Existing `npm run test:admin-browser` repeat passed **14/14** with zero runtime errors. Its first attempt passed auth/profile/building but timed out on an unrelated camera-policy save; the complete repeat passed. Evidence `.local/admin-key-browser.log` and `.local/admin-browser-verification.json`. No real accounts were used or changed.
-
-`npm test`: **89 passed, 0 failed**. New isolated environment/rotation checks cover fresh file reads without process mutation, explicit process-over-file precedence, blank/missing configuration, old/new configured key behavior across fresh app instances, unchanged existing-user room scope and inactive-account denial. Missing configuration rejects enrollment with actionable 503 while active existing admin password login works. Registration throttling applies on localhost. Stored legacy settings key cannot override configuration or appear in normal auth/settings/room/health/audit responses.
-
-After the full suite, targeted rotation tests passed **2/2** again with duplicate-key rejection enabled. `npm run check`: **58** files passed; production dashboard and phone build/assets passed. `npm run check:client-secrets` passed for **12** built frontend/demo assets against actual configured server secrets without printing them. No actual account/environment edits or live credential rotation were performed. Test keys/passwords were generated and isolated; fixed numeric shape-validation examples are not application credentials. Evidence: ignored `.local/admin-key-full-tests.log`, `admin-key-final-targeted.log`, `admin-key-build.log`. Existing browser/UI and local restart results are recorded in PROGRESS/HANDOFF once completed.
+Earlier key-based sign-in, promotion and invitation behavior is retired. The creation-only Administrator key requirement is covered by the current tests. Historical execution records remain in HANDOFF.md/PROGRESS.md; current checks cover password-only memberships and Building Join Codes.
 
 ## CE-011 - two-phone software demonstration (13-14 November 2026)
 
@@ -60,9 +55,9 @@ Evidence is ignored under `.local/`: `native-final-tests.log`, `native-final-che
 
 These checks establish software/protocol behaviour only. Mock provider-reported OFF and simulated OFF are not physical verification, measured zero power or measured savings. No HA host, authorised token, exact model/firmware/entity or genuine field occupancy source was supplied. Follow [HOME_ASSISTANT.md](HOME_ASSISTANT.md) for live prerequisites and supervised acceptance; live automation remains disabled by default. Other vendor/assistant adapters remain deferred.
 
-## Eight-digit key follow-up
+## Current role checks
 
-User-authorised numeric-key update: `npm test` passed 46 tests, including exact eight-digit validation (leading zeros accepted, wrong length/nonnumeric values rejected, blank disables admin access). Build, 28 syntax checks and 14 isolated admin browser checks passed with zero browser runtime errors. Live local admin login using the saved key, management API authorization, frontend readiness and logout passed. Managed restart preserved MongoDB and existing records. Earlier 16-character rollout blocker notes below are historical; the configured key has been replaced with the requested eight-digit value without printing it.
+Code-based Viewer promotion has been removed. Existing role/hash/member preservation, profile/login forgery rejection and existing-session privilege checks remain in the current suites.
 
 ## CE-009 administrator architecture verification
 
@@ -202,3 +197,9 @@ CE-016 executed results:116full application tests passed,0skipped;17meter+energy
 Build with `npm run build`, then run `npm run test:consumption-browser`. The browser script uses the existing Chrome driver, isolated headless profile and temporary real MongoDB/institution. It checks accepted manual-reading provenance and tolerance separation; rendered red/green paths and palette; delayed hover, focus, Tab and Escape; native keyboard dialog opening, focus return, interval/summary/CSV consistency and related records; accepted-reading updates; offline/corrected-reading reconnect; 390px dialog/table layout and help interaction; future-range no-data and stale reading independent of connected transport. Synthetic fixtures do not establish physical metering or real-phone accessibility. Ignored evidence: `.local/consumption-browser.json`, `.local/consumption-browser.log`, `.local/screenshots/consumption-{chart,mobile}.png`.
 
 Completed verification counts/results are recorded in the latest HANDOFF.md checkpoint. Remaining acceptance: real touchscreen/screen-reader review, actual source cadence/physical offline detection (the energy feed reports recorded intervals and a freshness heuristic), histories outside the 1,500-record read window, and field meter accuracy. No physical device actuation or savings verification is implied.
+
+## Authentication debugging follow-up
+
+The current browser fixture uses a real six-character password and eight-character Building Join Codes. The API suite tests those boundaries, forbidden role/building injection, correct/missing/wrong/disabled Administrator creation keys, write-only unique codes, rotation/disable/rename, account/member/hash preservation, persisted lock serialization, rollback and throttling. Session tests verify anonymous bootstrap 200, protected reads 401, logout revocation of old cookies, fresh CSRF and subsequent password-only login. Browser checks cover Administrator/Viewer signup, field labels, invalid key/code messages, sign-in/out, code rotation, linked building labels, pending-choice refresh and 390px layouts. No real user registration or password change is performed.
+
+Console diagnostics: contentscript.js/ObjectMultiplex/app-init-liveness/background-liveness strings are absent from application sources; the exact injecting extension is unverified. Existing tests launch extension-free Chrome and collect runtime errors. React development StrictMode may issue an extra startup effect; cleanup aborts/ignores stale responses. React DevTools guidance is informational. Do not increase listener limits to hide an untraced warning.

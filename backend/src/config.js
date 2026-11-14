@@ -11,7 +11,7 @@ export function readServerEnvironment(env = process.env, path = fileURLToPath(ne
   try {
     const contents = readFileSync(path, "utf8");
     if ((contents.match(/^\s*(?:export\s+)?ADMIN_INVITE_KEY\s*=/gm) ?? []).length > 1)
-      throw new Error("Duplicate ADMIN_INVITE_KEY entries in server .env. Keep exactly one entry and restart the backend; values withheld.");
+      throw new Error("Duplicate ADMIN_INVITE_KEY entries in server .env. Keep one entry; values withheld.");
     file = parse(contents);
   }
   catch (error) { if (error.code !== "ENOENT") throw error; }
@@ -52,7 +52,6 @@ export function loadConfig(env = readServerEnvironment()) {
       OCR_MODULE_PATH: z.string().optional(),
       OCR_TESSDATA_PATH: z.string().optional(),
       DEMO_VISION_PYTHON: z.string().min(1).default("python"),
-      INSTITUTION_DISCOVERY_ENABLED: bool.default(true),
       ENABLE_DEMO_SETUP: bool.default(false),
       ALLOW_PRODUCTION_DEMO_SEED: bool.default(false),
       DEMO_ADMIN_EMAIL: z.email().optional(),
@@ -86,12 +85,8 @@ export function loadConfig(env = readServerEnvironment()) {
         .default(120),
       QR_EXPIRY_WARNING_MINUTES: z.coerce.number().min(0).max(30).default(10),
       NOTIFICATIONS_MODE: z.literal("in_app").default("in_app"),
-      ADMIN_INVITE_KEY: z
-        .string()
-        .trim()
-        .regex(/^\d{8}$/, "ADMIN_INVITE_KEY must be exactly 8 digits or left empty to disable admin access")
-        .optional()
-        .or(z.literal("").transform(() => undefined)),
+      ADMIN_INVITE_KEY: z.string().trim().min(8).max(200).optional().or(z.literal("").transform(() => undefined)),
+
     })
     .parse(env);
   if (parsed.ALLOW_PHYSICAL_CONTROL)
@@ -105,6 +100,7 @@ export function loadConfig(env = readServerEnvironment()) {
     port: parsed.PORT,
     mongoUri: parsed.MONGODB_URI,
     sessionSecret: parsed.SESSION_SECRET,
+    adminInviteKey: parsed.ADMIN_INVITE_KEY ?? null,
     ingestToken: parsed.SERVICE_INGEST_TOKEN,
     frontendOrigin: parsed.FRONTEND_ORIGIN,
     publicAppUrl: parsed.PUBLIC_APP_URL,
@@ -113,7 +109,6 @@ export function loadConfig(env = readServerEnvironment()) {
     allowNativeControl: parsed.ALLOW_NATIVE_DEVICE_CONTROL,
     ocrPython: parsed.OCR_PYTHON, ocrModulePath: parsed.OCR_MODULE_PATH, ocrTessdataPath: parsed.OCR_TESSDATA_PATH,
     demoVisionPython: parsed.DEMO_VISION_PYTHON,
-    institutionDiscoveryEnabled: parsed.INSTITUTION_DISCOVERY_ENABLED,
     enableDemoSetup: parsed.ENABLE_DEMO_SETUP,
     allowProductionDemoSeed: parsed.ALLOW_PRODUCTION_DEMO_SEED,
     demoAdminEmail: parsed.DEMO_ADMIN_EMAIL,
@@ -140,7 +135,6 @@ export function loadConfig(env = readServerEnvironment()) {
     qrWarningMs:
       (parsed.QR_EXPIRY_WARNING_MINUTES * 60000) /
       (parsed.DEMO_MODE ? parsed.DEMO_TIME_SCALE : 1),
-    adminInviteKey: parsed.ADMIN_INVITE_KEY ?? null,
     demoPassword: env.DEMO_PASSWORD,
   };
 }

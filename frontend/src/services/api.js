@@ -24,7 +24,9 @@ export async function api(path, { method = "GET", body, signal } = {}) {
   }
   if (!response.ok) {
     if (payload.error?.code === "CSRF_REJECTED") csrfToken = undefined;
-    const error = new Error(payload.error?.message ?? `Request failed (${response.status})`);
+    const labels = { joinCode: "Building Join Code", password: "Password", confirmPassword: "Confirm password", email: "Email address", name: "Full name", institutionName: "Institution / building name", adminKey: "Administrator registration key" };
+    const details = payload.error?.code === "VALIDATION_ERROR" && Array.isArray(payload.error.details) ? [...new Set(payload.error.details.map(item => `${labels[item.path] ?? item.path ?? "Request"}: ${item.message}`))].slice(0, 4) : [];
+    const error = new Error(details.length ? details.join(" ") : payload.error?.message ?? `Request failed (${response.status})`);
     error.status = response.status; error.code = payload.error?.code;
     throw error;
   }

@@ -1,5 +1,9 @@
 # Changelog
 
+## CE-018 - simplified authentication
+
+Email/password sign-in now opens existing memberships automatically or asks after authentication when several exist. Administrator registration requires the configured server registration key and creates an empty building; Viewer registration uses its Building Join Code. Added secure write-only code rotation/disabling and retired old admission endpoints while preserving account/member/data identities and styling. Administrator creation retains its server registration-key gate; sign-in remains email/password only. Added safe session bootstrap, guarded logout and field-specific validation. Minimums are six characters for passwords and eight for join codes. Updated tests, configuration examples and documentation.
+
 Record completed changes here. Planned work belongs in [TASKS.md](TASKS.md), approved behaviour in [PLAN.md](PLAN.md), current state in PROGRESS.md/HANDOFF.md. The local prototype is not a production release or commissioned physical integration.
 
 ## Unreleased — 13 November 2026

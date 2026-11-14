@@ -19,7 +19,9 @@ export function createInstitutionDirectory(connection, config) {
     dbName: { type: String, required: true, select: false }, kind: { type: String, default: "regular" },
     discoverable: { type: Boolean, default: false }, active: { type: Boolean, default: false },
     accessCodeHash: { type: String, select: false }, migrationComplete: Boolean,
-  }, [[{ dbName: 1 }, { unique: true }], [{ searchName: 1 }, {}], [{ kind: 1 }, { unique: true, partialFilterExpression: { kind: "demo" } }]]);
+    joinCodeLookup: { type: String, select: false }, joinCodeVerifier: { type: String, select: false }, joinCodeEnabled: { type: Boolean, default: false },
+    joinLockOwner: { type: String, select: false }, joinLockAt: { type: Date, select: false },
+  }, [[{ joinCodeLookup: 1 }, { unique: true, partialFilterExpression: { joinCodeLookup: { $type: "string" } } }], [{ dbName: 1 }, { unique: true }], [{ searchName: 1 }, {}], [{ kind: 1 }, { unique: true, partialFilterExpression: { kind: "demo" } }]]);
   const Account = model("WorkspaceAccount", "workspaceAccounts", {
     email: { type: String, required: true, lowercase: true }, name: String,
     passwordHash: { type: String, required: true, select: false }, active: { type: Boolean, default: true },
@@ -82,12 +84,14 @@ export function createInstitutionDirectory(connection, config) {
         };
       } });
     },
-    async createInstitution(displayName, { kind = "regular", discoverable = false } = {}) {
+    async createInstitution(displayName, { kind = "regular", discoverable = false, joinCredentials = {} } = {}) {
       const id = randomUUID();
-      const institution = await Institution.create({ _id: id, displayName, searchName: displayName.toLocaleLowerCase(), dbName: `campus_workspace_${id.replaceAll("-", "")}`, kind, discoverable: false });
+      const institution = await Institution.create({ _id: id, displayName, searchName: displayName.toLocaleLowerCase(), dbName: `campus_workspace_${id.replaceAll("-", "")}`, kind, discoverable: false, ...joinCredentials });
+      try {
       const realm = await directory.realm(id, { allowInactive: true });
       await realm.models.Settings.create({ _id: "installation", installationName: displayName, organisationName: displayName, setupCompleted: false, meters: [] });
       return { ...realm, desiredDiscoverable: discoverable, institution: institution.toObject() };
+      } catch (error) { await Institution.deleteOne({ _id: id, active: false }); realms.delete(id); throw error; }
     },
     async activate(realm) {
       await Institution.updateOne({ _id: realm.institution._id }, { $set: { active: true, discoverable: !!realm.desiredDiscoverable } });
@@ -97,7 +101,7 @@ export function createInstitutionDirectory(connection, config) {
       const account = await Account.findOne({ _id: userId, active: true }).lean();
       const member = account && await realm.models.User.findOne({ _id: userId, active: true }).lean();
       if (!member) return null;
-      return { ...member, name: account.name, email: account.email, institutionId: realm.institution._id, institution: publicInstitution(realm.institution), canActivateAdmin: realm.institution.kind === "legacy" };
+      return { ...member, name: account.name, email: account.email, institutionId: realm.institution._id, institution: publicInstitution(realm.institution) };
     },
     async addMember(realm, account, { role = "viewer", permittedRoomIds = [] } = {}) {
       const id = realm.institution._id;

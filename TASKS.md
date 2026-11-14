@@ -1,5 +1,15 @@
 # Implementation Tasks
 
+## CE-018 complete - authentication and registration
+
+- [x] Email/password-only login, automatic sole membership and authorised post-password choice for existing multiple memberships.
+- [x] Empty Administrator building creation requires server ADMIN_INVITE_KEY; Set Building Join Code wording. Viewer-only Building Join Code registration.
+- [x] Eight-character code/six-character password minimums shared by frontend/backend; role/hash/member/data/palette preserved.
+- [x] Secure write-only unique code storage, rotation/disabling, admission lock, fail-closed recovery guidance and clean invalid-request rollback.
+- [x] Anonymous bootstrap, detailed validation, cancellable startup reads, guarded sign-out, fresh session/CSRF, retired legacy flows and retained history.
+- [x] 133 application tests, 8 isolated browser workflows, production build, 89 syntax files, 17 assets secret scan and whitespace passed; mobile screenshots inspected.
+- [x] Documentation/examples/setup and continuity updated; managed local stack restarted without data/environment changes.
+
 ## CE-017 - consumption views and contextual help
 
 - [x] Interval baselines, exact linear crossings, gap breaks, units and separate anomaly policy.

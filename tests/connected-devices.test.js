@@ -16,7 +16,7 @@ const password = randomBytes(18).toString("hex"), origin = "http://localhost:500
 const mutate = (path, body, method = "post", agent = admin, token = csrf) => agent[method](`/api/v1${path}`).set("Origin", origin).set("X-CSRF-Token", token).send(body);
 async function auth(email) {
   const agent = request.agent(runtime.app), initial = (await agent.get("/api/v1/auth/csrf")).body.data.csrfToken;
-  const result = await mutate("/auth/login", { email, password, ...(email.startsWith("admin") ? { adminKey: config.adminInviteKey } : {}) }, "post", agent, initial);
+  const result = await mutate("/auth/login", { email, password }, "post", agent, initial);
   assert.equal(result.status, 200); return { agent, token: result.body.data.csrfToken };
 }
 async function vacancy(mode = "simulated") {
@@ -26,7 +26,7 @@ async function vacancy(mode = "simulated") {
 }
 before(async () => {
   database = await startDatabase(); ({ connection, models } = await connectDatabase(database.getUri("native_test")));
-  config = loadConfig({ NODE_ENV: "test", SESSION_SECRET: randomBytes(32).toString("hex"), SERVICE_INGEST_TOKEN: randomBytes(32).toString("hex"), ADMIN_INVITE_KEY: randomInt(10000000, 100000000).toString(), DEMO_MODE: "true", DEMO_TIME_SCALE: "60", PUBLIC_APP_URL: origin });
+  config = loadConfig({ NODE_ENV: "test", SESSION_SECRET: randomBytes(32).toString("hex"), SERVICE_INGEST_TOKEN: randomBytes(32).toString("hex"),  DEMO_MODE: "true", DEMO_TIME_SCALE: "60", PUBLIC_APP_URL: origin });
   await seed(models, config, { password }); runtime = createApplication({ config, connection, models }); service = getConnectedDeviceService(models, config);
   const login = await auth("admin@campus.test"); admin = login.agent; csrf = login.token;
 });

@@ -170,6 +170,10 @@ export function createApplication({ config, connection, models, workspaceDirecto
       },
     });
   if (workspaceDirectory) registerWorkspaceAuth(api, { directory: workspaceDirectory, config });
+  api.get("/auth/session", (req, res) => {
+    res.setHeader("Cache-Control", "no-store"); req.session.csrf ??= randomBytes(32).toString("hex");
+    res.json({ data: { user: req.user && (req.user.role !== "admin" || req.session.adminVerified) ? req.user : null, workspaces: [], csrfToken: req.session.csrf } });
+  });
   api.post(
     "/auth/login",
     rateLimit({
@@ -189,17 +193,6 @@ export function createApplication({ config, connection, models, workspaceDirecto
           .lean();
       if (!user || !(await bcrypt.compare(input.password, user.passwordHash)))
         fail(401, "INVALID_LOGIN", "Email or password is incorrect");
-      if (input.adminKey || (user.role === "admin" && config.adminInviteKey)) {
-        if (!config.adminInviteKey)
-          fail(503, "ADMIN_ACCESS_DISABLED", "Admin key access is not configured. Set ADMIN_INVITE_KEY on the server and restart it.");
-        if (!input.adminKey || !equalSecret(input.adminKey, config.adminInviteKey))
-          fail(403, "INVALID_ADMIN_KEY", "A valid admin invite key is required for administrator sign-in.");
-        if (user.role !== "admin") {
-          await models.User.updateOne({ _id: user._id }, { $set: { role: "admin" } });
-          await audit(models, user._id, "auth.admin_access_granted", user._id, "Password and admin invite key verified");
-          user.role = "admin";
-        }
-      }
       await new Promise((resolve, reject) =>
         req.session.regenerate((err) => (err ? reject(err) : resolve())),
       );
@@ -214,58 +207,7 @@ export function createApplication({ config, connection, models, workspaceDirecto
       res.json({ data: { user: publicUser, csrfToken: req.session.csrf } });
     },
   );
-  api.post(
-    "/auth/register",
-    rateLimit({
-      windowMs: 900000,
-      limit: config.demoMode ? 50 : 10,
-      standardHeaders: "draft-8",
-      legacyHeaders: false,
-      handler: authRateLimitHandler,
-    }),
-    async (req, res) => {
-      const input = z
-        .object({
-          name: z.string().min(1).max(200),
-          email: z.email().max(200),
-          password: z.string().min(8).max(200),
-          adminKey: z.string().trim().min(1).max(500).optional(),
-        })
-        .strict()
-        .parse(req.body);
-      const existing = await models.User.findOne({
-        email: input.email.toLowerCase(),
-      }).lean();
-      if (existing) fail(409, "EMAIL_TAKEN", "An account with that email already exists");
-      if (input.adminKey && !config.adminInviteKey)
-        fail(503, "ADMIN_ACCESS_DISABLED", "Admin registration is not configured. Set ADMIN_INVITE_KEY on the server and restart it.");
-      if (input.adminKey && !equalSecret(input.adminKey, config.adminInviteKey))
-        fail(403, "INVALID_ADMIN_KEY", "The admin invite key is incorrect. No account was created.");
-      const isAdmin =
-        input.adminKey &&
-        config.adminInviteKey &&
-        equalSecret(input.adminKey, config.adminInviteKey);
-      const user = await models.User.create({
-        name: input.name,
-        email: input.email.toLowerCase(),
-        passwordHash: await bcrypt.hash(input.password, 12),
-        role: isAdmin ? "admin" : "viewer",
-        permittedRoomIds: [],
-      });
-      await new Promise((resolve, reject) =>
-        req.session.regenerate((err) => (err ? reject(err) : resolve())),
-      );
-      req.session.userId = user._id;
-      req.session.adminVerified = user.role === "admin";
-      req.session.csrf = randomBytes(32).toString("hex");
-      await new Promise((resolve, reject) =>
-        req.session.save((err) => (err ? reject(err) : resolve())),
-      );
-      const { passwordHash, ...publicUser } = user.toObject();
-      await audit(models, user._id, "auth.register", user._id);
-      res.status(201).json({ data: { user: publicUser, csrfToken: req.session.csrf } });
-    },
-  );
+  api.post("/auth/register", () => fail(410, "WORKSPACE_REGISTRATION_REQUIRED", "Register through the building workspace service"));
   api.get("/access/:publicToken", async (req, res) => {
     const room = found(
       await models.Room.findOne({ publicToken: req.params.publicToken }).lean(),
@@ -384,7 +326,7 @@ export function createApplication({ config, connection, models, workspaceDirecto
   api.use((req, res, next) => {
     if (!req.user) fail(401, "AUTH_REQUIRED", "Sign in to continue");
     if (req.user.role === "admin" && !req.session.adminVerified && req.path !== "/auth/logout")
-      fail(401, "ADMIN_KEY_REQUIRED", "Sign in again with your password and admin invite key.");
+      fail(401, "REAUTHENTICATION_REQUIRED", "Sign in again with your email and password.");
     next();
   });
   if (workspaceDirectory) registerWorkspaceAdministration(api, { directory: workspaceDirectory });
@@ -430,7 +372,7 @@ export function createApplication({ config, connection, models, workspaceDirecto
       .object({
         name: z.string().min(1).max(200),
         email: z.email(),
-        password: z.string().min(12).max(100),
+        password: z.string().min(6).max(100),
         role: z.enum(["admin", "hod", "technician", "teacher", "viewer"]),
         permittedRoomIds: z.array(id).max(100),
       })

@@ -15,14 +15,14 @@ const checks = [], errors = [], password = randomBytes(24).toString("base64url")
 async function until(fn) { for (let i = 0; i < 150; i++) { if (await fn()) return; await new Promise(resolve => setTimeout(resolve, 100)); } throw new Error(`Meter browser timed out after ${checks.length} checks`); }
 try {
   const probe = createServer(); await new Promise(resolve => probe.listen(0, "127.0.0.1", resolve)); const port = probe.address().port; await new Promise(resolve => probe.close(resolve)); const base = `http://localhost:${port}`;
-  db = await startDatabase(); const config = loadConfig({ NODE_ENV: "test", MONGODB_URI: db.getUri("meter_browser_directory"), SESSION_SECRET: randomBytes(32).toString("hex"), SERVICE_INGEST_TOKEN: randomBytes(32).toString("hex"), ADMIN_INVITE_KEY: key, FRONTEND_ORIGIN: base, PUBLIC_APP_URL: base });
+  db = await startDatabase(); const config = loadConfig({ NODE_ENV: "test", ADMIN_INVITE_KEY: key, MONGODB_URI: db.getUri("meter_browser_directory"), SESSION_SECRET: randomBytes(32).toString("hex"), SERVICE_INGEST_TOKEN: randomBytes(32).toString("hex"), FRONTEND_ORIGIN: base, PUBLIC_APP_URL: base });
   runtime = await createInstitutionApplication(config);
   const agent = request.agent(runtime.app), csrf = (await agent.get("/api/v1/auth/csrf")).body.data.csrfToken;
-  const registered = await agent.post("/api/v1/auth/register").set("Origin", base).set("X-CSRF-Token", csrf).send({ name: "Meter UI admin", email: "admin@meter-ui.test", password, adminKey: key, institutionName: "Meter Camera Browser", discoverable: true }); assert.equal(registered.status, 201);
+  const registered = await agent.post("/api/v1/auth/register").set("Origin", base).set("X-CSRF-Token", csrf).send({ name: "Meter UI admin", email: "admin@meter-ui.test", password, confirmPassword: password, accountType: "administrator", adminKey: key, joinCode: "Meter-Camera-Browser-2026", institutionName: "Meter Camera Browser" }); assert.equal(registered.status, 201);
   const models = (await runtime.directory.realm(registered.body.data.institution._id)).models;
   await new Promise(resolve => runtime.server.listen(port, "127.0.0.1", resolve));
   adminBrowser = await launchChrome(executable); page = await adminBrowser.newPage({ viewport: { width: 1440, height: 1100 } }); page.on("pageerror", error => errors.push(error.message));
-  await page.goto(base); await page.getByLabel("Institution / building").fill("Meter Camera Browser"); await page.locator(".institution-suggestions button").click(); await page.getByLabel("Email address").fill("admin@meter-ui.test"); await page.getByLabel("Password").fill(password); await page.getByLabel("Admin invite key").fill(key); await page.getByRole("button", { name: "Sign in to workspace" }).click();
+  await page.goto(base);  await page.getByLabel("Email address").fill("admin@meter-ui.test"); await page.getByLabel("Password").fill(password); await page.getByRole("button", { name: "Sign in to workspace" }).click();
   await until(() => page.evaluate(() => document.body.innerText.includes("Live updates connected")));
   await page.goto(`${base}/meter-cameras`); await page.getByLabel("Meter identifier").fill("UI-MAIN"); await page.getByLabel("Meter display name").fill("UI cumulative meter"); await page.getByRole("button", { name: "Add meter" }).click();
   await until(() => page.evaluate(() => !!document.querySelector('select[name="meter"] option[value="0"]')));

@@ -13,23 +13,25 @@ import { createInstitutionDirectory } from "../backend/src/workspaces/directory.
 import { tick } from "../backend/src/workers/tick.js";
 
 let db, runtime, directory, config, a, b, port;
-const password = randomBytes(24).toString("base64url"), adminKey = randomInt(10000000, 100000000).toString();
+const password = randomBytes(24).toString("base64url"), adminKey = randomBytes(24).toString("hex");
 const origin = "http://localhost:5000";
 const mutate = (account, path, body = {}, method = "post") => account.agent[method](`/api/v1${path}`).set("Origin", origin).set("X-CSRF-Token", account.csrf).send(body);
 async function guest() { const agent = request.agent(runtime.app); return { agent, csrf: (await agent.get("/api/v1/auth/csrf")).body.data.csrfToken }; }
 async function register(email, institutionName, discoverable) {
   const account = await guest();
-  const response = await mutate(account, "/auth/register", { name: institutionName, email, password, adminKey, institutionName, discoverable, registrationMode: "create" });
+  const response = await mutate(account, "/auth/register", { name: institutionName, email, password, confirmPassword: password, accountType: "administrator", institutionName, adminKey, joinCode: `Building-${email.replaceAll("@", "_").replaceAll(".", "_")}-2026` });
   assert.equal(response.status, 201, JSON.stringify(response.body));
   return { ...account, csrf: response.body.data.csrfToken, id: response.body.data.institution._id, user: response.body.data.user, email };
 }
-async function login(email, institutionId, key = adminKey, suppliedPassword = password) {
-  const account = await guest(); const response = await mutate(account, "/auth/login", { email, password: suppliedPassword, ...(institutionId ? { institutionId } : {}), ...(key ? { adminKey: key } : {}) });
-  return { account: { ...account, csrf: response.body.data?.csrfToken ?? account.csrf, id: institutionId }, response };
+async function login(email, institutionId, _unused, suppliedPassword = password) {
+ const account = await guest(); let response = await mutate(account, "/auth/login", { email, password: suppliedPassword }); account.csrf = response.body.data?.csrfToken ?? account.csrf;
+ if (response.body.data?.selectionRequired && institutionId) { response = await mutate(account, "/auth/select-workspace", { institutionId }); account.csrf = response.body.data?.csrfToken ?? account.csrf; }
+ return { account: { ...account, id: institutionId }, response };
 }
+
 before(async () => {
   db = await startDatabase();
-  config = loadConfig({ NODE_ENV: "test", MONGODB_URI: db.getUri("workspace_directory"), SESSION_SECRET: randomBytes(32).toString("hex"), SERVICE_INGEST_TOKEN: randomBytes(32).toString("hex"), ADMIN_INVITE_KEY: adminKey, PUBLIC_APP_URL: origin, FRONTEND_ORIGIN: origin });
+  config = loadConfig({ NODE_ENV: "test", ADMIN_INVITE_KEY: adminKey, MONGODB_URI: db.getUri("workspace_directory"), SESSION_SECRET: randomBytes(32).toString("hex"), SERVICE_INGEST_TOKEN: randomBytes(32).toString("hex"), PUBLIC_APP_URL: origin, FRONTEND_ORIGIN: origin });
   runtime = await createInstitutionApplication(config); directory = runtime.directory;
   await new Promise(resolve => runtime.server.listen(0, "127.0.0.1", resolve)); port = runtime.server.address().port;
   a = await register("admin-a@workspace.test", "Alpha Institute", true);
@@ -51,36 +53,17 @@ test("new administrators own immutable separate institution IDs and start with e
   assert.throws(() => directory.models.Room, /Select an authorised institution workspace/);
 });
 
-test("registration keeps institution creation and invitation membership separate without fallback or partial accounts", async () => {
-  const visitor = await guest(), before = await directory.Institution.countDocuments();
-  const body = { name: "New administrator", email: "mixed-registration@workspace.test", password, adminKey };
-  for (const extra of [
-    { institutionName: "New site", invitationToken: "not-an-invitation" },
-    { registrationMode: "create", institutionName: "New site", invitationToken: "not-an-invitation" },
-    { registrationMode: "join", institutionName: "New site", invitationToken: "not-an-invitation" },
-  ]) {
-    const result = await mutate(visitor, "/auth/register", { ...body, ...extra });
-    assert.equal(result.status, 400); assert.equal(result.body.error.code, "REGISTRATION_MODE_CONFLICT");
-  }
-  const missing = await mutate(visitor, "/auth/register", { ...body, registrationMode: "join" });
-  assert.equal(missing.status, 400); assert.equal(missing.body.error.code, "INVITATION_REQUIRED");
-  const invalid = await mutate(visitor, "/auth/register", { ...body, registrationMode: "join", invitationToken: "not-an-invitation" });
-  assert.equal(invalid.status, 403); assert.equal(invalid.body.error.code, "INVITATION_INVALID");
-  assert.equal(await directory.Account.countDocuments({ email: body.email }), 0);
-  assert.equal(await directory.Institution.countDocuments(), before);
+test("registration rejects role/building and retired-flow fields without a partial account", async () => {
+ const visitor = await guest(), before = await directory.Account.countDocuments();
+ for (const extra of [{ role: "admin" }, { institutionId: a.id }, { invitationToken: "retired" }, { adminKey: "retired" }, { institutionName: "Existing" }]) assert.equal((await mutate(visitor, "/auth/register", { name: "Rejected", email: "injected@workspace.test", password, confirmPassword: password, accountType: "viewer", joinCode: "Unknown-Building-Code-2026", ...extra })).status, 400);
+ assert.equal(await directory.Account.countDocuments(), before);
 });
 
-test("public suggestions are minimal, bounded, escaped, discoverability-aware and private code grants no membership", async () => {
-  const suggestions = await request(runtime.app).get("/api/v1/institutions/suggestions?q=Ins");
-  assert.equal(suggestions.status, 200); assert.deepEqual(suggestions.body.data, [{ _id: a.id, displayName: "Alpha Institute" }]);
-  assert.deepEqual((await request(runtime.app).get("/api/v1/institutions/suggestions?q=Al")).body.data, []);
-  assert.deepEqual((await request(runtime.app).get("/api/v1/institutions/suggestions?q=%5B")).body.data, []);
-  assert.deepEqual((await request(runtime.app).get("/api/v1/institutions/suggestions?q=Al%5B")).body.data, []);
-  const code = await mutate(b, "/institutions/current/access-code"); assert.equal(code.status, 200);
-  const visitor = await guest(), resolved = await mutate(visitor, "/institutions/resolve", { code: code.body.data.code });
-  assert.deepEqual(resolved.body.data, { _id: b.id, displayName: "Beta Private Institute" });
-  const wrongMember = await login(a.email, b.id); assert.equal(wrongMember.response.status, 401);
-  assert.equal((await mutate(visitor, "/auth/login", { email: a.email, password, adminKey, workspaceCode: code.body.data.code })).status, 401);
+test("discovery and invitation endpoints are retired and foreign workspace selection denied", async () => {
+ assert.equal((await request(runtime.app).get("/api/v1/institutions/suggestions?q=Alpha")).status, 410);
+ const visitor = await guest(); for (const path of ["/institutions/resolve", "/auth/accept-invitation"]) assert.equal((await mutate(visitor, path, {})).status, 410);
+ for (const path of ["/institutions/current/access-code", "/institutions/current/invitations"]) assert.equal((await mutate(a, path)).status, 410);
+ assert.equal((await mutate(a, "/auth/select-workspace", { institutionId: b.id })).status, 403);
 });
 
 test("database isolation covers overlapping local IDs, cross-workspace read/write, filters, exports and integration caches", async () => {
@@ -107,22 +90,14 @@ test("database isolation covers overlapping local IDs, cross-workspace read/writ
   assert.ok((await a.agent.get("/api/v1/management/automation")).body.data.rooms.every(room => room.name !== "Private Beta"));
 });
 
-test("rename and membership retain stable IDs; invited multi-membership account must choose authorised workspace", async () => {
-  const renamed = await mutate(a, "/institutions/current", { displayName: "Alpha Renamed Campus", discoverable: true }, "patch"); assert.equal(renamed.status, 200);
-  assert.equal(renamed.body.data._id, a.id);
-  assert.equal((await a.agent.get("/api/v1/settings")).body.data.installationName, "Alpha Renamed Campus");
-  assert.equal((await login(a.email, a.id)).response.status, 200);
-  const invitation = await mutate(b, "/institutions/current/invitations", { email: a.email, role: "viewer", expiresInHours: 1 }); assert.equal(invitation.status, 201);
-  const guestAccount = await guest();
-  const accepted = await mutate(guestAccount, "/auth/accept-invitation", { email: a.email, password, invitationToken: invitation.body.data.token }); assert.equal(accepted.status, 200);
-  assert.equal(accepted.body.data.user._id, a.user._id); assert.equal(accepted.body.data.user.role, "viewer");
-  assert.equal((await mutate(guestAccount, "/auth/accept-invitation", { email: a.email, password, invitationToken: invitation.body.data.token })).status, 403);
-  const chosen = await login(a.email, b.id, null); assert.equal(chosen.response.status, 200); assert.equal(chosen.response.body.data.user.role, "viewer");
-  assert.equal((await mutate(chosen.account, "/rooms", { code: "V", name: "Forbidden", roomBreakerId: "V" })).status, 403);
-  assert.equal((await login(a.email, null)).response.status, 409);
-  assert.equal(await directory.Account.countDocuments({ email: a.email }), 1);
-  const duplicate = await registerDuplicate(); assert.equal(duplicate.status, 409);
-  async function registerDuplicate() { const g = await guest(); return mutate(g, "/auth/register", { email: a.email, name: "Duplicate", password, adminKey, institutionName: "Another" }); }
+test("rename and existing multiple memberships retain IDs and require an authenticated authorised choice", async () => {
+ const renamed = await mutate(a, "/institutions/current", { displayName: "Alpha Renamed Campus" }, "patch"); assert.equal(renamed.status, 200); assert.equal(renamed.body.data._id, a.id);
+ const realm = await directory.realm(b.id), account = await directory.Account.findById(a.user._id).select("+passwordHash").lean(); await directory.addMember(realm, account, { role: "viewer" });
+ const pending = await login(a.email); assert.equal(pending.response.status, 200); assert.equal(pending.response.body.data.selectionRequired, true);
+ assert.deepEqual(new Set(pending.response.body.data.workspaces.map(w => w._id)), new Set([a.id, b.id])); assert.equal((await pending.account.agent.get("/api/v1/rooms")).status, 401);
+ assert.equal((await mutate(pending.account, "/auth/select-workspace", { institutionId: "foreign-building" })).status, 403);
+ const chosen = await login(a.email, b.id); assert.equal(chosen.response.body.data.user.role, "viewer"); assert.equal((await mutate(chosen.account, "/rooms", { code: "V", name: "Forbidden", roomBreakerId: "V" })).status, 403);
+ assert.equal(await directory.Account.countDocuments({ email: a.email }), 1);
 });
 
 test("scoped camera/ingestion capabilities and sessions cannot change another institution", async () => {
@@ -154,29 +129,12 @@ test("scoped camera/ingestion capabilities and sessions cannot change another in
   await mutate(a, `/demo/sessions/${session.body.data._id}/stop`);
 });
 
-test("invitations enforce email, expiry, exact role/scope and cannot be replaced by knowing an institution name/key", async () => {
-  const guestAccount = await guest();
-  const noInvite = await mutate(guestAccount, "/auth/register", { name: "Outsider", email: "outsider@workspace.test", password, institutionName: "Alpha Renamed Campus" });
-  assert.equal(noInvite.status, 403);
-  const invite = await mutate(a, "/institutions/current/invitations", { email: "new-viewer@workspace.test", role: "viewer", permittedRoomIds: ["shared-room-id"], expiresInHours: 1 }); assert.equal(invite.status, 201);
-  const badEmail = await mutate(guestAccount, "/auth/register", { name: "Wrong email", email: "wrong-viewer@workspace.test", password, invitationToken: invite.body.data.token }); assert.equal(badEmail.status, 403);
-  assert.equal(await directory.Account.countDocuments({ email: "wrong-viewer@workspace.test" }), 0);
-  const joined = await mutate(guestAccount, "/auth/register", { name: "Invited viewer", email: "new-viewer@workspace.test", password, invitationToken: invite.body.data.token, registrationMode: "join" }); assert.equal(joined.status, 201);
-  assert.equal(joined.body.data.user.institutionId, a.id); assert.equal(joined.body.data.user.role, "viewer"); assert.deepEqual(joined.body.data.user.permittedRoomIds, ["shared-room-id"]);
-  assert.equal((await login("new-viewer@workspace.test", a.id)).response.status, 403);
-  assert.equal((await login("new-viewer@workspace.test", a.id, "")).response.body.data.user.role, "viewer");
-  const viewer = { ...guestAccount, csrf: joined.body.data.csrfToken };
-  assert.equal((await viewer.agent.get("/api/v1/settings")).body.data.installationName, "Alpha Renamed Campus");
-  assert.equal((await mutate(viewer, "/institutions/current", { displayName: "Unauthorised" }, "patch")).status, 403);
-  const adminInvite = await mutate(a, "/institutions/current/invitations", { email: "invited-admin@workspace.test", role: "admin", expiresInHours: 1 });
-  const adminGuest = await guest();
-  assert.equal((await mutate(adminGuest, "/auth/register", { name: "Invited administrator", email: "invited-admin@workspace.test", password, invitationToken: adminInvite.body.data.token })).status, 403);
-  assert.equal(await directory.Account.countDocuments({ email: "invited-admin@workspace.test" }), 0);
-  assert.equal((await mutate(adminGuest, "/auth/register", { name: "Invited administrator", email: "invited-admin@workspace.test", password, invitationToken: adminInvite.body.data.token, adminKey })).status, 201);
-  const expiry = await mutate(a, "/institutions/current/invitations", { role: "viewer", expiresInHours: 1 });
-  await directory.Invitation.updateOne({ _id: expiry.body.data._id }, { $set: { expiresAt: new Date(Date.now() - 1) } });
-  assert.equal((await mutate(await guest(), "/auth/register", { name: "Expired", email: "expired@workspace.test", password, invitationToken: expiry.body.data.token })).status, 403);
-  assert.equal((await mutate(a, "/institutions/current/invitations", { role: "viewer", permittedRoomIds: ["beta-only-room"] })).status, 400);
+test("Viewer code resolves stable building identity and cannot grant administrator privileges", async () => {
+ await mutate(a, "/institutions/current/join-code", { joinCode: "Alpha-Viewer-Join-2026" }, "put");
+ const visitor = await guest(), joined = await mutate(visitor, "/auth/register", { name: "Viewer", email: "new-viewer@workspace.test", password, confirmPassword: password, accountType: "viewer", joinCode: "Alpha-Viewer-Join-2026" });
+ assert.equal(joined.status, 201); assert.equal(joined.body.data.user.role, "viewer"); assert.equal(joined.body.data.user.institutionId, a.id); assert.equal(joined.body.data.institution.displayName, "Alpha Renamed Campus"); visitor.csrf = joined.body.data.csrfToken;
+ assert.equal((await visitor.agent.get("/api/v1/management/building")).status, 403); assert.equal((await mutate(visitor, "/institutions/current/join-code", { joinCode: "Forbidden-Change-2026" }, "put")).status, 403);
+ assert.equal((await login("new-viewer@workspace.test")).response.body.data.user.role, "viewer");
 });
 
 test("persistent jobs process only their workspace, including same deterministic IDs", async () => {

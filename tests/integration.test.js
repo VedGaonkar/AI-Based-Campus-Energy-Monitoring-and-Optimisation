@@ -24,7 +24,7 @@ before(async () => {
     DEMO_TIME_SCALE: "60",
     ALLOW_PHYSICAL_CONTROL: "false",
     PUBLIC_APP_URL: origin,
-    ADMIN_INVITE_KEY: randomInt(10000000, 100000000).toString(),
+
   });
   await seed(models, config, { password });
   runtime = createApplication({ config, connection, models });
@@ -34,7 +34,7 @@ before(async () => {
     .post("/api/v1/auth/login")
     .set("Origin", origin)
     .set("X-CSRF-Token", token.body.data.csrfToken)
-    .send({ email: "admin@campus.test", password, adminKey: config.adminInviteKey });
+    .send({ email: "admin@campus.test", password });
   assert.equal(result.status, 200, JSON.stringify(result.body));
   csrf = result.body.data.csrfToken;
 });

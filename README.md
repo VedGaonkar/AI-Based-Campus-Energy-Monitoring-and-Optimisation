@@ -10,38 +10,17 @@ Follow [HOME_ASSISTANT.md](HOME_ASSISTANT.md) for exact setup, supported routes,
 
 Validation for this feature: `npm test`, `npm run check`, `npm run build`, then `npm run test:devices-browser`. The device browser runner uses temporary databases/credentials and isolated simulation, not a saved live gateway.
 
-## Administrator access and setup
+## Accounts and Building Join Codes
 
-`ADMIN_INVITE_KEY` is the only server-side invitation/enrollment key, currently exactly eight digits. Set it in the repository-root ignored `.env` (the folder containing package.json), or in the backend's deployment environment. An explicitly set process variable takes precedence over `.env`, including an empty value. No database setting, seed value, frontend constant or Vite variable overrides it. Duplicate `.env` key entries are rejected with a configuration error. `.env.example` contains a placeholder; `npm run setup` generates a random key only for a new file and preserves existing configuration.
+Sign in with **Email address** and **Password** only. One active building membership opens automatically. Existing users with multiple legitimate memberships choose an authorised building after password verification. No registration code is required on later logins.
 
-When configured, administrator login requires the account password plus the current key. Wrong keys reject signup/activation instead of silently creating viewers. If missing/blank, invitation-based admin registration and viewer-to-admin activation return `ADMIN_ACCESS_DISABLED` with setup instructions; existing active users, including administrators, can still log in using their password without submitting an invitation key. This shared enrollment secret is not per-user MFA.
+Choose **Administrator** registration to create a new empty building: full name, email, password/confirmation, building name, a strong **Set Building Join Code** value you choose, and the **Administrator registration key** matching the server ADMIN_INVITE_KEY. Matching an existing name never grants access to it. Choose **Viewer** registration to supply full name, email, password/confirmation and the building administrator's Building Join Code. The backend resolves the building and grants only Viewer membership.
 
-Editing `.env` does **not** change a running backend or existing authenticated session. Stop/restart the full managed stack after changing it:
+Manage the write-only code in **Admin management / Building setup** or **My profile**. Codes are case-sensitive, 8-64 ASCII letters/numbers/optional hyphen/underscore, with letters, numbers and at least six distinct characters. Share privately. The original cannot be retrieved; replace or disable it. Rotation blocks the old code for new admissions and preserves existing members. Renaming preserves membership IDs and code resolution. Existing buildings have registration disabled until an administrator sets a code.
 
-```bash
-npm run stop
-npm run dev
-```
+The old sign-in enrollment, identity-code and invitation workflow is retired. ADMIN_INVITE_KEY is retained solely as the server-side gate for creating a new Administrator account; it is never required for sign-in or Viewer registration. Existing accounts, hashes, roles, memberships and building data remain intact. Roles are managed by authorised administrators; a registration code cannot promote a Viewer. No Building Join Code belongs in environment/public configuration or documentation.
 
-For separately supervised services, restart both `npm start` and `npm run worker`. If a stale value was set in PowerShell, remove that process override with `Remove-Item Env:ADMIN_INVITE_KEY -ErrorAction SilentlyContinue` before starting again; also check your process manager's environment. Never print the key or put it in a `VITE_*` variable. A frontend rebuild alone does not rotate server configuration. Sign out and test a new sign-in: the new key must work and the previous key must fail.
-
-In the migrated legacy institution, an existing Viewer can still use the prior password/key activation flow in **My profile** or during sign-in; the server audits it. In a new institution, the workspace administrator must authorise membership roles; a shared enrollment key cannot promote a viewer. The profile displays the server-verified role.
-
-**Admin management** at `/admin` has dedicated Building setup, Rooms & corridors, Camera mapping, Smart controllers, Timetable, Room QR & overrides, Automation & control logs, Users & permissions and Advanced settings pages. Building setup persists organisation details, generates floors and supports named spaces with stable identities. Existing rooms can be assigned to floors without replacing their records. Hardware transport remains simulated or unavailable until commissioned.
-
-To explicitly generate a new key while preserving other existing settings:
-
-```bash
-npm run setup -- --generate-admin-key
-```
-
-Read the generated key only from `.env`, restart the managed stack, and sign in again. This command replaces duplicate key entries with a single newly generated value; it does not change accounts/passwords. Explicit deployment process variables still take precedence. Verify a built frontend with `npm run build` followed by `npm run check:client-secrets`; the scan prints only results, never secret values.
-
-`npm run test:admin-browser` runs the admin registration/login/profile/building/floors/rooms/cameras/controllers/timetable/QR/automation workflow against an isolated temporary database with generated credentials and the built frontend. Run `npm run build` first; the check requires installed Chrome/Edge or `BROWSER_EXECUTABLE`.
-
-A local single-building energy prototype for a 24-hour hackathon. It combines building meter readings, room timetables and available occupancy evidence to identify avoidable use, assign action and track outcomes.
-
-[PLAN.md](PLAN.md) is the authoritative implementation plan. [PROGRESS.md](PROGRESS.md) and [HANDOFF.md](HANDOFF.md) record current implementation and session recovery details.
+After installing source changes, use `npm run stop` then `npm run dev`. Code changes through the setting take effect immediately. `npm run setup` preserves existing configuration. Configure ADMIN_INVITE_KEY privately on the server to enable new Administrator registration; blank disables that registration path while existing-user sign-in remains available. Read [INSTITUTIONS.md](INSTITUTIONS.md) for storage, limits and recovery. Verify with `npm test`, `npm run build`, `npm run test:auth-browser` and `npm run check:client-secrets`. Tests use isolated databases/profiles.
 
 ## Current status
 
@@ -77,7 +56,7 @@ npm run setup
 npm run dev
 ```
 
-Open `http://localhost:5173`. Setup creates ignored server configuration while preserving existing settings. New administrators register an institution/building name and start empty. Login selects an authorised institution. Read [INSTITUTIONS.md](INSTITUTIONS.md) for migration, private identity codes, membership invitations and optional dedicated demo setup. Never commit `.env`.
+Open `http://localhost:5173`. Setup creates ignored server configuration while preserving existing settings. New administrators register an institution/building name and start empty. Email/password login selects the existing membership automatically, or asks after authentication when several exist. Read [INSTITUTIONS.md](INSTITUTIONS.md) for migration, Building Join Codes, authorised membership choice and optional dedicated demo setup. Never commit `.env`.
 
 Development starts the API at `http://localhost:5000`, worker and Vite. Startup never seeds samples. Existing installations require `npm run migrate:institutions` (dry-run), backup/stopped writers, then `npm run migrate:institutions -- --apply`. Explicit local demo: `npm run setup -- --enable-demo`, then `npm run seed`; dedicated credentials live only in ignored `.env`, existing identities/passwords/roles remain intact. Use `npm run stop` from another terminal for explicit owned-service cleanup, or Ctrl+C. A reachable existing local MongoDB is reused; an existing Campus Energy Vite server on port 5173 is also reused. Reused services are never stopped by the helper. Ignored `.local/dev-session.json` records process ownership; verify it rather than assuming all local listeners belong to this run.
 
@@ -131,3 +110,5 @@ Choose meter, data mode, 1/7/30-day lookback or custom date/time range. Lookback
 The feed shows accepted-reading time, source and recorded interval length. Reading freshness is a disclosed heuristic (twice that interval), separate from workspace connectivity; physical source health/configured capture cadence are not asserted. Hourly energy is labelled hourly consumption; interval-derived kW is average power, never instantaneous power. No synthetic animation generates readings. Help icons explain baseline, power, savings, camera confidence, stale data, overrides and command verification: approximately 800ms hover, immediate keyboard focus/tap, Escape or outside-tap dismissal. A help Escape inside details leaves the dialog open; closing the dialog restores focus.
 
 Verification command: `npm run test:consumption-browser` (build first). It uses an isolated temporary institution/database and headless Chrome, not existing accounts or meter records. See TESTING.md for checks and remaining field limits.
+
+Authentication minimums: new passwords require **6 characters** and Building Join Codes **8 characters** (up to 64, including letters/numbers and six distinct characters). Sign-in accepts existing passwords unchanged. The Administrator registration key is required only for creating a new Administrator and must match server ADMIN_INVITE_KEY. Registration errors identify the invalid field. The anonymous /auth/session bootstrap does not require a signed-in account; protected /auth/me still returns 401 without one. Development StrictMode may repeat a cancelled startup request; the React DevTools message is informational. Browser-extension contentscript/ObjectMultiplex warnings are not emitted by this repository.

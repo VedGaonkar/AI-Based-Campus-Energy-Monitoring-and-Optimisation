@@ -22,12 +22,12 @@ const mutate = (path, body = {}, agent = admin, token = csrf) => agent.post(`/ap
 const phone = (path, token, body, method = "post") => request(runtime.app)[method](`/api/v1/demo-phone${path}`).set("Origin", origin).set("Authorization", `Bearer ${token}`).send(body);
 async function auth(email) {
   const agent = request.agent(runtime.app), initial = (await agent.get("/api/v1/auth/csrf")).body.data.csrfToken;
-  const login = await mutate("/auth/login", { email, password, ...(email.startsWith("admin") ? { adminKey: config.adminInviteKey } : {}) }, agent, initial);
+  const login = await mutate("/auth/login", { email, password }, agent, initial);
   assert.equal(login.status, 200); return { agent, token: login.body.data.csrfToken };
 }
 before(async () => {
   db = await startDatabase(); ({ connection, models } = await connectDatabase(db.getUri("phone_demo_test")));
-  config = loadConfig({ NODE_ENV: "test", SESSION_SECRET: randomBytes(32).toString("hex"), SERVICE_INGEST_TOKEN: randomBytes(32).toString("hex"), ADMIN_INVITE_KEY: randomInt(10000000, 100000000).toString(), PUBLIC_APP_URL: origin, DEMO_MODE: "true" });
+  config = loadConfig({ NODE_ENV: "test", SESSION_SECRET: randomBytes(32).toString("hex"), SERVICE_INGEST_TOKEN: randomBytes(32).toString("hex"),  PUBLIC_APP_URL: origin, DEMO_MODE: "true" });
   await seed(models, config, { password }); runtime = createApplication({ models, connection, config }); service = createPhoneDemoService(models, config);
   ({ agent: admin, token: csrf } = await auth("admin@campus.test"));
 });

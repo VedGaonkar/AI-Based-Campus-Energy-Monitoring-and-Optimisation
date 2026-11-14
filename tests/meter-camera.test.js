@@ -15,7 +15,7 @@ const origin = "http://localhost:5000", password = randomBytes(24).toString("bas
 const write = (member, path, body = {}, method = "post") => member.agent[method](`/api/v1${path}`).set("Origin", origin).set("X-CSRF-Token", member.csrf).send(body);
 async function register(email, institutionName) {
   const agent = request.agent(runtime.app), csrf = (await agent.get("/api/v1/auth/csrf")).body.data.csrfToken;
-  const response = await write({ agent, csrf }, "/auth/register", { name: institutionName, email, password, institutionName, adminKey: key }); assert.equal(response.status, 201);
+  const response = await write({ agent, csrf }, "/auth/register", { name: institutionName, email, password, confirmPassword: password, institutionName, accountType: "administrator", adminKey: String(key), joinCode: `Meter-${email.replaceAll("@", "_").replaceAll(".", "_")}-2026` }); assert.equal(response.status, 201);
   return { agent, csrf: response.body.data.csrfToken, id: response.body.data.institution._id, user: response.body.data.user };
 }
 async function good(path, body, method = "post", member = admin) { const response = await write(member, path, body, method); assert.ok(response.status < 300, `${path}: ${response.status} ${JSON.stringify(response.body.error)}`); return response.body.data; }
@@ -27,12 +27,12 @@ const frame = (images, capturedAt = new Date(), extra = {}) => ({ captureId: ran
 async function newCamera(meterId) { await good("/meters", { meterId, name: meterId, maxPowerKw: 100 }); return good("/meter-cameras", { meterId, name: `${meterId} display` }); }
 const requireOcr = t => { if (!ocrReady) { t.skip("Optional real OCR unavailable: run npm run setup:ocr; this is not an OCR success"); return false; } return true; };
 before(async () => {
-  db = await startDatabase(); config = loadConfig({ NODE_ENV: "test", MONGODB_URI: db.getUri("meter_camera_directory"), SESSION_SECRET: randomBytes(32).toString("hex"), SERVICE_INGEST_TOKEN: randomBytes(32).toString("hex"), ADMIN_INVITE_KEY: key, FRONTEND_ORIGIN: origin, PUBLIC_APP_URL: origin });
+  db = await startDatabase(); config = loadConfig({ NODE_ENV: "test", ADMIN_INVITE_KEY: String(key), MONGODB_URI: db.getUri("meter_camera_directory"), SESSION_SECRET: randomBytes(32).toString("hex"), SERVICE_INGEST_TOKEN: randomBytes(32).toString("hex"), FRONTEND_ORIGIN: origin, PUBLIC_APP_URL: origin });
   runtime = await createInstitutionApplication(config); admin = await register("meter-admin@camera.test", "Meter Institute"); foreign = await register("foreign@camera.test", "Foreign Meter Institute");
   models = (await runtime.directory.realm(admin.id)).models; service = createMeterCameraService(models, config);
-  const invite = await good("/institutions/current/invitations", { role: "viewer", email: "reader@camera.test", expiresInHours: 1 });
+  await good("/institutions/current/join-code", { joinCode: "Meter-Reader-Code-2026" }, "put");
   const agent = request.agent(runtime.app), csrf = (await agent.get("/api/v1/auth/csrf")).body.data.csrfToken;
-  const joined = await write({ agent, csrf }, "/auth/register", { name: "Reader", email: "reader@camera.test", password, invitationToken: invite.token }); assert.equal(joined.status, 201); viewer = { agent, csrf: joined.body.data.csrfToken };
+  const joined = await write({ agent, csrf }, "/auth/register", { name: "Reader", email: "reader@camera.test", password, confirmPassword: password, accountType: "viewer", joinCode: "Meter-Reader-Code-2026" }); assert.equal(joined.status, 201); viewer = { agent, csrf: joined.body.data.csrfToken };
   camera = await newCamera("CAMERA-MAIN");
   try { ocrReady = (await recogniseMeter(config, { op: "health" })).available; } catch { ocrReady = false; }
 });

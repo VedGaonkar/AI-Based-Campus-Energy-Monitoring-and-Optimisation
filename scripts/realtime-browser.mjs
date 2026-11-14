@@ -19,23 +19,22 @@ async function until(fn) { for (let i = 0; i < 150; i++) { if (await fn()) retur
 const text = page => page.evaluate(() => document.body.innerText);
 async function pageFor(browser, base, email, institution, admin = false) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1080 } }); pages.push(page); page.on("pageerror", error => errors.push(error.message));
-  await page.goto(base); await page.getByLabel("Institution / building").fill(institution);
-  await page.locator(".institution-suggestions button").click(); await page.getByLabel("Email address").fill(email); await page.getByLabel("Password").fill(password);
-  if (admin) await page.getByLabel("Admin invite key").fill(key);
+  await page.goto(base);
+   await page.getByLabel("Email address").fill(email); await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in to workspace" }).click();
   await until(async () => (await text(page)).includes("Live updates connected")); return page;
 }
 try {
   const probe = createServer(); await new Promise(r => probe.listen(0, "127.0.0.1", r)); const port = probe.address().port; await new Promise(r => probe.close(r));
   const base = `http://localhost:${port}`;
-  db = await startDatabase(); const config = loadConfig({ NODE_ENV: "test", MONGODB_URI: db.getUri("realtime_browser"), ADMIN_INVITE_KEY: key, SESSION_SECRET: randomBytes(32).toString("hex"), SERVICE_INGEST_TOKEN: randomBytes(32).toString("hex"), FRONTEND_ORIGIN: base, PUBLIC_APP_URL: base });
+  db = await startDatabase(); const config = loadConfig({ NODE_ENV: "test", ADMIN_INVITE_KEY: key, MONGODB_URI: db.getUri("realtime_browser"), SESSION_SECRET: randomBytes(32).toString("hex"), SERVICE_INGEST_TOKEN: randomBytes(32).toString("hex"), FRONTEND_ORIGIN: base, PUBLIC_APP_URL: base });
   runtime = await createInstitutionApplication(config);
   const seeded = await seedDedicatedDemo(runtime.directory, { ...config, enableDemoSetup: true, demoAdminEmail: "admin@sync.test", demoViewerEmail: "viewer@sync.test", demoAdminPassword: password, demoViewerPassword: password });
   const realm = await runtime.directory.realm(seeded.institutionId), models = realm.models;
   const beta = request.agent(runtime.app), betaCsrf = (await beta.get("/api/v1/auth/csrf")).body.data.csrfToken;
-  assert.equal((await beta.post("/api/v1/auth/register").set("Origin", base).set("X-CSRF-Token", betaCsrf).send({ name: "Foreign admin", email: "foreign@sync.test", password, adminKey: key, institutionName: "Foreign Isolated Institute", discoverable: true })).status, 201);
+  assert.equal((await beta.post("/api/v1/auth/register").set("Origin", base).set("X-CSRF-Token", betaCsrf).send({ name: "Foreign admin", email: "foreign@sync.test", password, confirmPassword: password, accountType: "administrator", adminKey: key, joinCode: "Foreign-Sync-Building-2026", institutionName: "Foreign Isolated Institute" })).status, 201);
   const agent = request.agent(runtime.app), csrf = (await agent.get("/api/v1/auth/csrf")).body.data.csrfToken;
-  const logged = await agent.post("/api/v1/auth/login").set("Origin", base).set("X-CSRF-Token", csrf).send({ email: "admin@sync.test", password, adminKey: key, institutionId: seeded.institutionId }); assert.equal(logged.status, 200);
+  const logged = await agent.post("/api/v1/auth/login").set("Origin", base).set("X-CSRF-Token", csrf).send({ email: "admin@sync.test", password }); assert.equal(logged.status, 200);
   const mutate = async (path, body, method = "post") => { const response = await agent[method](`/api/v1${path}`).set("Origin", base).set("X-CSRF-Token", logged.body.data.csrfToken).send(body); assert.ok(response.status < 300, `${path}: ${response.status} ${JSON.stringify(response.body.error)}`); return response.body.data; };
   await models.Schedule.deleteMany({ roomId: "room-r101" });
   await models.Integration.updateOne({ _id: "CAM-R101" }, { $set: { health: "online", coverageValidated: true, lastSeenAt: new Date(), freshnessSeconds: 300 } });
@@ -63,7 +62,7 @@ try {
   await administrator.bringToFront(); await administrator.getByRole("button", { name: "Supply ON" }).click();
   await until(async () => (await text(viewer)).toLowerCase().includes("simulated supply on"));
   await administrator.goto(`${base}/profile`); await administrator.getByLabel("Institution / building display name").fill("Renamed Live Campus");
-  await administrator.getByRole("button", { name: "Save institution identity" }).click();
+  await administrator.getByRole("button", { name: "Save building name" }).click();
   await until(async () => (await text(viewer)).includes("Renamed Live Campus")); await tab.bringToFront(); await until(async () => (await text(tab)).includes("Renamed Live Campus"));
   assert.ok(!(await text(foreign)).includes("Renamed Live Campus")); checks.push("Institution rename reaches viewer and another page/tab without changing subscriptions");
   await administrator.goto(`${base}/connected-devices`); await administrator.bringToFront(); await viewer.goto(`${base}/connected-devices`);

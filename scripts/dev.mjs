@@ -137,5 +137,5 @@ for (const child of children)
 for (const signal of ["SIGINT", "SIGTERM"])
   process.once(signal, () => void stop());
 console.log(
-  "Open http://localhost:5173. Select your institution to sign in, or register an empty workspace. Explicit showcase credentials use DEMO_ADMIN/VIEWER_EMAIL/PASSWORD in ignored .env.",
+  "Open http://localhost:5173. Sign in with email/password, or register an empty building workspace. Explicit showcase credentials use DEMO_ADMIN/VIEWER_EMAIL/PASSWORD in ignored .env.",
 );

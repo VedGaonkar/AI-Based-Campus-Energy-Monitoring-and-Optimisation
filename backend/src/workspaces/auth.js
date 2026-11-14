@@ -2,15 +2,15 @@ import { randomBytes } from "node:crypto";
 import bcrypt from "bcrypt";
 import { z } from "zod";
 import { rateLimit } from "express-rate-limit";
-import { digest, publicInstitution } from "./directory.js";
-import { workspaceLogin, workspaceRegistration, workspaceRename, workspaceInvitation, workspaceAccept } from "../../../shared/institution-contracts.js";
+import { publicInstitution } from "./directory.js";
+import { workspaceLogin, workspaceRegistration, workspaceRename, workspaceSelection, workspaceJoinCode } from "../../../shared/institution-contracts.js";
 import { equalSecret, fail, requireRole } from "../security/access.js";
-
-const invalid = () => fail(401, "INVALID_WORKSPACE_LOGIN", "Invalid credentials or unavailable institution membership");
-const limiter = () => rateLimit({ windowMs: 900000, limit: 30, standardHeaders: "draft-8", legacyHeaders: false,
-  handler: (_req, res) => res.status(429).json({ error: { code: "RATE_LIMITED", message: "Too many attempts. Please wait and try again." } }) });
+import { joinCredentials, withJoinLock, withVerifiedJoinCode, writeJoinCode } from "./join-code.js";
+import { publishChange } from "../realtime/journal.js";
+const invalid = () => fail(401, "INVALID_LOGIN", "Email or password is incorrect, or no active building membership is available");
+const limiter = (limit = 30) => rateLimit({ windowMs: 900000, limit, standardHeaders: "draft-8", legacyHeaders: false, handler: (_req, res) => res.status(429).json({ error: { code: "RATE_LIMITED", message: "Too many attempts. Please wait and try again." } }) });
 export function workspaceMiddleware(directory) {
-  const publicPaths = new Set(["/auth/login", "/auth/register", "/auth/accept-invitation", "/auth/logout", "/auth/csrf", "/health", "/ready", "/institutions/suggestions", "/institutions/resolve"]);
+  const publicPaths = new Set(["/auth/session", "/auth/login", "/auth/register", "/auth/accept-invitation", "/auth/select-workspace", "/auth/workspaces", "/auth/logout", "/auth/csrf", "/health", "/ready", "/institutions/suggestions", "/institutions/resolve"]);
   return async (req, _res, next) => {
     try {
       if (!req.path.startsWith("/api/v1")) return next();
@@ -37,151 +37,101 @@ export function workspaceMiddleware(directory) {
 }
 
 export function registerWorkspaceAuth(api, { directory, config }) {
-  const authLimit = limiter(), discoveryLimit = rateLimit({ windowMs: 60000, limit: 60, standardHeaders: "draft-8", legacyHeaders: false });
-  async function resolveCode(code) {
-    if (!code) return null;
-    return directory.Institution.findOne({ accessCodeHash: digest(code), active: true }).lean();
+  const authLimit = limiter();
+  const retired = () => fail(410, "AUTH_FLOW_RETIRED", "This flow is retired. Sign in with email/password, or register with a Building Join Code.");
+  api.get("/institutions/suggestions", retired); api.post("/institutions/resolve", retired); api.post("/auth/accept-invitation", retired);
+  const save = req => new Promise((resolve, reject) => req.session.save(error => error ? reject(error) : resolve()));
+  async function regenerate(req) { await new Promise((resolve, reject) => req.session.regenerate(error => error ? reject(error) : resolve())); req.session.csrf = randomBytes(32).toString("hex"); }
+  async function choicesFor(userId) {
+    const memberships = await directory.Membership.find({ userId, active: true }).lean();
+    const institutions = await directory.Institution.find({ _id: { $in: memberships.map(m => m.institutionId) }, active: true }).lean(), choices = [];
+    for (const institution of institutions) { const realm = await directory.realm(institution._id), user = await directory.user(realm, userId); if (user) choices.push({ realm, user }); }
+    return choices;
   }
-  async function signedIn(req, account, realm, user) {
-    await new Promise((resolve, reject) => req.session.regenerate(error => error ? reject(error) : resolve()));
-    req.session.userId = account._id; req.session.institutionId = realm.institution._id;
-    req.session.adminVerified = user.role === "admin"; req.session.csrf = randomBytes(32).toString("hex");
-    await new Promise((resolve, reject) => req.session.save(error => error ? reject(error) : resolve()));
+  async function signedIn(req, userId, realm, user) {
+    await regenerate(req); req.session.userId = userId; req.session.institutionId = realm.institution._id; req.session.adminVerified = user.role === "admin"; await save(req);
+    await realm.models.AuditEvent.create({ actorId: userId, action: "auth.login", target: userId, summary: "Password-authenticated building membership" });
     return { user, institution: publicInstitution(realm.institution), csrfToken: req.session.csrf };
   }
-  async function invitation(token, email) {
-    const row = await directory.Invitation.findOne({ tokenHash: digest(token), usedAt: null, expiresAt: { $gt: new Date() } }).lean();
-    if (!row || (row.email && row.email !== email)) fail(403, "INVITATION_INVALID", "Invitation is invalid, expired or not authorised for this account");
-    return row;
+  function identity(req) {
+    if (req.session.userId) return req.session.userId;
+    if (req.session.pendingUserId && Date.now() - req.session.pendingAuthenticatedAt < 300000) return req.session.pendingUserId;
+    fail(401, "AUTH_REQUIRED", "Sign in with email and password to choose a building");
   }
-  async function accept(row, account) {
-    const realm = await directory.realm(row.institutionId);
-    // Conditional claim prevents concurrent re-use. A recoverable claim remains
-    // associated with this identity if later membership persistence fails.
-    const claimed = await directory.Invitation.findOneAndUpdate({ _id: row._id, usedAt: null, expiresAt: { $gt: new Date() } }, { $set: { usedAt: new Date(), usedBy: account._id } }, { returnDocument: "after" }).lean();
-    if (!claimed) fail(403, "INVITATION_INVALID", "Invitation is invalid, expired or already used");
-    const user = await directory.addMember(realm, account, row);
-    return { realm, user };
-  }
-  api.get("/institutions/suggestions", discoveryLimit, async (req, res) => {
-    const value = typeof req.query.q === "string" ? req.query.q.trim().toLocaleLowerCase() : "";
-    if (!config.institutionDiscoveryEnabled || value.length < 3 || value.length > 80) return res.json({ data: [] });
-    const escaped = [...value].map(char => "\\^$.*+?()[]{}|".includes(char) ? "\\" + char : char).join("");
-    const rows = await directory.Institution.find({ active: true, discoverable: true, searchName: { $regex: escaped } }).sort({ searchName: 1, _id: 1 }).limit(8).select("_id displayName").lean();
-    res.setHeader("Cache-Control", "no-store"); res.json({ data: rows.map(publicInstitution) });
-  });
-  api.post("/institutions/resolve", discoveryLimit, async (req, res) => {
-    const { code } = z.object({ code: z.string().trim().min(10).max(200) }).strict().parse(req.body);
-    let institution = await resolveCode(code);
-    if (!institution) {
-      const invite = await directory.Invitation.findOne({ tokenHash: digest(code), usedAt: null, expiresAt: { $gt: new Date() } }).lean();
-      if (invite) institution = await directory.Institution.findOne({ _id: invite.institutionId, active: true }).lean();
+  // Safe anonymous bootstrap avoids expected 401 responses on the sign-in page.
+  // No identity or workspace names are returned without a verified session.
+  api.get("/auth/session", async (req, res) => {
+    res.setHeader("Cache-Control", "no-store"); req.session.csrf ??= randomBytes(32).toString("hex");
+    let user = null, workspaces = [];
+    if (req.session.userId && req.session.institutionId) {
+      const choices = await choicesFor(req.session.userId), current = choices.find(c => c.realm.institution._id === req.session.institutionId);
+      if (current && (current.user.role !== "admin" || req.session.adminVerified)) user = current.user;
+    } else if (req.session.pendingUserId && Date.now() - req.session.pendingAuthenticatedAt < 300000) {
+      workspaces = (await choicesFor(req.session.pendingUserId)).map(c => publicInstitution(c.realm.institution));
     }
-    if (!institution) fail(404, "WORKSPACE_UNAVAILABLE", "Institution code is invalid or unavailable");
-    res.json({ data: publicInstitution(institution) });
+    res.json({ data: { user, workspaces, csrfToken: req.session.csrf } });
   });
   api.post("/auth/login", authLimit, async (req, res) => {
-    const input = workspaceLogin.parse(req.body);
-    const account = await directory.Account.findOne({ email: input.email, active: true }).select("+passwordHash").lean();
+    const input = workspaceLogin.parse(req.body), account = await directory.Account.findOne({ email: input.email, active: true }).select("+passwordHash").lean();
     if (!account || !await bcrypt.compare(input.password, account.passwordHash)) invalid();
-    let institutionId = input.institutionId;
-    if (!institutionId && input.workspaceCode) institutionId = (await resolveCode(input.workspaceCode))?._id;
-    if (!institutionId) {
-      const memberships = await directory.Membership.find({ userId: account._id, active: true }).lean();
-      // Always require explicit selection, especially for multi-membership users.
-      if (memberships.length) fail(409, "WORKSPACE_SELECTION_REQUIRED", "Select your institution or enter its private workspace code before signing in");
-      invalid();
-    }
-    const realm = await directory.realm(institutionId), user = await directory.user(realm, account._id);
-    if (!user) invalid();
-    if (input.adminKey || (user.role === "admin" && config.adminInviteKey)) {
-      if (!config.adminInviteKey) fail(503, "ADMIN_ACCESS_DISABLED", "Admin activation is not configured. Set ADMIN_INVITE_KEY and restart the backend.");
-      if (!input.adminKey || !equalSecret(input.adminKey, config.adminInviteKey)) fail(403, "INVALID_ADMIN_KEY", "A valid admin invite key is required for administrator sign-in.");
-      if (user.role !== "admin") {
-        if (realm.institution.kind !== "legacy") fail(403, "MEMBERSHIP_ROLE_REQUIRED", "An institution administrator must authorise your membership role. The enrollment key cannot upgrade this workspace membership.");
-        await realm.models.User.updateOne({ _id: account._id }, { $set: { role: "admin" } });
-        user.role = "admin";
-        await realm.models.AuditEvent.create({ actorId: account._id, action: "auth.admin_access_granted", target: account._id, summary: "Existing workspace membership and admin key verified" });
-      }
-    }
-    res.json({ data: await signedIn(req, account, realm, user) });
+    const choices = await choicesFor(account._id); if (!choices.length) invalid();
+    if (choices.length === 1) return res.json({ data: await signedIn(req, account._id, choices[0].realm, choices[0].user) });
+    await regenerate(req); req.session.pendingUserId = account._id; req.session.pendingAuthenticatedAt = Date.now(); await save(req);
+    res.json({ data: { selectionRequired: true, workspaces: choices.map(c => publicInstitution(c.realm.institution)), csrfToken: req.session.csrf } });
   });
-  api.post("/auth/register", authLimit, async (req, res) => {
+  api.get("/auth/workspaces", authLimit, async (req, res) => { res.setHeader("Cache-Control", "no-store"); res.json({ data: (await choicesFor(identity(req))).map(c => publicInstitution(c.realm.institution)) }); });
+  api.post("/auth/select-workspace", authLimit, async (req, res) => {
+    const input = workspaceSelection.parse(req.body), userId = identity(req), choices = await choicesFor(userId), chosen = choices.find(c => c.realm.institution._id === input.institutionId);
+    if (!chosen) fail(403, "MEMBERSHIP_REQUIRED", "Choose one of your authorised buildings");
+    res.json({ data: await signedIn(req, userId, chosen.realm, chosen.user) });
+  });
+  api.post("/auth/register", limiter(20), async (req, res) => {
     const input = workspaceRegistration.parse(req.body);
-    const mode = input.registrationMode ?? (input.invitationToken ? "join" : "create");
-    if (input.institutionName && input.invitationToken || mode === "create" && input.invitationToken || mode === "join" && input.institutionName)
-      fail(400, "REGISTRATION_MODE_CONFLICT", "Choose one setup: create a new institution using its name and admin key, or join an existing institution using its membership invitation.");
-    if (mode === "join" && !input.invitationToken)
-      fail(400, "INVITATION_REQUIRED", "To join an existing institution, enter the membership invitation issued by its administrator. To create your own institution, select Create a new institution.");
-    if (await directory.Account.exists({ email: input.email })) fail(409, "EMAIL_TAKEN", "An account with that email already exists. Sign in or accept an invitation using the existing account.");
-    let invite;
-    if (mode === "join") {
-      invite = await invitation(input.invitationToken, input.email);
-      if (invite.role === "admin") {
-        if (!config.adminInviteKey) fail(503, "ADMIN_ACCESS_DISABLED", "Admin registration is not configured. Set ADMIN_INVITE_KEY and restart the backend.");
-        if (!input.adminKey || !equalSecret(input.adminKey, config.adminInviteKey)) fail(403, "INVALID_ADMIN_KEY", "A valid admin invite key is required for administrator registration.");
+    if (input.accountType === "administrator") {
+      if (!config.adminInviteKey) fail(503, "ADMIN_REGISTRATION_DISABLED", "Administrator registration requires ADMIN_INVITE_KEY to be configured on the server.");
+      if (!input.adminKey || !equalSecret(input.adminKey, config.adminInviteKey)) fail(403, "INVALID_ADMIN_KEY", "Administrator registration key is missing or incorrect. No account was created.");
+    }
+    if (await directory.Account.exists({ email: input.email })) fail(409, "EMAIL_TAKEN", "An account with that email already exists. Sign in with your existing password.");
+    const passwordHash = await bcrypt.hash(input.password, 12);
+    async function provision(realm, role, newBuilding = false) {
+      let account;
+      try {
+        // No login or operational access until membership persistence succeeds.
+        account = (await directory.Account.create({ name: input.name, email: input.email, passwordHash, active: false })).toObject();
+        await directory.addMember(realm, account, { role, permittedRoomIds: [] });
+        if (newBuilding) await directory.activate(realm);
+        await directory.Account.updateOne({ _id: account._id }, { $set: { active: true } });
+      } catch (error) {
+        // Only IDs created by this request are eligible for compensation.
+        if (account) { await directory.Membership.deleteMany({ userId: account._id, institutionId: realm.institution._id }); await realm.models.User.deleteOne({ _id: account._id }); await directory.Account.deleteOne({ _id: account._id }); }
+        if (newBuilding) { await realm.models.Settings.deleteOne({ _id: "installation" }); await directory.Institution.deleteOne({ _id: realm.institution._id }); }
+        throw error;
       }
+      const current = await directory.realm(realm.institution._id), user = await directory.user(current, account._id);
+      await current.models.AuditEvent.create({ actorId: account._id, action: "auth.register", target: account._id, summary: newBuilding ? "New empty building and administrator membership" : "Viewer membership created with Building Join Code" });
+      return { account, realm: current, user };
     }
-    else {
-      if (!input.institutionName) fail(400, "INSTITUTION_NAME_REQUIRED", "Enter the institution/building display name for your new workspace");
-      if (!config.adminInviteKey) fail(503, "ADMIN_ACCESS_DISABLED", "Admin registration is not configured. Set ADMIN_INVITE_KEY and restart the backend.");
-      if (!input.adminKey || !equalSecret(input.adminKey, config.adminInviteKey)) fail(403, "INVALID_ADMIN_KEY", "The admin invite key is incorrect. No account was created.");
-    }
-    const account = (await directory.Account.create({ name: input.name, email: input.email, passwordHash: await bcrypt.hash(input.password, 12) })).toObject();
-    let realm, user;
-    if (invite) ({ realm, user } = await accept(invite, account));
-    else {
-      realm = await directory.createInstitution(input.institutionName, { discoverable: input.discoverable });
-      user = await directory.addMember(realm, account, { role: "admin" });
-      await directory.activate(realm);
-    }
-    res.status(201).json({ data: await signedIn(req, account, realm, user) });
+    let result;
+    if (input.accountType === "administrator") { const credentials = await joinCredentials(input.joinCode, config), realm = await writeJoinCode(() => directory.createInstitution(input.institutionName, { joinCredentials: credentials })); result = await provision(realm, "admin", true); }
+    else result = await withVerifiedJoinCode(directory, input.joinCode, realm => provision(realm, "viewer"));
+    res.status(201).json({ data: await signedIn(req, result.account._id, result.realm, result.user) });
   });
-  api.post("/auth/accept-invitation", authLimit, async (req, res) => {
-    const input = workspaceAccept.parse(req.body), row = await invitation(input.invitationToken, input.email);
-    const account = await directory.Account.findOne({ email: input.email, active: true }).select("+passwordHash").lean();
-    if (!account || !await bcrypt.compare(input.password, account.passwordHash)) invalid();
-    const { realm, user } = await accept(row, account);
-    if (user.role === "admin" && config.adminInviteKey) {
-      // Membership is granted by invitation, but administrator login still uses
-      // the existing configured key flow; never create a bypassed admin session.
-      return res.json({ data: { joined: true, institution: publicInstitution(realm.institution), signInRequired: true } });
-    }
-    res.json({ data: await signedIn(req, account, realm, user) });
-  });
-  api.post("/auth/logout", async (req, res) => {
-    await new Promise((resolve, reject) => req.session.destroy(error => error ? reject(error) : resolve()));
-    res.clearCookie("campus.sid"); res.json({ data: { loggedOut: true } });
-  });
+  api.post("/auth/logout", async (req, res) => { await new Promise((resolve, reject) => req.session.destroy(error => error ? reject(error) : resolve())); res.clearCookie("campus.sid"); res.json({ data: { loggedOut: true } }); });
 }
-
 export function registerWorkspaceAdministration(api, { directory }) {
   const realm = () => directory.current();
-  api.get("/institutions/current", async (req, res) => {
-    const institution = await directory.Institution.findById(realm().institution._id).lean();
-    res.json({ data: { ...publicInstitution(institution), discoverable: institution.discoverable, demo: institution.kind === "demo" } });
+  api.get("/institutions/current", async (_req, res) => { const i = await directory.Institution.findById(realm().institution._id).lean(); res.json({ data: { ...publicInstitution(i), demo: i.kind === "demo", joinCodeEnabled: i.joinCodeEnabled === true } }); });
+  api.patch("/institutions/current", async (req, res) => { requireRole(req.user, ["admin"]); const input = workspaceRename.parse(req.body); res.json({ data: await directory.rename(realm(), input.displayName) }); });
+  api.put("/institutions/current/join-code", limiter(20), async (req, res) => {
+    requireRole(req.user, ["admin"]); const input = workspaceJoinCode.parse(req.body), credentials = input.enabled === false ? null : await joinCredentials(input.joinCode, directory.config);
+    await withJoinLock(directory, realm().institution._id, async () => {
+      await writeJoinCode(() => directory.Institution.updateOne({ _id: realm().institution._id }, credentials ? { $set: credentials } : { $set: { joinCodeEnabled: false }, $unset: { joinCodeLookup: 1, joinCodeVerifier: 1 } }));
+      await realm().models.AuditEvent.create({ actorId: req.user._id, action: credentials ? "building.join_code_replaced" : "building.join_code_disabled", target: realm().institution._id, summary: "Viewer registration updated; existing memberships retained" });
+      await publishChange(realm().connection, { resource: "institution", operation: "join-code-setting" });
+    });
+    res.json({ data: { joinCodeEnabled: !!credentials } });
   });
-  api.patch("/institutions/current", async (req, res) => {
-    requireRole(req.user, ["admin"]); const input = workspaceRename.parse(req.body);
-    res.json({ data: await directory.rename(realm(), input.displayName, input.discoverable) });
-  });
-  api.post("/institutions/current/access-code", async (req, res) => {
-    requireRole(req.user, ["admin"]); const code = randomBytes(24).toString("base64url");
-    await directory.Institution.updateOne({ _id: realm().institution._id }, { $set: { accessCodeHash: digest(code) } });
-    res.json({ data: { code, purpose: "Workspace identity only; membership and password still required" } });
-  });
-  api.get("/auth/workspaces", async (req, res) => {
-    const memberships = await directory.Membership.find({ userId: req.user._id, active: true }).lean();
-    const rows = await directory.Institution.find({ _id: { $in: memberships.map(row => row.institutionId) }, active: true }).select("_id displayName").lean();
-    res.json({ data: rows.map(publicInstitution) });
-  });
-  api.post("/institutions/current/invitations", async (req, res) => {
-    requireRole(req.user, ["admin"]); const input = workspaceInvitation.parse(req.body), target = realm();
-    for (const roomId of input.permittedRoomIds) if (!await target.models.Room.exists({ _id: roomId })) fail(400, "INVALID_ROOM", "Invitation room is not in this institution");
-    const token = randomBytes(32).toString("base64url"), expiresAt = new Date(Date.now() + input.expiresInHours * 3600000);
-    const row = await directory.Invitation.create({ institutionId: target.institution._id, tokenHash: digest(token), email: input.email, role: input.role, permittedRoomIds: input.permittedRoomIds, expiresAt, createdBy: req.user._id });
-    res.status(201).json({ data: { _id: row._id, token, expiresAt } });
-  });
+  for (const path of ["/institutions/current/access-code", "/institutions/current/invitations"]) api.post(path, () => fail(410, "AUTH_FLOW_RETIRED", "Use the Building Join Code setting for Viewer registration"));
   api.patch("/auth/profile", async (req, res) => {
     const input = z.object({ name: z.string().trim().min(1).max(200) }).strict().parse(req.body);
     await directory.Account.updateOne({ _id: req.user._id }, { $set: input });
@@ -190,9 +140,9 @@ export function registerWorkspaceAdministration(api, { directory }) {
   });
   api.post("/users", async (req, res) => {
     requireRole(req.user, ["admin"]);
-    const input = z.object({ name: z.string().min(1).max(200), email: z.email(), password: z.string().min(12).max(200), role: z.enum(["admin", "hod", "technician", "teacher", "viewer"]), permittedRoomIds: z.array(z.string().max(100)).max(100) }).strict().parse(req.body);
+    const input = z.object({ name: z.string().min(1).max(200), email: z.email(), password: z.string().min(6).max(200), role: z.enum(["admin", "hod", "technician", "teacher", "viewer"]), permittedRoomIds: z.array(z.string().max(100)).max(100) }).strict().parse(req.body);
     for (const id of input.permittedRoomIds) if (!await realm().models.Room.exists({ _id: id })) fail(400, "INVALID_ROOM", "User room is outside this institution");
-    if (await directory.Account.exists({ email: input.email.toLowerCase() })) fail(409, "EMAIL_TAKEN", "Email already exists globally. Invite the existing account instead.");
+    if (await directory.Account.exists({ email: input.email.toLowerCase() })) fail(409, "EMAIL_TAKEN", "An account with that email already exists. Existing memberships were not changed.");
     const account = (await directory.Account.create({ name: input.name, email: input.email.toLowerCase(), passwordHash: await bcrypt.hash(input.password, 12) })).toObject();
     res.status(201).json({ data: await directory.addMember(realm(), account, input) });
   });
