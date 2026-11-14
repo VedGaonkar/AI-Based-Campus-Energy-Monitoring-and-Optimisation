@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 // A durable invalidation feed works with standalone MongoDB as well as replica
 // sets. It never stores documents, credentials, names, notification text or video.
 const resources = {
+  SustainabilityConfig: "sustainability", EmissionFactor: "sustainability", SustainabilityRecord: "sustainability",
   MeterCamera: "meter-cameras", MeterCapture: "meter-captures", MeterCaptureJob: "meter-capture-jobs", MeterEpochTransition: "meter-epochs",
   Room: "rooms", Floor: "floors", Settings: "institution", User: "permissions",
   Breaker: "room-master", Device: "inventory", Schedule: "schedules",

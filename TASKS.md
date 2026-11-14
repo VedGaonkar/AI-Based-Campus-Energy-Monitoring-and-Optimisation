@@ -1,5 +1,16 @@
 # Implementation Tasks
 
+## CE-020 complete - optional internal sustainability reporting
+
+- [x] Inspect accepted interval derivation, provenance/quality, immutable institution scoping, settings, reports and role checks.
+- [x] Add disabled-by-default module, append-only factors, evidence/review records and existing-Report snapshots; preserve palette and memberships.
+- [x] Environmental units/coverage/comparable periods/context, separate social evidence denominator and visible governance documentation rubric.
+- [x] Verify official CEA v22.0 Table S source; retain default as assumption and require explicit matching-year/geography official selection.
+- [x] Nine initial calculation/API tests pass; production build passes with optional lazy chunk.
+- [x] Final browser workflow10checks/0runtime errors; full suite145passed/0failed/0skipped,build,95syntax files,19built-asset secret scan and whitespace passed.
+- [x] Same-selection live refresh preserves focus/help; original/changed filters, saved exports, gaps and Viewer permissions checked. Final desktop/mobile screenshots inspected.
+- [x] Methodology/API/database/architecture/testing/README/changelog/continuity updated and managed app restarted; read-only service smoke passed without environment/data changes.
+
 ## CE-019 complete - embedded website assistant
 
 - [x] Signed-in launcher and same-origin assistant panel visible in actual main app; mobile layout/palette preserved.

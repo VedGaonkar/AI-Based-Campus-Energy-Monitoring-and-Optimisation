@@ -57,6 +57,7 @@ const LazyConsumptionChart = React.lazy(
   () => import("./components/ConsumptionChart.jsx"),
 );
 const LazyConsumptionDetails = React.lazy(() => import("./components/ConsumptionChart.jsx").then(m => ({ default: m.ConsumptionDetails })));
+const LazySustainability = React.lazy(() => import("./Sustainability.jsx").then(m => ({ default: m.Sustainability })));
 
 const AppContext = createContext();
 const useApp = () => useContext(AppContext);
@@ -288,6 +289,7 @@ function App() {
                 ["/", LayoutDashboard, "Overview"],
                 ["/rooms", DoorOpen, "Rooms"],
                 ["/energy", ChartNoAxesCombined, "Energy analytics"],
+                ["/sustainability", FileCheck2, "Sustainability / ESG"],
                 ["/timetable", CalendarDays, "Timetable"],
                 ["/incidents", Bell, "Incidents"],
                 ["/recommendations", Lightbulb, "Recommendations"],
@@ -412,6 +414,7 @@ function App() {
                 </div>
               )}
               <Routes>
+                <Route path="/sustainability" element={<React.Suspense fallback={<p role="status">Loading sustainability reporting...</p>}><LazySustainability key={user.institutionId} ui={managementUI} /></React.Suspense>} />
                 <Route path="/meter-cameras" element={<MeterCameras ui={managementUI} />} />
                 <Route path="/connected-devices" element={<ConnectedDevices ui={managementUI} />} />
                 <Route path="/phone-demo" element={<PhoneDemo ui={managementUI} />} />

@@ -1,5 +1,13 @@
 # Implementation progress
 
+## CE-020 complete - optional sustainability reporting
+
+Implemented disabled-by-default ESG route/API/additive realm models/calculator, configurable assumption and source-checked optional official CEA FY2025-26 weighted-average factor, evidence-backed activities/policies/reporting with internal approvals, visible score formulae and Admin immutable JSON exports. Existing data,roles,memberships,palette and anomaly/control policy preserved; no billing integration. Reports retain methodology,source intervals/readings,all applicable factor versions,context/evidence status,thresholds/tariff and gaps.
+
+Completed full suite145/145,0failed,0skipped; nine new calculation/API cases include zero/missing/unequal baselines,increases,gaps/future/simulation/context gates,factor boundaries/history,score denominators/rubric,acceptance/units,permissions and cross-building/export consistency. Final Chrome10checks pass,0runtime errors; same-filter refresh now preserves focus/help while changed filters hide obsolete data. Final desktop/mobile screenshots inspected. Production build,95syntax checks,19built-asset secret scan and whitespace pass. Official source and Mongoose update options checked; earlier fixture/driver issues fixed. Evidence .local/sustainability-{full-tests,build,browser}.log,.local/sustainability-browser.json,screenshots/sustainability-{desktop,mobile}.png.
+
+Managed local stack restarted with external MongoDB/data intact; frontend5173,API5000,worker ready; frontend/session/health/ready200 and unauthenticated module401. RunId17c23309-24e8-414e-9360-b96193d82bf4,execsession64266; see current .local/dev-session.json. Open Sustainability / ESG and enable as Administrator. Documentation and handoff updated,PLAN unchanged. No .env/account/reading edits,reseed,migration,commit/push/deploy. Limits and institutional evidence/source/accounting review requirements are in SUSTAINABILITY.md and HANDOFF.md.
+
 ## CE-019 complete - website assistant visible and integrated
 
 Root cause: website-smart-bot existed only as a standalone service/optional script snippet; the actual website had no embed or managed integration. Added signed-in Ask assistant launcher at bottom right, responsive same-origin iframe under /assistant, Vite proxy and API mount using existing sessions. Preserved approved palette (including assistant panel). Root app automatically serves it in dev and production; no port5190 service is required for embedded mode. Installed existing lockfile dependencies with npm ci --prefix website-smart-bot, no global/config changes.

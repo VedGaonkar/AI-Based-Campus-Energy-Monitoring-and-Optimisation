@@ -1,5 +1,11 @@
 # Validation and Acceptance Plan
 
+## Optional sustainability reporting (CE-020)
+
+`node --test --test-concurrency=1 tests/sustainability.test.js` covers kWh/kg CO2 conversion, applicable factor history/boundary ambiguity, missing/zero/unequal baselines, increases, long aggregates/partial/future periods, timetable/occupancy/simulation recognition gates, social numerator/denominator and approval, governance rubric/missing evidence, module opt-in, strict server validation, Admin/Viewer permissions, immutable exported snapshots/checksum/source readings, source acceptance/units and cross-building isolation. Uses only isolated temporary MongoDB/accounts.
+
+After `npm run build`, `npm run test:sustainability-browser` runs the real production bundle in isolated headless Chrome and a temporary institution. It exercises Administrator enablement, labelled filter/calculation consistency, assumption/provenance/palette, keyboard help, actual save/JSON download, activity form/pending evidence and approved score update, offline/correction/reconnect with historical export stability,390px layout,no-data state and Viewer restrictions. Evidence is written under ignored `.local/sustainability-browser.json`, logs and screenshots. Final execution results are recorded in HANDOFF.md/PROGRESS.md; no real-meter calibration, touchscreen, screen-reader, institutional evidence authenticity or formal sustainability accounting certification is implied.
+
 ## Meter-camera acceptance (CE-016)
 
 Run node --test tests/meter-camera.test.js after npm run setup:ocr. Pure/parser and source/scheduler checks remain separate from optional real OCR tests; missing engine skips are explicit and never count as recognition. Executed tests cover point/comma/implied decimals,Wh conversion,wrong registers,duplicates,real synthetic image/orientation,review/correction without lost evidence,automatic permission reset,paired scheduled capture,hourly calculations/CSV overlap,non-monotonic/future/stale data,gap aggregates,loss/expiry,no occupancy effects,reset isolation and retention.

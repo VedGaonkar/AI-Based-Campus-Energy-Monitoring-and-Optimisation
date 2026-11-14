@@ -56,6 +56,9 @@ export function createModels(connection, institutionId) {
     MeterImage: model("MeterImage", "meterImages", { captureId: String, cameraId: String, frames: { type: [mixed], select: false }, expiresAt: Date }, [[{ expiresAt: 1 }, { expireAfterSeconds: 0 }], [{ captureId: 1 }, { unique: true }]]),
     MeterEpochTransition: model("MeterEpochTransition", "meterEpochTransitions", { meterId: String, fromEpoch: String, newEpoch: String, type: String, effectiveAt: Date, reason: String, registerMaximum: Number, actorId: String, status: { type: String, default: "pending" } }, [[{ meterId: 1, newEpoch: 1 }, { unique: true }]]),
     Report: model("Report", "reports", { name: String, generatedAt: Date, createdBy: String, dataMode: mode, payload: mixed }),
+    SustainabilityConfig: model("SustainabilityConfig", "sustainabilityConfig", { enabled: Boolean, reductionThreshold: Number, minimumCoverage: Number, factorRevision: Number }),
+    EmissionFactor: model("EmissionFactor", "emissionFactors", { revision: Number, value: Number, unit: String, geography: String, source: String, reportingYear: String, effectiveFrom: Date, effectiveTo: Date, verificationStatus: String, methodology: String, recordedBy: String }, [[{ revision: 1 }, { unique: true }]]),
+    SustainabilityRecord: model("SustainabilityRecord", "sustainabilityRecords", { kind: String, title: String, date: Date, endAt: Date, reviewAt: Date, responsible: String, evidence: String, initiative: String, students: Number, staff: Number, denominator: Number, countingMethod: String, status: String, recordedBy: String, reviews: [mixed] }),
     DemoSession: model("DemoSession", "demoSessions", {
       roomId: { type: String, required: true }, active: { type: Boolean, default: true },
       createdBy: String, stoppedBy: String, expiresAt: Date, endedAt: Date,

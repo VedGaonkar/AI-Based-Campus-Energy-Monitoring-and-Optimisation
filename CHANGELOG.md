@@ -1,5 +1,9 @@
 # Changelog
 
+## CE-020 - optional internal sustainability reporting
+
+Added disabled-by-default Sustainability / ESG dashboard using accepted import electricity and explicit selected-period baselines. Includes recorded-use CO2 estimates with append-only factor metadata/history, assumption-labelled0.675 and an explicit source-checked India FY2025-26 CEA weighted-average option; incomplete coverage/context and increases remain visible. Manual activity/policy/reporting evidence uses internal review, a disclosed engagement denominator and governance documentation rubric. Admin-only immutable JSON report snapshots/exports retain methodology, quality/gaps and calculation inputs. Existing immutable institution isolation, memberships, roles, palette, live updates, alert/control policies and data are preserved. Billing/payment integration excluded. See SUSTAINABILITY.md and current verification in HANDOFF.md.
+
 ## CE-018 - simplified authentication
 
 Email/password sign-in now opens existing memberships automatically or asks after authentication when several exist. Administrator registration requires the configured server registration key and creates an empty building; Viewer registration uses its Building Join Code. Added secure write-only code rotation/disabling and retired old admission endpoints while preserving account/member/data identities and styling. Administrator creation retains its server registration-key gate; sign-in remains email/password only. Added safe session bootstrap, guarded logout and field-specific validation. Minimums are six characters for passwords and eight for join codes. Updated tests, configuration examples and documentation.

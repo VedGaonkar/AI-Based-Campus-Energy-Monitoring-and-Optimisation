@@ -53,6 +53,7 @@ import {
 import { accessAllowed } from "./domain/policies.js";
 import { createRoomMaster } from "./adapters/room-master.js";
 import { registerManagement } from "./management.js";
+import { registerSustainability } from "./sustainability.js";
 import { registerConnectedDevices } from "./connected-device-routes.js";
 import { createPhoneDemoService } from "./services/phone-demo.js";
 import { registerDemoPhoneRoutes, registerDemoAdminRoutes, registerDemoSockets } from "./phone-demo-routes.js";
@@ -334,6 +335,7 @@ export function createApplication({ config, connection, models, workspaceDirecto
   if (workspaceDirectory) registerWorkspaceAdministration(api, { directory: workspaceDirectory });
   api.get("/sync/snapshot", async (req, res) => { res.setHeader("Cache-Control", "no-store"); res.json({ data: await syncSnapshot({ connection, models, workspaceDirectory }, req.user) }); });
   registerManagement(api, { models, config });
+  registerSustainability(api, { models });
   registerMeterCameraRoutes(api, { models, config });
   const connectedDevices = registerConnectedDevices(api, { models, config });
   registerDemoAdminRoutes(api, { models, service: phoneDemo });

@@ -1,5 +1,9 @@
 # Architecture
 
+## Optional sustainability reporting (CE-020)
+
+The lazy `/sustainability` page calls institution-bound authenticated routes and reuses accepted-reading `deriveIntervals`, Settings tariff/configured meters, Schedule, AuditEvent, existing journal/live-sync and Report persistence. No parallel billing/control engine is introduced. Pure `domain/sustainability.js` owns whole-period coverage, factor applicability, reduction/context gates and evidence scores. The API validates meter/mode/period/role inputs, derives a bounded fresh reading snapshot, resolves append-only factor revisions and approved evidence, then uses the identical calculator for preview/save. JSON export reads the saved report only, preserving prior source/evidence/factor inputs. See [SUSTAINABILITY.md](SUSTAINABILITY.md), [API.md](API.md) and [DATABASE.md](DATABASE.md). The module is disabled by default and has no effect on physical-control policy, anomaly thresholds or alert/savings attribution.
+
 ## Dedicated meter source and OCR (CE-016)
 
 A separate MeterCamera service/routes/capability domain reuses existing institution context, static phone hosting, bounded image encoder, worker and change journal. Meter imagery never enters occupancy inference. The worker persists hourly capture requests; the paired source only satisfies unexpired server requests. Manual authenticated image tests are also supported; arbitrary website/RTSP URLs are not.

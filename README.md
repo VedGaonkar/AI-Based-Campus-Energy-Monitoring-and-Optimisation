@@ -1,5 +1,7 @@
 # AI-Based Campus Energy Monitoring and Optimisation
 
+**Optional sustainability / ESG reporting:** open **Sustainability / ESG** after signing in; an Administrator can enable the module. It reports accepted electricity, estimated CO2, comparable-period changes, source coverage, manual participation evidence and a visible governance documentation rubric. It is internal reporting, not a certified rating. Includes append-only factor history and Administrator JSON snapshot exports. [Methodology and permissions](SUSTAINABILITY.md). Billing/payment integration is outside this optional commercial reporting module.
+
 **Two-phone demo:** [DEMO_SETUP.md](DEMO_SETUP.md) connects a video-only phone camera, actual Python/OpenCV pixels, existing persistent escalation and a second phone's acknowledged virtual room master. Open `/phone-demo` as admin and pair the independent `/demo/cctv-camera/` and `/demo/circuit-board/` apps. Instrumented QR vision, conservative person-positive inference and explicit scenario injection have separate labels. Physical phones/HTTPS/LAN filming still need a supervised rehearsal; no live switching or measured savings is claimed. Optional standalone entry commands: `npm run demo:camera` and `npm run demo:classroom`, using the existing backend.
 
 ## Existing smart equipment

@@ -1,5 +1,25 @@
 # API and integration contracts
 
+## Optional sustainability reporting (CE-020)
+
+All paths below have prefix `/api/v1/sustainability`, use existing authenticated immutable-building binding, CSRF/Origin on POST/PATCH, and strict input validation. No client role or institution ID is accepted. Module disabled by default; disabled calculations/records/reports return409. See [SUSTAINABILITY.md](SUSTAINABILITY.md) for formulae and evidence limitations.
+
+| Method/path | Permission | Contract |
+| --- | --- | --- |
+| GET `/config` | Member | Enabled flag, thresholds, configured import meters, source-checked optional official factor metadata |
+| PATCH `/config` | Admin | `{enabled,reductionThreshold,minimumCoverage}`; persists initial assumption once when enabling |
+| GET `/factors` | Enabled member | Append-only version history including value/unit/geography/source/year/effective dates/status |
+| POST `/factors` | Admin | Custom `{value,geography,source,reportingYear,effectiveFrom,effectiveTo,methodology}` always assumption; or exact `{officialIndiaFY2025:true}` source-checked CEA preset |
+| GET `/records` | Enabled member | Approved evidence; Admin also pending/rejected |
+| POST `/records` | Admin | `{kind:activity\|policy\|reporting,title,date,responsible,evidence,initiative?,students?,staff?,denominator?,countingMethod?,endAt?,reviewAt?}`; starts pending |
+| POST `/records/:id/review` | Admin | `{status:approved\|rejected,note}`; append reviewer/time/note |
+| POST `/preview` | Enabled member | Selection below; full transparent calculation, approved evidence, quality/gaps |
+| GET `/reports` | Admin | Latest100 saved ESG report metadata |
+| POST `/reports` | Admin | Same selection/calculator as preview; saves latest immutable snapshot in existing Report model |
+| GET `/reports/:id/export` | Admin | Full saved JSON envelope attachment, no recalculation; cross-building IDs404 |
+
+Selection: `{meterId,dataMode:live|simulated|replay,start,end,baselineStart,baselineEnd,occupancy?:unknown|similar|different,contextEvidence?:string}`. Dates require ISO8601 offset, displayed in UTC. Non-overlap, positive durations, max366 days/period; equal elapsed duration required to calculate reduction. Non-unknown occupancy needs at least10 characters of evidence. Energy source feed is explicitly bounded at20,000 readings/meter/mode before the latest endpoint; excess fails422, never truncates silently. Source reading units must be kWh and register import_kwh. Responses include methodology version, factor and source-reading snapshots, coverage, gap list, provisional warnings, formula denominators and governance rubric. Settings/factor/evidence changes and energy changes invalidate through the existing journal. Exports/writes are audited. No factor/report update/delete routes exist.
+
 ## Meter cameras (CE-016)
 
 Admin GET/POST /meters selects/adds a configured cumulative meter. Admin GET/POST /meter-cameras and PATCH /meter-cameras/:id manage exact meter/epoch binding and validated interval/register/unit/ROI/orientation/decimal configuration. No URL feed input exists. POST /meter-cameras/:id/pairing returns one-time camera-only credentials. GET /meter-ocr/health runs the actual optional engine check. POST /meter-cameras/:id/test or POST /meter-images (cameraId required) accepts captureId,capturedAt,images (one/two bounded JPEG/PNG objects) and stores reviewable real OCR evidence; a test does not imply accepted energy.

@@ -1,0 +1,15 @@
+.sustainability .panel { background: var(--surface, #fff); border: 1px solid var(--border, #bed4ca); padding: 20px; margin-bottom: 18px; border-radius: 4px; }
+.esg-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); gap: 16px; align-items: end; border: 0; padding: 12px 0; min-width: 0; }
+.esg-grid .field, .esg-grid input, .esg-grid select { min-width: 0; width: 100%; }
+.esg-grid input[type=checkbox] { width: auto; }
+.esg-metrics { align-items: stretch; }
+.esg-metrics strong { font-size: 1.6rem; color: var(--text, #20483c); }
+.sustainability h2 { font-size: 1.1rem; margin-bottom: 12px; }
+.sustainability p, .sustainability li, .sustainability td { overflow-wrap: anywhere; }
+.sustainability details > summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
+.esg-scroll { overflow-x: auto; }
+.esg-scroll table { width: 100%; min-width: 700px; text-align: left; }
+.esg-scroll td, .esg-scroll th { padding: 9px; border-bottom: 1px solid var(--border, #bed4ca); }
+.esg-record { border-top: 1px solid var(--border, #bed4ca); padding: 14px 0; }
+.esg-selection { font-size: .85rem; }
+@media (max-width: 600px) { .sustainability .panel { padding: 14px; } .sustainability .button { max-width: 100%; white-space: normal; } }
