@@ -112,3 +112,9 @@ The feed shows accepted-reading time, source and recorded interval length. Readi
 Verification command: `npm run test:consumption-browser` (build first). It uses an isolated temporary institution/database and headless Chrome, not existing accounts or meter records. See TESTING.md for checks and remaining field limits.
 
 Authentication minimums: new passwords require **6 characters** and Building Join Codes **8 characters** (up to 64, including letters/numbers and six distinct characters). Sign-in accepts existing passwords unchanged. The Administrator registration key is required only for creating a new Administrator and must match server ADMIN_INVITE_KEY. Registration errors identify the invalid field. The anonymous /auth/session bootstrap does not require a signed-in account; protected /auth/me still returns 401 without one. Development StrictMode may repeat a cancelled startup request; the React DevTools message is informational. Browser-extension contentscript/ObjectMultiplex warnings are not emitted by this repository.
+
+## Website assistant
+
+Sign in, then use **Ask assistant** at the bottom right of the website. The existing `website-smart-bot` now runs inside the API at `/assistant`, with the same session and role/room permissions. No separate port or script snippet is needed. Install its locked dependencies once with `npm ci --prefix website-smart-bot`; normal `npm run dev` then serves it. The production API also mounts it after a normal frontend build.
+
+Direct room/timetable/help answers work without Gemini. Optional Gemini configuration stays server-side in `website-smart-bot/.env` or deployment environment. Actual Gemini availability/model validity is not established by scripted tests. Embedded state is separated per immutable building under ignored `.local/assistant/`; the old standalone store is not automatically imported. Announcements remain inside the assistant. See [assistant guide](website-smart-bot/README.md).

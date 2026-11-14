@@ -12,7 +12,7 @@ export class AppApiError extends Error {
   }
 }
 
-export function createAppClient({ baseUrl, origin, fetchImpl = fetch, timeoutMs = 8000 }) {
+export function createAppClient({ baseUrl, origin, fetchImpl = fetch, timeoutMs = 8000, expectedInstitutionId }) {
   async function request(cookie, method, path, { body, csrf } = {}) {
     const headers = { Cookie: cookie, Accept: 'application/json' };
     if (method !== 'GET') {
@@ -49,9 +49,10 @@ export function createAppClient({ baseUrl, origin, fetchImpl = fetch, timeoutMs 
         const data = await request(cookie, 'GET', '/auth/me');
         if (!data?.user) return null;
         const user = data.user;
+        if (expectedInstitutionId && user.institutionId !== expectedInstitutionId) return null;
         const csrf = data.csrfToken;
         return {
-          user: { id: String(user._id), name: user.name ?? 'User', role: user.role, permittedRoomIds: user.permittedRoomIds ?? [] },
+          user: { id: expectedInstitutionId ? `${expectedInstitutionId}:${user._id}` : String(user._id), name: user.name ?? 'User', role: user.role, permittedRoomIds: user.permittedRoomIds ?? [] },
           csrf,
           get: (path) => request(cookie, 'GET', path),
           post: (path, body) => request(cookie, 'POST', path, { body, csrf }),

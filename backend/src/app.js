@@ -1,3 +1,4 @@
+import { mountWebsiteAssistant } from "./services/website-assistant.js";
 import express from "express";
 import { registerMeterPhoneRoutes, registerMeterCameraRoutes } from "./meter-camera-routes.js";
 import { startRealtime, syncSnapshot } from "./realtime/transport.js";
@@ -106,6 +107,7 @@ export function createApplication({ config, connection, models, workspaceDirecto
     },
   });
   app.use(sessions);
+  const closeAssistant = mountWebsiteAssistant(app, { config, directory: workspaceDirectory, models, server });
   if (workspaceDirectory) app.use(workspaceMiddleware(workspaceDirectory));
   const origins = new Set([
     config.frontendOrigin,
@@ -1503,6 +1505,7 @@ export function createApplication({ config, connection, models, workspaceDirecto
     io,
     store,
     close: async () => {
+      await closeAssistant();
       await closeRealtime();
       closeDemoSockets();
       await phoneDemo.close();

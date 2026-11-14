@@ -70,14 +70,14 @@ export function createAssistantServer(deps = {}) {
   api.use(async (req, _res, next) => {
     const session = await appClient.identify(req.headers.cookie);
     if (!session) throw new HttpError(401, 'NOT_SIGNED_IN', 'Sign in to the website first.', { loginUrl: cfg.appPublicUrl });
-    req.session = session;
+    req.assistantSession = session;
     next();
   });
 
   const windows = new Map();
   const throttle = (name, limit) => (req, _res, next) => {
     const t = now();
-    const key = `${name}:${req.session.user.id}`;
+    const key = `${name}:${req.assistantSession.user.id}`;
     const recent = (windows.get(key) ?? []).filter((x) => t - x < 60_000);
     if (recent.length >= limit) throw new HttpError(429, 'RATE_LIMITED', 'Too many requests. Wait a moment and try again.');
     recent.push(t);
@@ -87,39 +87,39 @@ export function createAssistantServer(deps = {}) {
 
   // Writes must come from the assistant's own page and carry the website's per-session CSRF token.
   const guardWrite = (req, _res, next) => {
-    if (req.get('origin') !== cfg.publicUrl) throw new HttpError(403, 'ORIGIN_REJECTED', 'Request origin is not allowed.');
-    if (!sameSecret(req.get('x-csrf-token'), req.session.csrf)) throw new HttpError(403, 'CSRF_REJECTED', 'Reload the page and try again.');
+    if (!(deps.allowedOrigins ?? [cfg.publicUrl]).includes(req.get('origin'))) throw new HttpError(403, 'ORIGIN_REJECTED', 'Request origin is not allowed.');
+    if (!sameSecret(req.get('x-csrf-token'), req.assistantSession.csrf)) throw new HttpError(403, 'CSRF_REJECTED', 'Reload the page and try again.');
     next();
   };
 
   const requireAdmin = (req, _res, next) => {
-    if (req.session.user.role !== 'admin') throw new HttpError(403, 'FORBIDDEN', 'Administrators only.');
+    if (req.assistantSession.user.role !== 'admin') throw new HttpError(403, 'FORBIDDEN', 'Administrators only.');
     next();
   };
 
   api.get('/session', async (req, res) => {
-    const u = req.session.user;
-    res.json({ user: { id: u.id, name: u.name, role: u.role }, csrfToken: req.session.csrf, appUrl: cfg.appPublicUrl, ...(await assistant.sessionInfo(req.session)) });
+    const u = req.assistantSession.user;
+    res.json({ user: { id: u.id, name: u.name, role: u.role }, csrfToken: req.assistantSession.csrf, appUrl: cfg.appPublicUrl, ...(await assistant.sessionInfo(req.assistantSession)) });
   });
 
   api.post('/message', guardWrite, throttle('message', cfg.messagesPerMinute), async (req, res) => {
     const body = messageBody.safeParse(req.body);
     if (!body.success) throw new HttpError(400, 'VALIDATION_ERROR', 'Send a message of up to 600 characters.');
-    res.json({ reply: await assistant.handle(req.session, body.data), serverTime: new Date(now()).toISOString() });
+    res.json({ reply: await assistant.handle(req.assistantSession, body.data), serverTime: new Date(now()).toISOString() });
   });
 
   const proposalRoute = (fn) => async (req, res) => {
     const body = proposalBody.safeParse(req.body);
     if (!body.success) throw new HttpError(400, 'VALIDATION_ERROR', 'A proposal id is required.');
-    const out = await fn(req.session, body.data.proposalId);
+    const out = await fn(req.assistantSession, body.data.proposalId);
     res.status(out.ok ? 200 : (out.status ?? 409)).json(out);
   };
   api.post('/confirm', guardWrite, requireAdmin, throttle('confirm', cfg.confirmsPerMinute), proposalRoute((s, id) => assistant.confirm(s, id)));
   api.post('/cancel', guardWrite, requireAdmin, proposalRoute(async (s, id) => assistant.cancel(s, id)));
 
-  api.get('/announcements', (req, res) => res.json({ announcements: assistant.announcements(req.session.user) }));
+  api.get('/announcements', (req, res) => res.json({ announcements: assistant.announcements(req.assistantSession.user) }));
   api.post('/announcements/read', guardWrite, (req, res) => {
-    assistant.markAllRead(req.session.user);
+    assistant.markAllRead(req.assistantSession.user);
     res.json({ ok: true });
   });
 

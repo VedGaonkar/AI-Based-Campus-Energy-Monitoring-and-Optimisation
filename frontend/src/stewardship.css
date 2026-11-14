@@ -378,3 +378,9 @@ td select { max-width: 240px; padding: 8px; border: 1px solid var(--border); bac
 
 .workspace-choices { display: grid; gap: 12px; margin: 18px 0; }
 .workspace-choices .button { white-space: normal; overflow-wrap: anywhere; text-align: left; }
+
+.assistant-launcher { position: fixed; right: 20px; bottom: 20px; z-index: 90; display: flex; align-items: center; gap: 9px; padding: 13px 17px; color: var(--card-bg); background: var(--accent); border: 1px solid var(--accent); border-radius: 4px; box-shadow: 0 3px 12px #20483c33; }
+.assistant-window { position: fixed; right: 20px; bottom: 80px; width: min(410px, calc(100vw - 32px)); height: min(650px, calc(100dvh - 110px)); z-index: 91; display: flex; flex-direction: column; background: var(--card-bg); border: 1px solid var(--border); border-radius: 4px; box-shadow: 0 6px 28px #20483c33; overflow: hidden; }
+.assistant-window > header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--sidebar-bg); }
+.assistant-window iframe { width: 100%; flex: 1; min-height: 0; border: 0; }
+@media(max-width:520px) { .assistant-window { right: 8px; bottom: 72px; width: calc(100vw - 16px); height: calc(100dvh - 88px); } .assistant-launcher { right: 12px; bottom: 12px; } }

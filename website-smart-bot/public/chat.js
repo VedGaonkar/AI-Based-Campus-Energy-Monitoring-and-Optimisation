@@ -40,7 +40,7 @@
   };
 
   const api = async (path, body) => {
-    const res = await fetch(path, {
+    const res = await fetch(path.replace(/^\//, ""), {
       method: body === undefined ? 'GET' : 'POST',
       credentials: 'same-origin',
       headers: { ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...(session?.csrfToken ? { 'x-csrf-token': session.csrfToken } : {}) },

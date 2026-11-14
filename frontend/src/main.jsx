@@ -1,3 +1,4 @@
+import WebsiteAssistant from "./components/WebsiteAssistant.jsx";
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import {
@@ -267,6 +268,7 @@ function App() {
         <Login pendingWorkspaces={pendingWorkspaces} onLogin={value => { setPendingWorkspaces([]); setUser(value); setError(""); setNotice(""); }} />
       ) : (
         <div className="app-shell">
+          <WebsiteAssistant key={`${user.institutionId}:${user._id}`} identity={`${user.institutionId}:${user._id}`} />
           <a className="skip" href="#main">
             Skip to content
           </a>

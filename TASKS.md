@@ -1,5 +1,12 @@
 # Implementation Tasks
 
+## CE-019 complete - embedded website assistant
+
+- [x] Signed-in launcher and same-origin assistant panel visible in actual main app; mobile layout/palette preserved.
+- [x] Existing assistant/API/session/CSRF/role flow retained; request-session collision fixed; building stores/cache/proposals/history isolated.
+- [x] 136 website tests, 59 assistant tests, 10 browser checks, build, 91 syntax files, 17-client-asset secret scan and whitespace passed.
+- [x] Completed-answer desktop/mobile screenshots inspected; dependencies installed, guide/continuity updated and managed app restarted without environment/data changes.
+
 ## CE-018 complete - authentication and registration
 
 - [x] Email/password-only login, automatic sole membership and authorised post-password choice for existing multiple memberships.

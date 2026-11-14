@@ -2,7 +2,7 @@
 
 A role-aware chat assistant for the Campus Energy website, powered by Gemini only where it is needed.
 
-It lives entirely in this folder and runs as a separate service. It does not modify the website: it reads and changes data **only through the website's own HTTP API, as the person who is signed in**, so the website keeps enforcing roles, room scope, validation, CSRF and its own audit trail.
+The main website now embeds this assistant at /assistant and shows an Ask assistant button to signed-in users. It can also run as a separate service. It reads and changes data **only through the website's own HTTP API, as the person who is signed in**, so the website keeps enforcing roles, room scope, validation, CSRF and its own audit trail.
 
 ## How this maps onto this website
 
@@ -30,15 +30,15 @@ npm start                   # http://localhost:5190/chat
 
 Sign in to the website first. The chat page and the website must share a site (same host, any port in development; same registrable domain over HTTPS in production) so the website's session cookie reaches the assistant.
 
-### Add the floating chat button to the website
+### Built-in website integration
 
-Add one line to the website's page (for example `frontend/index.html`). Nothing else in the website changes:
+The main React app automatically renders **Ask assistant** after sign-in. The panel is served under the website's same origin at `/assistant/chat`, using the existing API session and role permissions; no external script, iframe hostname or separate port is required. Anonymous users see no button and cannot fetch the embedded endpoints. Close via either close button or Escape; the mobile panel stays inside the viewport.
 
-```html
-<script src="http://localhost:5190/widget.js" defer></script>
-```
+Install this folder's locked dependencies once with `npm ci --prefix website-smart-bot` from the repository root, then start the website normally with `npm run dev` (or build/start). No separate assistant service is needed. Optional Gemini settings are read server-side from this folder's ignored `.env` or deployment environment; direct website answers work without an API key. Neither environment file was modified by the integration.
 
-The button opens the panel in an iframe served by the assistant. It is keyboard accessible, closes with Escape, goes full-screen on a phone, and shows a badge for unread announcements. Without the snippet, `http://localhost:5190/chat` works as a standalone page.
+Embedded instances use separate `.local/assistant/<immutable-building-id>.sqlite` stores, caches and proposal state. Browser history identities include building and user. Building changes recreate the panel, and every request revalidates membership; logout revokes access. Announcements remain assistant-only. Gemini budgets are per embedded building; an API key shared across buildings still needs deployment-wide quota planning. The standalone `.data` store is retained independently and is not silently migrated into building stores.
+
+The existing widget.js snippet is only for separately hosted standalone use; it is not loaded by the integrated app. Its deployment/CSP requirements below apply to that mode.
 
 ## What it can do
 
@@ -94,13 +94,13 @@ npm test          # 59 tests: 14 pure, 45 against the real website backend with 
 npm run check:ui  # 28 checks in headless Chrome (needs Chrome or Edge installed)
 ```
 
-The integration tests import the website's backend read-only and start it on a throwaway in-memory MongoDB, then drive the assistant over HTTP. Gemini is always scripted, so no real quota is spent. They use the `mongod` binary already present under the repository's `node_modules/.cache` (override with `MONGOMS_SYSTEM_BINARY`). Nothing outside this folder is written.
+The integration tests import the website's backend read-only and start it on a throwaway in-memory MongoDB, then drive the assistant over HTTP. Gemini is always scripted, so no real quota is spent. They use the `mongod` binary already present under the repository's `node_modules/.cache` (override with `MONGOMS_SYSTEM_BINARY`). The standalone harness uses temporary databases; integrated website tests keep assistant stores in memory.
 
 ## Limitations
 
 - **The real Gemini SDK call is not exercised by the tests**, only by the scripted stand-in behind the same interface. It was written against the installed SDK's type definitions, but the first real request is the first real check. Run `npm run check:model` first.
 - **`gemini-3.8-flash` is the configured default as requested but is unverified**: there was no API key here to confirm it exists. If it does not, `check:model` lists the Flash models your key can see; set `GEMINI_MODEL` accordingly.
-- **Announcements appear inside the assistant, not in the website's own alert inbox.** The website has no endpoint for custom announcements and this folder may not change it. Delivery status is exact for what it does: published, how many accounts are eligible, how many have opened it.
+- **Announcements appear inside the assistant, not in the website's own alert inbox.** The website has no endpoint for custom announcements and this integration does not add such an endpoint. Delivery status is exact for what it does: published, how many accounts are eligible, how many have opened it.
 - **Viewers cannot be told about floors**, because the website only exposes floors to administrators. Exposing a read-only building summary would be a small website change; it was not made.
 - **Production embedding** needs the website's Content-Security-Policy to allow the script and frame from the assistant (or run both behind one origin), and both must be served over HTTPS under the same registrable domain because the session cookie is `SameSite=Strict` and `Secure`. Neither was changed.
 - The assistant holds a person's session cookie only for the duration of a request and never logs it. Run it on the same trusted host as the website.

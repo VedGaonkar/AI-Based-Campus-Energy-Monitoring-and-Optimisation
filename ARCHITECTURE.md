@@ -167,3 +167,7 @@ Interval API provenance is joined from existing reading IDs. Completed analytics
 ## Simplified building authentication (CE-018)
 
 Global identity and immutable memberships remain authoritative. Workspace auth accepts email/password and automatically selects one membership or creates a short-lived authorised selection session. Separate registration branches create an empty Administrator building or admit a Viewer through a verified code. workspaces/join-code.js owns secure code storage and persisted registration/rotation mutual exclusion. Authentication.jsx retains the established visual classes; InstitutionSettings provides write-only code management. Historical admission records remain but retired endpoints cannot grant membership. Control policies and existing data/roles are unchanged.
+
+## Same-origin assistant integration (CE-019)
+
+`services/website-assistant.js` mounts the existing assistant lazily under `/assistant` and creates a separate runtime/store for each verified immutable building. Data and writes remain authenticated HTTP calls to the existing API, never direct operational database access. Chat URLs are relative to support this mount. `WebsiteAssistant.jsx` is a signed-in-only launcher with an iframe, source/origin-checked close messages, Escape and lifecycle cleanup. Existing user/building changes unmount the panel. No separate dev service or external-origin CSP exception is required. The standalone service/widget remains available separately.

@@ -69,7 +69,7 @@ export async function startWebsite() {
     const res = await fetch(`${api}/auth/login`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', origin: APP_ORIGIN, 'x-csrf-token': csrf, cookie },
-      body: JSON.stringify({ email, password, ...(role === 'admin' ? { adminKey } : {}) }),
+      body: JSON.stringify({ email, password }),
     });
     if (res.status !== 200) throw new Error(`login as ${role} failed: ${res.status} ${await res.text()}`);
     cookie = cookiesFrom(res) || cookie;

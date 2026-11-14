@@ -1,11 +1,11 @@
 /* Uses the website's own palette (green, deep green, soft borders) and typeface so the panel reads as part of the app. */
 :root {
-  --green: #176e57;
-  --deep: #123e32;
-  --border: #e1e8e2;
-  --muted: #5f6d65;
+  --green: #AD512F;
+  --deep: #20483C;
+  --border: #BED4CA;
+  --muted: #20483CC7;
   --paper: #ffffff;
-  --wash: #f4f7f4;
+  --wash: #F4FAF7;
   --warn-bg: #fff6dd;
   --warn-ink: #5a4300;
   --bad-bg: #fdecec;
