@@ -1,5 +1,11 @@
 # API and integration contracts
 
+## Deployment and presenter integration (CE-021)
+
+Canonical setup UI is direct `/presenter`, authenticated with existing Administrator membership and separate from product navigation/shell. Legacy `/phone-demo` is a direct compatibility alias; API paths under `/demo/sessions`, `/demo-phone` and `/meter-phone` are unchanged. Room/device registration remains in normal Management/API. Application HTTP CORS allows exactly `FRONTEND_ORIGIN` and the external `PUBLIC_APP_URL` origin with credentials; mutation CSRF/Origin checks still apply. `DEMO_PHONE_ORIGINS` grants bearer phone-route CORS and socket handshake eligibility, never app membership or general API CORS. Socket namespaces separately enforce current session/membership or scoped capability. Production origins reject HTTP, loopback, wildcards, credentials and paths. Optional `DEMO_CAMERA_APP_URL`/`DEMO_CLASSROOM_APP_URL` select complete trailing-slash, allowlisted frontend URLs for issued pairing fragments; these URLs are interfaces, not camera feed/control proof. Missing API/demo/build assets return404; SPA routes serve the main entry.
+
+Main build public `VITE_API_ORIGIN`/`VITE_REALTIME_ORIGIN` and phone build `PHONE_API_ORIGIN`/`PHONE_REALTIME_ORIGIN` select the backend; blank means page origin, no production localhost fallback. API `HOST` defaults loopback locally and is explicitly0.0.0.0 in private Docker networking. Main sessions remain Strict/HttpOnly/Secure in production; separate main/API origins require same-site HTTPS domains, not arbitrary third-party cookie reliance. Embedded assistant disables the short read-data cache so each new request reads current authorised website snapshots; LLM response caching remains keyed to snapshot/history. No provider invocation is needed for direct reads. See [DEPLOYMENT.md](DEPLOYMENT.md).
+
 ## Optional sustainability reporting (CE-020)
 
 All paths below have prefix `/api/v1/sustainability`, use existing authenticated immutable-building binding, CSRF/Origin on POST/PATCH, and strict input validation. No client role or institution ID is accepted. Module disabled by default; disabled calculations/records/reports return409. See [SUSTAINABILITY.md](SUSTAINABILITY.md) for formulae and evidence limitations.

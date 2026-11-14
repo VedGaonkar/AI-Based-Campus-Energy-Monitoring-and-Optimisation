@@ -34,9 +34,13 @@ try {
   await mkdir(".local/screenshots", { recursive: true });
   async function page(viewport) { const browser = await launchChrome(executable); browsers.push(browser); const page = await browser.newPage({ viewport }); page.on("pageerror", failure => errors.push(failure.message)); return page; }
   dashboard = await page({ width: 1440, height: 1080 }); classroom = await page({ width: 800, height: 1000 }); camera = await page({ width: 390, height: 844 });
-  await dashboard.goto(`${base}/phone-demo`); await dashboard.getByLabel("Email address").fill("admin@campus.test"); await dashboard.getByLabel("Password").fill(password); await dashboard.getByRole("button", { name: "Sign in to workspace" }).click();
-  await waitFor(() => dashboard.evaluate(() => location.pathname === "/admin" && document.body.innerText.includes("Building setup")));
-  await dashboard.goto(`${base}/phone-demo`); await dashboard.getByLabel("Existing room").selectOption("room-r101"); await dashboard.getByLabel("Vacancy confirmation (seconds)").fill("2");
+  await dashboard.goto(`${base}/presenter`); await dashboard.getByLabel("Email address").fill("admin@campus.test"); await dashboard.getByLabel("Password").fill(password); await dashboard.getByRole("button", { name: "Sign in to workspace" }).click();
+  await waitFor(() => dashboard.evaluate(() => location.pathname === "/presenter" && document.querySelector("h1")?.textContent === "Two-phone demonstration"));
+  assert.equal(await dashboard.evaluate(() => !!document.querySelector('.sidebar')), false);
+  await dashboard.goto(base); await waitFor(() => dashboard.evaluate(() => !!document.querySelector('.sidebar')));
+  assert.equal(await dashboard.evaluate(() => [...document.querySelectorAll('a')].some(a => /phone-demo|presenter/.test(a.getAttribute('href') || '')) || document.body.innerText.includes('Camera to classroom')), false);
+  checks.push("Normal dashboard has no phone-demo navigation or summary; direct presenter has a separate authenticated layout");
+  await dashboard.goto(`${base}/presenter`); await dashboard.getByLabel("Existing room").selectOption("room-r101"); await dashboard.getByLabel("Vacancy confirmation (seconds)").fill("2");
   await dashboard.locator('form input[type="checkbox"]').check(); await dashboard.locator('input[name="manual"]').check();
   await dashboard.getByRole("button", { name: "Create demo session" }).click();
   const session = await waitFor(() => models.DemoSession.findOne({ active: true }).lean(), 30000);
@@ -47,8 +51,11 @@ try {
   await waitFor(() => dashboard.evaluate(() => document.querySelectorAll(".phone-pair-secret code").length === 2));
   const classroomCode = await dashboard.evaluate(() => document.querySelectorAll(".phone-pair-secret code")[1].textContent);
   // Clear secret cards before screenshots; codes are never written to reports.
-  await dashboard.goto(`${base}/phone-demo`); await dashboard.getByLabel("Session").selectOption(session._id);
-  checks.push("Administrator creates scoped session and one-use camera/classroom pairings through dashboard");
+  await dashboard.goto(`${base}/presenter`);
+  await waitFor(() => dashboard.evaluate(id => [...document.querySelectorAll('select option')].some(option => option.value === id), session._id));
+  await dashboard.getByLabel("Session").selectOption(session._id);
+  await waitFor(() => dashboard.evaluate(() => !!document.querySelector('.phone-demo-pairings')));
+  checks.push("Administrator creates scoped session and one-use camera/classroom pairings through the authenticated presenter");
   await classroom.goto(`${base}/demo/circuit-board/`); await classroom.getByLabel("Classroom pairing code").fill(classroomCode); await classroom.getByRole("button", { name: "Pair classroom" }).click();
   await waitFor(() => classroom.evaluate(() => !document.querySelector("#paired-panel").hidden && !!document.querySelector("#marker").getAttribute("src")));
   await camera.goto(`${base}/demo/cctv-camera/`); await camera.getByLabel("Camera pairing code").fill(cameraCode); await camera.getByRole("button", { name: "Pair camera" }).click();
@@ -119,6 +126,7 @@ try {
   await waitFor(async () => (await models.Incident.findById(pending._id).lean()).state === "cancelled");
   assert.equal(await models.Command.countDocuments({ incidentId: pending._id }), 0);
   checks.push("New occupied scene is decoded from captured pixels and cancels pending persistent shutdown");
+  running = false; await Promise.all([worker, mirror]);
   for (const page of [classroom, dashboard]) {
     await page.setViewportSize({ width: 390, height: 844 });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));

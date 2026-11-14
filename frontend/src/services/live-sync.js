@@ -1,8 +1,9 @@
 import { io } from "socket.io-client";
+import { REALTIME_ORIGIN } from "./origins.js";
 
 // Events invalidate data; only authorised HTTP snapshots replace page state.
 // One controller per authenticated App, independent of navigation and tabs.
-export function startLiveSync({ request, invalidate, identity, status, revoked, expectedInstitutionId, socket = io({ withCredentials: true, autoConnect: false, closeOnBeforeunload: true }), environment = window }) {
+export function startLiveSync({ request, invalidate, identity, status, revoked, expectedInstitutionId, socket = io(REALTIME_ORIGIN || undefined, { withCredentials: true, autoConnect: false, closeOnBeforeunload: true }), environment = window }) {
   let stopped = false, revision = -1, heartbeat = 0, pending = false, again = false, timer, controller;
   const institutionId = () => socket.institutionId;
   const visible = () => environment.document.visibilityState !== "hidden";

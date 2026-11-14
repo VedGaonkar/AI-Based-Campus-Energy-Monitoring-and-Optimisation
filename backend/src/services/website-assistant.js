@@ -22,7 +22,7 @@ export function mountWebsiteAssistant(app, { config, directory, models, server }
         const [implementation, settings, client] = await modules;
         let local = {};
         try { local = parse(readFileSync(fileURLToPath(new URL("../../../website-smart-bot/.env", import.meta.url)), "utf8")); } catch (error) { if (error.code !== "ENOENT") throw error; }
-        const cfg = settings.loadConfig({ ...local, ...process.env, NODE_ENV: config.env, ...(config.env === "test" ? { GEMINI_API_KEY: "" } : {}), APP_API_URL: `http://127.0.0.1:${server.address().port}/api/v1`, APP_ORIGIN: config.frontendOrigin, APP_PUBLIC_URL: new URL(config.publicAppUrl).origin, ASSISTANT_PUBLIC_URL: config.frontendOrigin, DB_PATH: config.env === "test" ? ":memory:" : fileURLToPath(new URL(`../../../.local/assistant/${id}.sqlite`, import.meta.url)) });
+        const cfg = settings.loadConfig({ ...local, ...process.env, NODE_ENV: config.env, DATA_CACHE_TTL_SECONDS: "0", ...(config.env === "test" ? { GEMINI_API_KEY: "" } : {}), APP_API_URL: `http://127.0.0.1:${server.address().port}/api/v1`, APP_ORIGIN: config.frontendOrigin, APP_PUBLIC_URL: new URL(config.publicAppUrl).origin, ASSISTANT_PUBLIC_URL: config.frontendOrigin, DB_PATH: config.env === "test" ? ":memory:" : fileURLToPath(new URL(`../../../.local/assistant/${id}.sqlite`, import.meta.url)) });
         return implementation.createAssistantServer({ cfg, allowedOrigins: [config.frontendOrigin, new URL(config.publicAppUrl).origin], appClient: client.createAppClient({ baseUrl: cfg.appApiUrl, origin: cfg.appOrigin, expectedInstitutionId: realm?.institution._id }) });
       })().catch(error => { instances.delete(id); throw error; }));
       const instance = await instances.get(id);

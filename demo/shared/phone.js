@@ -1,8 +1,8 @@
-import { BACKEND_ORIGIN } from "./config.js";
+import { BACKEND_ORIGIN, REALTIME_ORIGIN } from "./config.js";
 export const $ = selector => document.querySelector(selector);
 export const text = (selector, value) => { const element = $(selector); if (element) element.textContent = value ?? "Unknown"; };
 const app = document.body.dataset.app;
-const storageKey = `campus-demo-${app}`;
+const storageKey = `campus-demo-${app}-${BACKEND_ORIGIN || location.origin}`;
 let pairing;
 try { pairing = JSON.parse(sessionStorage.getItem(storageKey) ?? "null"); } catch {}
 let socket, heartbeat, lastState;
@@ -39,7 +39,7 @@ async function connect() {
   $("#pair-panel").hidden = true; $("#paired-panel").hidden = false;
   acceptState(await request("/state"));
   socket?.disconnect();
-  socket = window.io(`${BACKEND_ORIGIN || location.origin}/demo-phone`, { auth: { token: pairing.token }, reconnectionDelay: 1000, reconnectionDelayMax: 5000 });
+  socket = window.io(`${REALTIME_ORIGIN || BACKEND_ORIGIN || location.origin}/demo-phone`, { auth: { token: pairing.token }, reconnectionDelay: 1000, reconnectionDelayMax: 5000 });
   socket.on("connect", () => { text("#connection", "Connected · simulated only"); error(""); });
   socket.on("disconnect", () => text("#connection", "Disconnected · state unverified"));
   socket.on("connect_error", () => text("#connection", "Reconnecting · no verified delivery"));

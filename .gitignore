@@ -1,5 +1,7 @@
 node_modules/
 frontend/dist/
+dist/
+secure-backups/
 .env
 .env.*
 !.env.example

@@ -1,5 +1,11 @@
 # Architecture
 
+## Final integration/deployment preparation (CE-021)
+
+Product navigation and overview no longer mount the two-phone UI or fetch its sessions. Direct authenticated `/presenter` reuses existing session/role/live-sync context in a separate layout and lazy bundle; camera and classroom remain independently built static artifacts, also mounted by Node under `/demo/`. URL/configuration is separate from registered source identity, room-master binding and actual frames/transport. No arbitrary website URL becomes a working integration.
+
+Public environment origins are shared validated configuration; application credentialed CORS and phone bearer CORS are deliberately distinct while existing CSRF, namespace identity and immutable realm binding remain authoritative. The prepared Linux Docker Compose/Caddy topology has durable MongoDB, separate API and persistent worker, assistant SQLite volume and build-installed Python vision/OCR. Same-origin HTTPS is recommended; static hosts only serve frontend artifacts. No automatic migration, fixture seed or provider/hardware activation is introduced. See [DEPLOYMENT.md](DEPLOYMENT.md) and latest HANDOFF verification; prepared files are not a deployed service.
+
 ## Optional sustainability reporting (CE-020)
 
 The lazy `/sustainability` page calls institution-bound authenticated routes and reuses accepted-reading `deriveIntervals`, Settings tariff/configured meters, Schedule, AuditEvent, existing journal/live-sync and Report persistence. No parallel billing/control engine is introduced. Pure `domain/sustainability.js` owns whole-period coverage, factor applicability, reduction/context gates and evidence scores. The API validates meter/mode/period/role inputs, derives a bounded fresh reading snapshot, resolves append-only factor revisions and approved evidence, then uses the identical calculator for preview/save. JSON export reads the saved report only, preserving prior source/evidence/factor inputs. See [SUSTAINABILITY.md](SUSTAINABILITY.md), [API.md](API.md) and [DATABASE.md](DATABASE.md). The module is disabled by default and has no effect on physical-control policy, anomaly thresholds or alert/savings attribution.

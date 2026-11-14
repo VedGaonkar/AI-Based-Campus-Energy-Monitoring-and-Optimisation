@@ -1,5 +1,9 @@
 # Changelog
 
+## CE-021 - final integration and deployment preparation
+
+Separated direct authenticated presenter setup from product navigation/overview, preserving phone pairing/session/control acknowledgements and independent room/device setup. Added independently buildable camera/classroom artifacts with local assets and public API/real-time origins; retained meter phone tools. Added exact application versus scoped phone origin handling, production HTTPS-origin validation, deployment phone URLs, backend bind setting and cross-origin images/assistant handling. Embedded AI rereads website data without the short data cache. Prepared Linux Docker Compose/Caddy runtime, persistence, backup/migration and demo/physical rehearsal documentation without publishing. Current executed verification and host/hardware limitations are in HANDOFF.md.
+
 ## CE-020 - optional internal sustainability reporting
 
 Added disabled-by-default Sustainability / ESG dashboard using accepted import electricity and explicit selected-period baselines. Includes recorded-use CO2 estimates with append-only factor metadata/history, assumption-labelled0.675 and an explicit source-checked India FY2025-26 CEA weighted-average option; incomplete coverage/context and increases remain visible. Manual activity/policy/reporting evidence uses internal review, a disclosed engagement denominator and governance documentation rubric. Admin-only immutable JSON report snapshots/exports retain methodology, quality/gaps and calculation inputs. Existing immutable institution isolation, memberships, roles, palette, live updates, alert/control policies and data are preserved. Billing/payment integration excluded. See SUSTAINABILITY.md and current verification in HANDOFF.md.

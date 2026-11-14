@@ -1,0 +1,6 @@
+{$APP_HOST} {
+    encode zstd gzip
+    # Includes SPA routes, /api, /assistant, independent /demo builds and
+    # Socket.IO polling/upgrades. No request/credential access logs enabled.
+    reverse_proxy api:5000
+}

@@ -1,5 +1,13 @@
 # Implementation progress
 
+## CE-021 complete - final integration and deployment preparation
+
+Separated authenticated /presenter from product navigation/overview while retaining independent room/device setup,phone adapters/pairing/session/acknowledgements and palette. Added independently verified main,camera,classroom builds (plus meter tools),public HTTP/real-time origins,strict production addresses,exact session versus phone CORS,secure-cookie/CSP support and configured pairing URLs. Embedded assistant now rereads website snapshots without its short read cache. Prepared Ubuntu/Docker Compose/Caddy deployment with API/worker,private durable MongoDB,assistant state and Python runtime; no deployment or environment/data edits performed.
+
+Fresh final results:152application tests and59assistant tests passed,0failed/0skipped; seven new cross-feature/production-header cases. Nine browser journeys all pass,77checks,0browser runtime errors: phone11,cross-origin4,auth10,admin12,meter5,consumption10,ESG10,realtime6,devices9. Repaired obsolete admin/login and async readiness assertions,synthetic screenshot teardown and explicit pre-dispatch room-lock retry; no safety gate weakened. Builds,101syntax files,52client assets secret scan,whitespace and Compose config validation pass. Presenter/camera/classroom screenshots inspected. Logs/results under .local/final-*; HANDOFF holds exact evidence and prior failure notes.
+
+Managed stack restarted: execsession23673,runId74bbcda5-d2c2-4a47-88a8-8abf5de836ad;5173/5000/worker ready,frontend/presenter/health/ready/phone assets200,anonymous demo API401. Existing MongoDB/.env/accounts/readings preserved. Open /presenter directly as Administrator. Deployment/backup/migration/demo/rehearsal/judge instructions and continuity updated;PLAN unchanged. Docker daemon unavailable: no container/host/TLS/restore execution claimed. Physical filming,real devices/electrical switching,live model credentials and formal accuracy/measurement claims remain unverified. No commit/push/publish/tunnel.
+
 ## CE-020 complete - optional sustainability reporting
 
 Implemented disabled-by-default ESG route/API/additive realm models/calculator, configurable assumption and source-checked optional official CEA FY2025-26 weighted-average factor, evidence-backed activities/policies/reporting with internal approvals, visible score formulae and Admin immutable JSON exports. Existing data,roles,memberships,palette and anomaly/control policy preserved; no billing integration. Reports retain methodology,source intervals/readings,all applicable factor versions,context/evidence status,thresholds/tariff and gaps.

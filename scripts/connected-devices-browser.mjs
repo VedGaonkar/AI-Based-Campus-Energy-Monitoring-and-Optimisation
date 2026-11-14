@@ -58,7 +58,15 @@ try {
   await waitFor(async () => { const room = await models.Room.findById("room-r101").lean(); return room.demoScenario === "vacant" && room.nativeOffMode === "simulated"; });
   // The persistent worker must accumulate its configured vacancy confirmation.
   await waitFor(async () => { const response = await page.evaluate(async () => (await fetch("/api/v1/rooms/room-r101/status")).json()); return response.data?.observed.state === "vacant"; });
-  await page.getByRole("checkbox", { name: "Confirm exact OFF target" }).check(); await page.getByRole("button", { name: "Request test OFF" }).click();
+  // A concurrent worker may legitimately hold the room's policy lock. Retry
+  // only its explicit pre-dispatch ROOM_BUSY response, never an uncertain command.
+  for (let attempt = 0; attempt < 8; attempt++) {
+    await page.getByRole("checkbox", { name: "Confirm exact OFF target" }).check(); await page.getByRole("button", { name: "Request test OFF" }).click();
+    const outcome = await waitFor(async () => await models.NativeCommand.findOne({ deviceId: target._id, reason: "manual_test" }).lean() || await page.evaluate(() => document.body.innerText.includes("Room policy is changing; retry shortly")) && "retry", 12000);
+    if (outcome !== "retry") break;
+    if (attempt === 7) throw new Error("Room remained busy; no OFF command was dispatched");
+    await new Promise(resolve => setTimeout(resolve, 600));
+  }
   await waitFor(() => models.NativeCommand.findOne({ deviceId: target._id, reason: "manual_test", status: "confirmed" }).lean(), 15000);
   await waitFor(async () => await page.evaluate(() => document.body.innerText.includes("Last test: confirmed")));
   checks.push("Capability review and explicit test OFF receive simulated reported-state confirmation");

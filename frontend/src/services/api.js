@@ -1,12 +1,13 @@
+import { apiUrl } from "./origins.js";
 let csrfToken;
 export async function api(path, { method = "GET", body, signal } = {}) {
   if (method !== "GET" && !csrfToken) {
     const csrf = await api("/auth/csrf");
     csrfToken = csrf.csrfToken;
   }
-  const response = await fetch(`/api/v1${path}`, {
+  const response = await fetch(apiUrl(path), {
     method,
-    credentials: "same-origin",
+    credentials: "include",
     signal,
     headers: {
       ...(body !== undefined ? { "Content-Type": "application/json" } : {}),

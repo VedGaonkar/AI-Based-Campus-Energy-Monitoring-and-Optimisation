@@ -9,7 +9,7 @@ export function Authentication({ onLogin, accessRoom, Field, ErrorText, initialW
     setPassword(""); setConfirmPassword(""); setJoinCode(""); setAdminKey("");
     if (result.selectionRequired) { setChoices(result.workspaces); return; }
     onLogin(result.user);
-    if (result.user.role === "admin" && !window.location.pathname.startsWith("/access/")) window.location.assign("/admin");
+    if (result.user.role === "admin" && !window.location.pathname.startsWith("/access/") && !["/presenter", "/phone-demo"].includes(window.location.pathname)) window.location.assign("/admin");
   }
   async function perform(operation) { setBusy(true); setError(""); try { complete(await operation()); } catch (failure) { setError(failure.message); } finally { setBusy(false); } }
   function switchTab(value) { setTab(value); setError(""); setEmail(""); setPassword(""); setName(""); setConfirmPassword(""); setInstitutionName(""); setJoinCode(""); setAdminKey(""); }

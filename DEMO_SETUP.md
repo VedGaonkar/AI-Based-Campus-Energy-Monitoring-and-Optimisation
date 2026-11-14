@@ -1,5 +1,20 @@
 # Two-phone classroom demonstration
 
+CE-021 integration: canonical direct setup is **`/presenter`**, with existing Administrator authentication; it has a separate layout and is absent from normal product navigation and overview. `/phone-demo` remains only a direct compatibility alias. Camera/classroom pairing, sessions, adapters, persisted commands and acknowledgements are preserved. Room/device registration is independent under `/admin/rooms`, `/admin/controllers` and the existing inventory/actions. New administrators still start empty; optional fixtures belong in an explicitly separate demonstration institution/backend. See [DEPLOYMENT.md](DEPLOYMENT.md) for exact three-app builds, public API/real-time origins, HTTPS hosting, private server variables, migration and backup order.
+
+## What each address or binding means
+
+| Item | Meaning | What it cannot prove |
+| --- | --- | --- |
+| Website/app URL | Address that opens the camera, classroom or dashboard UI | Camera frames, feed health, electrical control or device identity |
+| Registered source/camera ID | Immutable server record mapping evidence to a room/meter | A working video stream or verified coverage |
+| Short-lived paired camera/client token | Authorises that role/session/institution to upload bounded frames | Real-world occupancy accuracy, another room, administrator access or master control |
+| Room-master binding | Maps one room to one registered master/circuit and approved downstream inventory | Actual wiring, independent appliance controls or an electrical installation |
+| Feed/transport configuration | Actual permitted browser camera capture or authenticated local gateway plus reachable API/socket transport | That an arbitrary website or RTSP-looking string is usable or safe |
+| Acknowledgement | Current simulated command ID applied by the paired virtual classroom | Physical breaker motion, zero power or measured savings |
+
+Never enter an arbitrary website URL as a camera/controller connection test. Current registration uses supported adapters, exact IDs, scoped pairing or an authenticated gateway. Live CCTV/NVR requires a reachable authorised gateway and reviewed feed configuration, not merely a stored address. Existing native gateway setup has its own authenticated endpoint tests; it is not the phone simulator.
+
 Implementation/reference access: 13–14 November 2026. This milestone connects a real browser frame-upload path and Python pixel processing to the existing campus policy engine and an acknowledged **simulated** room master. Physical phone filming, real teammate detection, LAN/firewall and mobile certificate trust still need field testing. Do not present the automated canvas-camera check as a real two-phone demonstration.
 
 ## Start the three interfaces locally
@@ -15,11 +30,11 @@ This starts/reuses the existing database, API, persistent worker and dashboard. 
 
 | Interface | Laptop development URL | Independent entry point/start command |
 | --- | --- | --- |
-| Dashboard / session administration | `http://localhost:5173/phone-demo` | Existing `npm run dev` |
+| Separate authenticated presenter / setup | `http://localhost:5173/presenter` | Existing `npm run dev` |
 | Phone A camera | `http://localhost:5000/demo/cctv-camera/` | `demo/cctv-camera/index.html`; optionally `npm run demo:camera` → `http://localhost:5174/cctv-camera/` |
 | Phone B classroom | `http://localhost:5000/demo/circuit-board/` | `demo/circuit-board/index.html`; optionally `npm run demo:classroom` → `http://localhost:5175/circuit-board/` |
 
-Both phone apps are buildless HTML/CSS/JavaScript and are also served by the existing backend under `/demo/`. `npm run build` builds the dashboard and validates both independent phone entry points/assets. Standalone development commands proxy `/api` and `/socket.io` to the same backend. They do not start another backend or MongoDB. Stop standalone previews with Ctrl+C; `npm run stop` stops only managed application services and preserves reused/external MongoDB.
+Both phone apps retain independent HTML/CSS/JavaScript source entry points. `npm run build:phone-camera` produces `dist/phone-camera/`; `npm run build:classroom` produces `dist/virtual-classroom/`; `npm run build:main` produces `frontend/dist/`. `npm run build` builds/checks all artifacts. The backend serves their built files under `/demo/`, with relative assets and a local Socket.IO client. Main/presenter is a SPA; phone artifacts can also be hosted independently at their roots. Standalone development commands proxy `/api` and `/socket.io` to the same backend. They do not start another backend or MongoDB. Stop standalone previews with Ctrl+C; `npm run stop` stops only managed application services and preserves reused/external MongoDB.
 
 These localhost URLs work on the laptop. **On a phone, localhost means that phone**, not the laptop. Use the HTTPS preparation below before the physical demonstration.
 
@@ -47,7 +62,7 @@ PUBLIC_APP_URL=http://localhost:5000
 FRONTEND_ORIGIN=http://localhost:5173
 ```
 
-Keep existing session/password/admin configuration. Camera/classroom apps receive only short-lived scoped demo credentials; never copy an administrator password, admin key, ingestion secret or HA token into them. `demo/shared/config.js` defaults to the current origin; no client calls the laptop through a hardcoded localhost URL. If separately hosted, deliberately set its HTTPS backend origin and configure exact server origins/CORS through a separately reviewed deployment; the tested/recommended topology is same-origin.
+Keep existing session/password/admin configuration. Camera/classroom apps receive only short-lived scoped demo credentials; never copy an administrator password, admin key, ingestion secret or HA token into them. `demo/shared/config.js` defaults to the current origin; no client calls the laptop through a hardcoded localhost URL. If separately hosted, deliberately set its HTTPS backend origin and configure exact server origins/CORS using the build-origin settings and exact allowlists in DEPLOYMENT.md; same-origin HTTPS remains the recommended topology.
 
 ## Trusted HTTPS across laptop and two phones
 
@@ -57,14 +72,14 @@ Use one reachable HTTPS origin for all three interfaces and the Socket.IO endpoi
 2. Use an existing trusted HTTPS reverse proxy, or install Caddy deliberately following its official instructions. Copy [demo/Caddyfile.example](demo/Caddyfile.example) to a local configuration and replace its address with the laptop's real IP. Its `tls internal` uses that instance's local CA, and `reverse_proxy` forwards both application HTTP and WebSocket traffic to the loopback-only API.
 3. Trust the Caddy local **root certificate** on the laptop and both phones using their OS certificate installation/trust process. Obtain it from the Caddy instance's configured data directory (`pki/authorities/local/root.crt`); share the public certificate only, never the CA private key. An administrator may need to approve certificate installation. A certificate warning/click-through alone is not a tested secure camera context. Public-domain HTTPS with a valid trusted certificate is an alternative when an existing deployment is available.
 4. Allow the chosen proxy's inbound TCP 443 on the laptop's private network profile, scoped to the demonstration network. Keep Node/Mongo/vision loopback-only. No public router port forwarding is needed for this same-LAN demo. Recheck any hostname/DNS resolution from both phones.
-5. Build and stop the managed development run before starting the built application on the same port. Keep the existing MongoDB running. In both API and worker terminals set `NODE_ENV=production`, `DEMO_MODE=true`, `ALLOW_PHYSICAL_CONTROL=false`, `ALLOW_NATIVE_DEVICE_CONTROL=false`, `PUBLIC_APP_URL=https://<actual-laptop-IP>` and `FRONTEND_ORIGIN=https://<actual-laptop-IP>` (without angle brackets). Keep the same existing server secrets/database. Then run `npm start` and `npm run worker` in separate terminals. This enables secure session cookies; the API trusts its single reverse-proxy hop and remains bound to loopback.
-6. Run the deliberately configured proxy, for example `caddy run --config <your-local-Caddyfile>`. Open `https://<actual-laptop-IP>/phone-demo` on the laptop and the generated `/demo/cctv-camera/` and `/demo/circuit-board/` pairing links on the phones. Use the exact same origin throughout. Secure pages must use HTTPS/WSS transport, not HTTP/WS mixed content.
+5. Build and stop the managed development run before starting the built application on the same port. Keep the existing MongoDB running. In both API and worker terminals set `NODE_ENV=production`, `DEMO_MODE=true`, `ALLOW_PHYSICAL_CONTROL=false`, `ALLOW_NATIVE_DEVICE_CONTROL=false`, `PUBLIC_APP_URL=https://<actual-laptop-IP>` and `FRONTEND_ORIGIN=https://<actual-laptop-IP>`, `DEMO_PHONE_ORIGINS=` (empty), `DEMO_TIME_SCALE=1` and `HOST=127.0.0.1` (without angle brackets). Keep the same existing server secrets/database. Then run `npm start` and `npm run worker` in separate terminals. This enables secure session cookies; the API trusts its single reverse-proxy hop and remains bound to loopback.
+6. Run the deliberately configured proxy, for example `caddy run --config <your-local-Caddyfile>`. Open `https://<actual-laptop-IP>/presenter` on the laptop and the generated `/demo/cctv-camera/` and `/demo/circuit-board/` pairing links on the phones. Use the exact same origin throughout. Secure pages must use HTTPS/WSS transport, not HTTP/WS mixed content.
 
-Official references checked: [Caddy reverse proxy](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy), [TLS internal](https://caddyserver.com/docs/caddyfile/directives/tls), [local HTTPS/trust](https://caddyserver.com/docs/automatic-https). A proxy binary, its CA trust and actual network were not supplied/tested here. The prepared configuration is not evidence of deployment. For a tunnel or hosted service, obtain explicit authorisation and design its authentication/network path first.
+Official references checked: [Caddy reverse proxy](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy), [TLS internal](https://caddyserver.com/docs/caddyfile/directives/tls), [local HTTPS/trust](https://caddyserver.com/docs/automatic-https). A proxy binary, its CA trust and actual network were not supplied/tested here. The prepared configuration is not evidence of deployment. See DEPLOYMENT.md for prepared host files and an isolated judge deployment. No hosting, external tunnel or publishing is authorised by these preparation instructions.
 
 ## Pair and prepare
 
-1. Sign in to the existing dashboard as a key-verified administrator. Open **Two-phone demo**. Select one existing room with a simulator master and reviewed ordinary inventory. Existing bookings, leases, overrides, critical loads, AC stop requirements and fault/maintenance restrictions remain authoritative.
+1. Open `/presenter` directly and sign in as an existing authorised Administrator with email/password. The private server key is needed only when creating a new Administrator account; presenter use never asks for it. This setup screen is separate from the product shell and has no dashboard navigation/overview link. Select one existing room with a simulator master and reviewed ordinary inventory. Existing bookings, leases, overrides, critical loads, AC stop requirements and fault/maintenance restrictions remain authoritative.
 2. Select a vision mode and review the stated simulated-scene coverage. Set vacancy confirmation independently (default 5 seconds; 2–60 allowed). A session lasts at most two hours. Optional presenter manual master requests require the separate checkbox. Native room policy must be alert-only before using this room; the demo never falls through to HA.
 3. Create a camera pairing for Phone A and a classroom pairing for Phone B. Scan their QRs or enter their codes on the proper app. Pairing codes expire in five minutes and are one-use. Reissuing a role revokes its previous token. Links keep the code in the URL fragment and remove it from the address bar; token storage is session-only. Ending/resetting a session revokes old pairings.
 4. On Phone B select **Empty classroom · equipment ON**. Review local switches, master supply and effective load states. Use presenter lock to freeze the scene. No automatic carousel advance occurs. Fullscreen presentation hides controls; an exit button remains available. The page/control channel stay powered when the ordinary master is OFF.
@@ -91,11 +106,13 @@ All three modes remain `dataMode: simulated`; even camera-inference pixels in th
 - Current occupancy, bookings/preparation, QR leases, overrides, policy versions, required native prerequisites, critical loads, stop/restart and interlocks are checked through existing context/policies. Unknown evidence cancels/suspends cutoff. A new occupied marker or protected use invalidates pending work.
 - Phone B receives explicit ON/OFF with command IDs/deadlines over a scoped `/demo-phone` Socket.IO namespace (HTTP state/command polling recovers the transport). Created, sent and application-acknowledged are different states. The existing simulator changes durable supply only after a valid current-session acknowledgement. Every effective ordinary load becomes OFF together. Duplicate commands cannot toggle, and expired work is not delivered after reconnection.
 - No acknowledgement means expired/unverified, never successful shutdown. A sent command without acknowledgement blocks another automatic attempt until session reset. Reconnection resynchronises the authoritative backend state; the last local animation cannot overrule it. Supply restoration uses the existing policy and never bypasses fault/maintenance/manual-isolation/restart restrictions. Stopping a session never automatically energises supply.
-- The dashboard shows private latest thumbnail, source/freshness, occupancy/equipment evidence, protections, escalation jobs/timeline, command delivery and virtual-classroom acknowledgement. The latest thumbnail expires after two minutes and is cleared at session end; only scoped administrators can read it. No video archive is created. Minimal observation/command metadata remains for audit.
+- The authenticated presenter shows private latest thumbnail, source/freshness, occupancy/equipment evidence, protections, escalation jobs/timeline, command delivery and virtual-classroom acknowledgement. The latest thumbnail expires after two minutes and is cleared at session end; only scoped administrators can read it. No video archive is created. Minimal observation/command metadata remains for audit.
 
 The strongest supported result here is **simulator acknowledged OFF**. A later camera decode of the new OFF marker is separate instrumented visual evidence. Neither is physical breaker verification, measured zero power, room kWh or measured savings. Native-device failures never trigger room-wide fallback, and HA integration remains independent.
 
 ## Judge script
+
+Concise judge run (about2minutes after setup): show the normal product without a demo link, open the separate presenter URL, state “software simulation, not physical switching,” pair Phone A/B and lock empty/ON. Keep the camera visible. Show accepted pixels and the separate vacancy/+10s/+15s persistent stages. Show one master OFF and application acknowledgement, then the subsequent observed OFF marker. Start another eligible episode and choose occupied to cancel it. Stop the camera to show unknown, end the session to revoke pairing, then return to recorded consumption/ESG with source/mode/assumption labels. A decrease is recorded change, not software-attributed verified savings. If physical filming fails, explicitly name scenario injection or the synthetic browser rehearsal instead of calling it live inference.
 
 1. Show the three interfaces and the simulated/vision-source labels. State that one virtual master controls all ordinary illustrated loads, while camera/control equipment stay powered.
 2. Pair the devices, lock empty/ON, start Phone A and show accepted-frame processing/source. Explain the separate 5-second vacancy period.
@@ -105,6 +122,20 @@ The strongest supported result here is **simulator acknowledged OFF**. A later c
 6. Stop Phone A: occupancy becomes unknown. Disconnect Phone B during delivery: outcome stays unverified/expired. Reconnect and show state resynchronisation without expired command replay. Stop/reset the session and show old phone access revoked.
 
 ## Troubleshooting and remaining physical checks
+
+Physical-phone rehearsal (not completed by automated tests):
+
+- [ ] Supply the actual laptop/host, two selected phones/browsers and a reachable LAN/DNS path; check guest Wi-Fi/client isolation and roaming.
+- [ ] Open the exact HTTPS URL on both devices with no certificate warning; trust the deliberate local CA or use a public trusted certificate. Verify WSS/polling and no mixed content.
+- [ ] Pair the correct roles with one-use current codes; verify expiry, role revocation and no administrator secrets on either phone.
+- [ ] Test rear/alternate camera selection, permission denial/recovery, no audio, hidden-tab/lock-screen behaviour and explicit restart after foregrounding.
+- [ ] Film the actual classroom screen with the QR fully visible. Try portrait/landscape, seated/edge views, glare, moire, focus and changing brightness. Record observed failures; do not use no-person HOG output as vacancy.
+- [ ] Keep video and classroom transport active through vacancy, first notification,+10seconds,+15seconds and acknowledged simulated OFF; verify all ordinary illustrated loads and independent camera/network supplies.
+- [ ] Change to occupied/booking/QR/override before final cutoff; verify cancellation. Disconnect camera to show unknown and classroom during delivery to show unverified/expired; reconnect without stale command replay.
+- [ ] End/reset the session and verify old paired tokens no longer work. Rehearse worker restart/source loss without replaying expired actions.
+- [ ] Keep electrical controls disabled. Any actual controller, wiring, AC normal-stop/restart or meter calibration needs separate qualified commissioning; this checklist does not approve it.
+
+Needed but not supplied/tested: actual phones and filmed display, trusted LAN/public HTTPS endpoint and mobile CA trust, deployed Linux/Docker engine, licensed real footage/coverage, actual meters/controllers/HA credentials and independent electrical outcome evidence. Live Gemini credentials/model/quota are optional and separately unverified. See latest HANDOFF/TESTING for fresh software results; earlier milestone counts are historical.
 
 | Symptom | Check/action |
 | --- | --- |

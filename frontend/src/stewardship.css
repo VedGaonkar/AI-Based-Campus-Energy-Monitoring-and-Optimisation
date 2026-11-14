@@ -24,6 +24,8 @@
   --mono: "Azeret Mono", Consolas, monospace;
   --heading: "Barlow Condensed", "Arial Narrow", Impact, sans-serif;
 }
+.presenter-shell { max-width: 1280px; margin: auto; padding: 24px; }
+.presenter-header { display: flex; gap: 20px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 24px; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
 .consumption-filters { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0; align-items: end; }
 .consumption-filters label { display: grid; gap: 5px; font-size: 12px; flex: 1 1 155px; min-width: 0; }
 .consumption-filters input, .consumption-filters select { width: 100%; min-width: 0; padding: 8px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text-primary); border-radius: 3px; }

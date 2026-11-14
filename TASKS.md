@@ -1,5 +1,17 @@
 # Implementation Tasks
 
+## CE-021 complete - final integration and deployment preparation
+
+- [x] Read latest contracts,PLAN,DEMO_SETUP and continuity; preserve accounts/data/palette.
+- [x] Separate authenticated /presenter; remove product demo links/card; preserve adapters,session/pairing/acknowledgement and independent room/device registration.
+- [x] Independent main/camera/classroom builds,public API/real-time origins,exact HTTP/socket allowlists and scoped deployment phone URLs.
+- [x] Prepared Ubuntu Docker Compose/Caddy API+worker+database+Python persistence; current official requirements checked and Compose syntax validated.
+- [x] Fresh152application +59assistant tests pass,0failed/0skipped; seven new cross-feature/production-header cases.
+- [x] All nine browser journeys/77checks pass,0browser runtime errors; presenter/mobile screenshots inspected. Synthetic-stream limitations explicit.
+- [x] Separate/full builds,101syntax checks,52client assets secret scan and whitespace pass; managed app restarted and read-only smoke passed.
+- [x] README,deployment,environment,backup/migration,demo pairing,physical checklist,judge script,testing/progress/handoff updated. No actual deployment,tunnel,commit/push,data reseed or physical switching performed.
+- [ ] Operator follow-up: real Docker image/host/TLS/restore rehearsal and two physical phones/filmed display; required credentials/hardware and commissioning remain external to this software-preparation milestone.
+
 ## CE-020 complete - optional internal sustainability reporting
 
 - [x] Inspect accepted interval derivation, provenance/quality, immutable institution scoping, settings, reports and role checks.

@@ -131,9 +131,8 @@ export function createPhoneDemoService(models, config) {
       const codeExpiresAt = new Date(Math.min(+session.expiresAt, +now + 300000));
       await models.DemoClient.findOneAndUpdate({ sessionId: id, role }, { $set: { roomId: session.roomId, codeHash: hash(code), codeExpiresAt, expiresAt: session.expiresAt, lastSequence: -1, captureActive: false }, $inc: { generation: 1 }, $unset: { tokenHash: "", pairedAt: "", lastSeenAt: "", offlineAt: "" } }, { upsert: true });
       await audit(models, actorId, "demo.pairing_issued", id, `Scoped ${role} role; code expires within five minutes`);
-      const path = role === "camera" ? "cctv-camera" : "circuit-board";
       const scopedCode = `${models.institutionId ? `${models.institutionId}.` : ""}${code}`;
-      const url = new URL(`/demo/${path}/`, config.publicAppUrl); url.hash = `pair=${scopedCode}`;
+      const url = new URL(role === "camera" ? config.demoCameraAppUrl : config.demoClassroomAppUrl); url.hash = `pair=${scopedCode}`;
       return { code: scopedCode, codeExpiresAt, role, url: url.toString(), qr: await QRCode.toDataURL(url.toString(), { width: 220, margin: 2 }) };
     },
     async pair(code, now = new Date()) {

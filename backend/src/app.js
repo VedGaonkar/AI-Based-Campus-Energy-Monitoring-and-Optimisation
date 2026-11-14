@@ -1,4 +1,5 @@
 import { mountWebsiteAssistant } from "./services/website-assistant.js";
+import { browserOrigins } from "./security/browser-origins.js";
 import express from "express";
 import { registerMeterPhoneRoutes, registerMeterCameraRoutes } from "./meter-camera-routes.js";
 import { startRealtime, syncSnapshot } from "./realtime/transport.js";
@@ -84,9 +85,14 @@ export function createApplication({ config, connection, models, workspaceDirecto
   });
   app.use(
     helmet({
-      contentSecurityPolicy: config.env === "production" ? undefined : false,
+      contentSecurityPolicy: config.env === "production" ? { directives: {
+        frameAncestors: ["'self'", config.frontendOrigin],
+        connectSrc: ["'self'", config.publicAppUrl, config.publicAppUrl.replace(/^https:/, "wss:")],
+      } } : false,
     }),
   );
+  app.use(browserOrigins(config));
+  app.use("/assistant", (req, res, next) => { res.removeHeader("X-Frame-Options"); next(); });
   app.use(express.json({ limit: "1mb" }));
   const store = MongoStore.create({
     client: connection.getClient(),
@@ -1431,14 +1437,20 @@ export function createApplication({ config, connection, models, workspaceDirecto
   });
   app.use("/api/v1", api);
   app.use("/api", (req, res) => fail(404, "NOT_FOUND", "API route not found"));
-  app.use("/demo", express.static(fileURLToPath(new URL("../../demo/", import.meta.url)), { dotfiles: "deny", setHeaders: res => { res.setHeader("Referrer-Policy", "no-referrer"); res.setHeader("Cache-Control", "no-store"); } }));
+  for (const [path, artifact] of [["cctv-camera", "phone-camera"], ["circuit-board", "virtual-classroom"], ["meter-camera", "meter-camera"], ["virtual-meter", "virtual-meter"]]) {
+    const directory = fileURLToPath(new URL(`../../dist/${artifact}/`, import.meta.url));
+    if (existsSync(`${directory}/index.html`)) app.use(`/demo/${path}`, express.static(directory, { dotfiles: "deny", setHeaders: res => { res.setHeader("Referrer-Policy", "no-referrer"); res.setHeader("Cache-Control", "no-store"); } }));
+    else if (config.env === "production") throw new Error(`Missing ${artifact} production build. Run npm run build before starting.`);
+  }
+  if (config.env !== "production") app.use("/demo", express.static(fileURLToPath(new URL("../../demo/", import.meta.url)), { dotfiles: "deny", setHeaders: res => { res.setHeader("Referrer-Policy", "no-referrer"); res.setHeader("Cache-Control", "no-store"); } }));
+  app.use("/demo", () => fail(404, "NOT_FOUND", "Demonstration asset not found"));
   const frontend = fileURLToPath(
     new URL("../../frontend/dist/", import.meta.url),
   );
   if (existsSync(`${frontend}/index.html`)) {
     app.use(express.static(frontend));
     app.use((req, res, next) =>
-      req.method === "GET" && req.accepts("html")
+      req.method === "GET" && !req.path.startsWith("/assets/") && req.accepts("html")
         ? res.sendFile(`${frontend}/index.html`)
         : next(),
     );

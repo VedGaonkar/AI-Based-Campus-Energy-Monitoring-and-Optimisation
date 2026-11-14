@@ -46,7 +46,6 @@ import { api, post, patch } from "./services/api";
 import { Management, Profile } from "./Management.jsx";
 import { MeterCameras } from "./MeterCameras.jsx";
 import { ConnectedDevices } from "./ConnectedDevices.jsx";
-import { PhoneDemo, PhoneDemoSummary } from "./PhoneDemo.jsx";
 import { Authentication } from "./Authentication.jsx";
 import Help from "./components/Help.jsx";
 import { selectIntervals, sourceLabel, freshness } from "./services/consumption.js";
@@ -58,6 +57,7 @@ const LazyConsumptionChart = React.lazy(
 );
 const LazyConsumptionDetails = React.lazy(() => import("./components/ConsumptionChart.jsx").then(m => ({ default: m.ConsumptionDetails })));
 const LazySustainability = React.lazy(() => import("./Sustainability.jsx").then(m => ({ default: m.Sustainability })));
+const LazyPresenter = React.lazy(() => import("./PhoneDemo.jsx").then(m => ({ default: m.PhoneDemo })));
 
 const AppContext = createContext();
 const useApp = () => useContext(AppContext);
@@ -263,6 +263,7 @@ function App() {
         <p>Connecting to Campus Energy…</p>
       </div>
     );
+  if (user && ["/presenter", "/phone-demo"].includes(location.pathname)) return <AppContext.Provider value={context}><div className="presenter-shell"><header className="presenter-header"><Link to="/">Return to application</Link><span>Authenticated demonstration setup · {user.institution?.displayName ?? user.name}</span><button className="button secondary" disabled={busy} onClick={signOut}>Sign out</button></header><main id="main"><ErrorText>{error}</ErrorText>{notice && <p role="status">{notice}</p>}<p role="status" data-read-state={reads.pending ? "pending" : reads.failed ? "failed" : "current"}>Demonstration setup only. {syncState === "current" ? "Live updates connected" : "Synchronising / displayed data may be stale"}.</p><React.Suspense fallback={<p>Loading presenter setup...</p>}><LazyPresenter key={user.institutionId} ui={managementUI} /></React.Suspense></main></div></AppContext.Provider>;
   return (
     <AppContext.Provider value={context}>
       {!user ? (
@@ -295,7 +296,7 @@ function App() {
                 ["/recommendations", Lightbulb, "Recommendations"],
                 ["/access", QrCode, "QR access"],
                 ["/connected-devices", PlugZap, "Connected devices"],
-                ...(user.role === "admin" ? [["/phone-demo", Camera, "Two-phone demo"], ["/meter-cameras", Camera, "Meter cameras"]] : []),
+                ...(user.role === "admin" ? [["/meter-cameras", Camera, "Meter cameras"]] : []),
                 ...(user.role === "admin"
                   ? [["/admin", Settings, "Admin management"]]
                   : []),
@@ -417,7 +418,6 @@ function App() {
                 <Route path="/sustainability" element={<React.Suspense fallback={<p role="status">Loading sustainability reporting...</p>}><LazySustainability key={user.institutionId} ui={managementUI} /></React.Suspense>} />
                 <Route path="/meter-cameras" element={<MeterCameras ui={managementUI} />} />
                 <Route path="/connected-devices" element={<ConnectedDevices ui={managementUI} />} />
-                <Route path="/phone-demo" element={<PhoneDemo ui={managementUI} />} />
                 <Route path="/profile" element={<Profile ui={managementUI} />} />
                 <Route path="/" element={<Overview />} />
                 <Route path="/rooms" element={<Rooms />} />
@@ -565,7 +565,6 @@ function Overview() {
         </span>
       </PageHead>
       <ErrorText>{error}</ErrorText>
-      {user.role === "admin" && <PhoneDemoSummary user={user} useData={useData} />}
       <div className="metric-grid">
         {[
           [

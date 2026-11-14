@@ -2,6 +2,7 @@ import { parse } from "dotenv";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
+import { deploymentOrigin } from "../../shared/deployment-origins.js";
 
 // Do not populate process.env: dev launcher children must read their own fresh
 // file rather than inherit a stale copy loaded by their parent. Deployment-set
@@ -25,6 +26,7 @@ export function loadConfig(env = readServerEnvironment()) {
         .enum(["development", "test", "production"])
         .default("development"),
       PORT: z.coerce.number().int().min(1).max(65535).default(5000),
+      HOST: z.enum(["127.0.0.1", "0.0.0.0", "::1", "::"]).default("127.0.0.1"),
       MONGODB_URI: z
         .string()
         .startsWith("mongodb")
@@ -58,7 +60,9 @@ export function loadConfig(env = readServerEnvironment()) {
       DEMO_ADMIN_PASSWORD: z.string().min(20).optional(),
       DEMO_VIEWER_EMAIL: z.email().optional(),
       DEMO_VIEWER_PASSWORD: z.string().min(20).optional(),
-      DEMO_PHONE_ORIGINS: z.string().default("http://localhost:5174,http://localhost:5175"),
+      DEMO_PHONE_ORIGINS: z.string().default(env.NODE_ENV === "production" ? "" : "http://localhost:5174,http://localhost:5175"),
+      DEMO_CAMERA_APP_URL: z.url().optional(),
+      DEMO_CLASSROOM_APP_URL: z.url().optional(),
       DEVICE_ADAPTER: z.literal("simulator").default("simulator"),
       DEMO_TIME_SCALE: z.coerce.number().min(1).max(60).default(60),
       VACANCY_CONFIRMATION_MINUTES: z.coerce
@@ -95,15 +99,29 @@ export function loadConfig(env = readServerEnvironment()) {
     );
   if (!parsed.DEMO_MODE && parsed.DEMO_TIME_SCALE !== 1)
     throw new Error("Accelerated time is restricted to demo mode");
+  const originOptions = { production: parsed.NODE_ENV === "production" };
+  const frontendOrigin = deploymentOrigin(parsed.FRONTEND_ORIGIN, { ...originOptions, label: "FRONTEND_ORIGIN" });
+  const publicAppUrl = deploymentOrigin(parsed.PUBLIC_APP_URL, { ...originOptions, label: "PUBLIC_APP_URL" });
+  const demoPhoneOrigins = parsed.DEMO_PHONE_ORIGINS.split(",").map(v => v.trim()).filter(Boolean).map(v => deploymentOrigin(v, { ...originOptions, label: "DEMO_PHONE_ORIGINS" }));
+  const phoneApp = (value, path) => {
+    const url = new URL(value || path, publicAppUrl);
+    deploymentOrigin(url.origin, originOptions);
+    if (url.username || url.password || url.search || url.hash || !url.pathname.endsWith("/")) throw new Error("Phone app URLs must end in / and contain no credentials, query or fragment");
+    if (![frontendOrigin, publicAppUrl, ...demoPhoneOrigins].includes(url.origin)) throw new Error("Phone app URL origin must be listed in DEMO_PHONE_ORIGINS");
+    return url.toString();
+  };
   return {
     env: parsed.NODE_ENV,
     port: parsed.PORT,
+    host: parsed.HOST,
     mongoUri: parsed.MONGODB_URI,
     sessionSecret: parsed.SESSION_SECRET,
     adminInviteKey: parsed.ADMIN_INVITE_KEY ?? null,
     ingestToken: parsed.SERVICE_INGEST_TOKEN,
-    frontendOrigin: parsed.FRONTEND_ORIGIN,
-    publicAppUrl: parsed.PUBLIC_APP_URL,
+    frontendOrigin,
+    publicAppUrl,
+    demoCameraAppUrl: phoneApp(parsed.DEMO_CAMERA_APP_URL, "/demo/cctv-camera/"),
+    demoClassroomAppUrl: phoneApp(parsed.DEMO_CLASSROOM_APP_URL, "/demo/circuit-board/"),
     demoMode: parsed.DEMO_MODE,
     allowPhysicalControl: parsed.ALLOW_PHYSICAL_CONTROL,
     allowNativeControl: parsed.ALLOW_NATIVE_DEVICE_CONTROL,
@@ -115,7 +133,7 @@ export function loadConfig(env = readServerEnvironment()) {
     demoAdminPassword: parsed.DEMO_ADMIN_PASSWORD,
     demoViewerEmail: parsed.DEMO_VIEWER_EMAIL,
     demoViewerPassword: parsed.DEMO_VIEWER_PASSWORD,
-    demoPhoneOrigins: parsed.DEMO_PHONE_ORIGINS.split(",").map(value => value.trim()).filter(Boolean),
+    demoPhoneOrigins,
     haAllowedOrigins: parsed.HA_ALLOWED_ORIGINS.split(",").map((value) => value.trim()).filter(Boolean),
     haAllowHttp: parsed.HA_ALLOW_HTTP,
     haAllowLoopback: parsed.HA_ALLOW_LOOPBACK,

@@ -38,13 +38,10 @@ try {
   await page.getByLabel("Email address").fill("admin@campus.test");
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in to workspace" }).click();
-  await waitFor(() => page.evaluate(() => document.body.innerText.includes("A valid admin invite key is required")));
-  checks.push("Administrator password without key is rejected");
-
-  await page.getByRole("button", { name: "Sign in to workspace" }).click();
+  assert.equal(await page.evaluate(() => !!document.querySelector('[name="adminKey"]')), false);
   await page.getByRole("heading", { name: "Your building. One control centre." }).waitFor();
   await page.getByRole("heading", { name: "Administrator access verified" }).waitFor();
-  checks.push("Password and valid key open dedicated admin management");
+  checks.push("Existing Administrator signs in with email/password only and server-verified membership");
   await page.screenshot({ path: ".local/screenshots/admin-management.png", fullPage: true });
   await go("/profile");
   await waitFor(() => page.evaluate(() => document.body.innerText.includes("Account role: admin")));
@@ -119,6 +116,7 @@ try {
   checks.push("Admin workflows fit a 390px viewport");
   await go("/rooms"); await page.getByRole("button", { name: "Sign out" }).first().click();
   await page.getByLabel("Email address").fill("viewer@campus.test"); await page.getByLabel("Password").fill(password); await page.getByRole("button", { name: "Sign in to workspace" }).click();
+  await waitFor(() => page.evaluate(() => !!document.querySelector(".app-shell")));
   await go("/profile"); await waitFor(() => page.evaluate(() => document.body.innerText.includes("Account role: viewer")));
   assert.equal(await page.evaluate(() => !!document.querySelector('[name="adminKey"]')), false); assert.equal((await models.User.findById("demo-viewer").lean()).role, "viewer");
   checks.push("Existing Viewer password sign-in preserves role and profile has no activation path");
