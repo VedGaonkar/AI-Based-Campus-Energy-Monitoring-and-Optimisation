@@ -79,6 +79,19 @@ Official references checked: [Caddy reverse proxy](https://caddyserver.com/docs/
 
 ## Pair and prepare
 
+### If created rooms say “No available rooms”
+
+Room/floor creation registers identity and a simulated master; it does not automatically approve supply independence or downstream loads. Expand **rooms unavailable for demo setup** beneath the presenter form to see the current reason for each room. An online mapped master alone is insufficient.
+
+For an isolated virtual demonstration room:
+
+1. Open **Admin management > Advanced settings** (`/admin/settings`). Under **Room policy & assignments**, choose the exact room in **Configure room**. Review and check **Observation, network and essential supplies stay available**, then **Save room policy**. This means the camera/browser/network remains powered when the virtual ordinary-load master turns OFF; it is not a real electrical-installation approval.
+2. Open **Rooms** (`/rooms`), choose **View room & actions** for that room and expand **Register a downstream load**. Add the ordinary simulated equipment you intend to demonstrate, for example a virtual light, using **Register inventory only**. Inventory registration starts unapproved.
+3. For each registered load, choose **Review load policy**, review **Shared interruption approved** and save using **Save load policy**. Essential or essential-standby loads intentionally block room-wide cutoff; do not relabel real protected equipment just to make a demo selectable. Normal-stop/restart requirements remain enforced at command time.
+4. Return to `/presenter` (refresh if necessary). Once the room has reviewed independent supplies, at least one reviewed eligible load, an online correctly bound simulator master, no existing demo owner and native appliance policy alert-only, it appears in **Existing room**. Creating the phone session then sets its scoped simulated room policy/source automatically; real camera coverage need not be fabricated.
+
+CE-022 diagnosis (14November2026): fresh read-only checks found the five newly registered rooms present with mapped online simulator masters but independent-supply review false and zero load inventory. An isolated API reproduction verifies the sequence: independence block -> missing inventory -> unapproved load -> selectable after review -> successful simulated session creation. No user's approvals or inventory were changed by the diagnostic. Current targeted results are in HANDOFF.md.
+
 1. Open `/presenter` directly and sign in as an existing authorised Administrator with email/password. The private server key is needed only when creating a new Administrator account; presenter use never asks for it. This setup screen is separate from the product shell and has no dashboard navigation/overview link. Select one existing room with a simulator master and reviewed ordinary inventory. Existing bookings, leases, overrides, critical loads, AC stop requirements and fault/maintenance restrictions remain authoritative.
 2. Select a vision mode and review the stated simulated-scene coverage. Set vacancy confirmation independently (default 5 seconds; 2–60 allowed). A session lasts at most two hours. Optional presenter manual master requests require the separate checkbox. Native room policy must be alert-only before using this room; the demo never falls through to HA.
 3. Create a camera pairing for Phone A and a classroom pairing for Phone B. Scan their QRs or enter their codes on the proper app. Pairing codes expire in five minutes and are one-use. Reissuing a role revokes its previous token. Links keep the code in the URL fragment and remove it from the address bar; token storage is session-only. Ending/resetting a session revokes old pairings.

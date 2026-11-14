@@ -1,5 +1,13 @@
 # Implementation progress
 
+## CE-022 complete - presenter room availability diagnosis
+
+Latest follow-up: RM-101 supply-independence review is now saved true; remaining blocker is0registered loads, confirmed read-only. Other rooms still unreviewed. Explained exact inventory registration/load review steps and separated Vite HMR/BFCache warning from application eligibility; no settings changed or tests rerun.
+
+Follow-up: fresh read-only check confirms five rooms still have supply review false/no inventory despite two Camera installed settings; configured meter count0 explains separate meter-camera dropdown. Clarified camera policy versus independent supplies versus electricity meter registration. No further tests or application/data changes in that follow-up.
+
+Tested before inspecting user data: existing phone suite17passed. Read-only readiness audit found new five-room workspace has correctly mapped online simulated masters but independent-supply review false and no load inventory. No creation/filter bug reproduced. Added fresh-room API regression covering each prerequisite, explicit blocked session, eventual selectable room and successful simulated session; final18tests passed,0failed/0skipped. Syntax/whitespace passed. Application code and actual .env/room/load approvals unchanged; only test and DEMO_SETUP guidance updated. No build/full-suite claims for this diagnosis. See HANDOFF for exact UI steps and .local/room-availability-tests.log for test evidence.
+
 ## CE-021 complete - final integration and deployment preparation
 
 Separated authenticated /presenter from product navigation/overview while retaining independent room/device setup,phone adapters/pairing/session/acknowledgements and palette. Added independently verified main,camera,classroom builds (plus meter tools),public HTTP/real-time origins,strict production addresses,exact session versus phone CORS,secure-cookie/CSP support and configured pairing URLs. Embedded assistant now rereads website snapshots without its short read cache. Prepared Ubuntu/Docker Compose/Caddy deployment with API/worker,private durable MongoDB,assistant state and Python runtime; no deployment or environment/data edits performed.

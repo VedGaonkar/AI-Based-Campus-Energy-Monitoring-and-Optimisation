@@ -1,5 +1,12 @@
 # Implementation Tasks
 
+## CE-022 complete - no available rooms diagnosis
+
+- [x] Run existing room/phone tests first (17passed); inspect actual room/master/inventory flags read-only.
+- [x] Identify missing independent-supply review and inventory; correct online master bindings confirmed, no selection bug reproduced.
+- [x] Add isolated fresh-room API readiness/session regression;18targeted tests passed,0failed/0skipped,syntax/whitespace passed.
+- [x] Document exact Advanced settings / room inventory / load review steps and update continuity without changing user approvals,data or application safety checks.
+
 ## CE-021 complete - final integration and deployment preparation
 
 - [x] Read latest contracts,PLAN,DEMO_SETUP and continuity; preserve accounts/data/palette.

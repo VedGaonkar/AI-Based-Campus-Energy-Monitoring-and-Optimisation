@@ -112,6 +112,39 @@ test("legacy rooms without native policy remain selectable; unavailable rooms ha
   await assert.rejects(() => setup(), { code: "DEMO_ROOM_BUSY" });
 });
 
+test("a newly registered room becomes available only after independent supplies and load inventory are reviewed", async () => {
+  const created = await mutate("/rooms", { code: "NEW-DEMO", name: "Fresh simulated demo room", roomBreakerId: "MASTER-NEW-DEMO" });
+  assert.equal(created.status, 201); const room = created.body.data;
+  const candidate = async () => {
+    const response = await admin.get("/api/v1/demo/available-rooms"); assert.equal(response.status, 200);
+    return response.body.data.find(row => row._id === room._id);
+  };
+  const patch = async (path, body) => {
+    const response = await admin.patch(`/api/v1${path}`).set("Origin", origin).set("X-CSRF-Token", csrf).send(body);
+    assert.equal(response.status, 200, JSON.stringify(response.body.error));
+  };
+  let session;
+  try {
+    assert.equal((await models.Breaker.findById(room.roomBreakerId).lean()).health, "online");
+    assert.match((await candidate()).unavailableReason, /Independent camera\/network\/control supplies/);
+    const blocked = await mutate("/demo/sessions", { roomId: room._id, visionMode: "scenario_injection", coverageReviewed: true });
+    assert.equal(blocked.status, 409); assert.equal(blocked.body.error.code, "DEMO_ROOM_BUSY");
+    await patch(`/rooms/${room._id}`, { independentInfrastructure: true });
+    assert.match((await candidate()).unavailableReason, /load inventory/);
+    const registered = await mutate("/devices", { roomId: room._id, name: "Virtual demonstration light", category: "lighting", ratedWatts: 20 });
+    assert.equal(registered.status, 201);
+    assert.match((await candidate()).unavailableReason, /not been approved/);
+    await patch(`/devices/${registered.body.data._id}`, { supplyInterruptionApproved: true, restartBehaviourKnown: true, approvalNotes: "Isolated simulated light only; no physical installation approval" });
+    assert.equal((await candidate()).unavailableReason, null);
+    const started = await mutate("/demo/sessions", { roomId: room._id, visionMode: "scenario_injection", coverageReviewed: true });
+    assert.equal(started.status, 201); session = started.body.data;
+    assert.equal((await models.Room.findById(room._id).lean()).controlMode, "simulated");
+  } finally {
+    if (session) await service.stop(session._id, "test-cleanup");
+    await models.Device.deleteMany({ roomId: room._id }); await models.Breaker.deleteOne({ _id: room.roomBreakerId }); await models.Room.deleteOne({ _id: room._id });
+  }
+});
+
 test("actual submitted QR pixels produce instrumented occupancy and equipment, not the selected scenario", async () => {
   const fixture = await setup();
   const result = await frame(fixture); assert.equal(result.observation.occupancy, "vacant");
