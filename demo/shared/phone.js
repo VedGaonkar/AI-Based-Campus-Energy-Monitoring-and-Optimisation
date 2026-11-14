@@ -25,6 +25,7 @@ function acceptState(state) {
   lastState = state;
   text("#room", `${state.room.code} · ${state.room.name}`);
   text("#session", `Session ${state.session._id.slice(0, 8)} · ${state.session.visionMode.replaceAll("_", " ")}`);
+  text("#mode-guidance", state.session.visionMode === "instrumented" ? "QR mode: keep the virtual classroom's QR inside the camera frame. An ordinary webcam view without that QR stays unknown. Keep both windows visible." : state.session.visionMode === "camera_inference" ? "Person detection mode: a detected person protects the room. Missing a person stays unknown and cannot trigger automatic OFF." : "Scenario injection mode: use the labelled classroom buttons; this bypasses camera pixels and stays simulated.");
   document.dispatchEvent(new CustomEvent("demo:state", { detail: state }));
 }
 export function unpair() {
@@ -58,19 +59,23 @@ async function connect() {
   }, 2000);
   document.dispatchEvent(new CustomEvent("demo:paired", { detail: pairing }));
 }
-$("#pair-form").addEventListener("submit", async event => {
-  event.preventDefault(); error("");
+async function pairFromForm() {
+  error("");
   const button = $("#pair-form button"); button.disabled = true;
   try {
     pairing = await request("/pair", { code: $("#pair-code").value.trim() });
     sessionStorage.setItem(storageKey, JSON.stringify(pairing)); $("#pair-code").value = "";
     await connect();
   } catch (failure) { error(failure.message); } finally { button.disabled = false; }
-});
+}
+$("#pair-form").addEventListener("submit", event => { event.preventDefault(); pairFromForm(); });
 $("#pair-form button").disabled = false;
 $("#unpair").addEventListener("click", () => { request("/offline", {}).catch(() => {}); unpair(); });
 const code = new URLSearchParams(location.hash.slice(1)).get("pair");
 if (code) { $("#pair-code").value = code; history.replaceState(null, "", location.pathname); }
 // Let each independent app attach its event handlers before restoring a pairing.
-export async function ready() { if (pairing) await connect().catch(failure => error(failure.message)); }
+export async function ready() {
+  if (code) { pairing = null; sessionStorage.removeItem(storageKey); await pairFromForm(); }
+  else if (pairing) await connect().catch(failure => error(failure.message));
+}
 export const state = () => lastState;

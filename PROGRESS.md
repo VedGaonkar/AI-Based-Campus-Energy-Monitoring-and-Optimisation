@@ -1,5 +1,11 @@
 # Implementation progress
 
+## CE-023 complete - shorter demo UX and visible controls
+
+Consolidated explicit room supply/load review on simulation-only presenter,automatic active-session resume,collapsed advanced/new-session forms,mode-specific next steps and one-action phone links. Links auto-pair through existing one-use scoped route;camera permission/Start stays explicit. Protected loads and backend gates untouched. Text-like actions/expanders now have button borders,44px targets and focus styles. Fullscreen keeps QR visible;mode guidance prevents webcam/QR confusion. Actual user rooms/approvals/data/session/.env unchanged.
+
+Completed153application tests,0failed/0skipped; final phone browser15checks andadmin browser12checks,0runtime errors. Includes explicit consolidated approval,protected-load refusal,bulk-pair generation stability,automatic link pairing/session resume,desktop/mobile QR fit and complete real-pixel synthetic-stream simulator OFF/ack/cancel/revoke. Intermediate lazy-load test focus race repaired;final repeat passes. Build/independent artifacts,101syntax files,52client assets secret scan andwhitespace pass. Screenshots inspected;read-only presenter/phone/readiness200. Existing managed app kept running without session-disrupting restart. Docs/continuity updated,PLAN unchanged;no real-phone filming/physical switching/provider/deployment claim. See HANDOFF for exact evidence under .local/quick-demo-*.
+
 ## CE-022 complete - presenter room availability diagnosis
 
 Latest follow-up: RM-101 supply-independence review is now saved true; remaining blocker is0registered loads, confirmed read-only. Other rooms still unreviewed. Explained exact inventory registration/load review steps and separated Vite HMR/BFCache warning from application eligibility; no settings changed or tests rerun.

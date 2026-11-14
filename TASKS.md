@@ -1,5 +1,13 @@
 # Implementation Tasks
 
+## CE-023 complete - simplify demo UX
+
+- [x] Consolidated explicit room supply/load review on simulation-only presenter;protected loads and backend safety checks unchanged.
+- [x] Active-session resume,collapsed advanced options,mode-specific guidance,one-action phone links and automatic one-use link pairing;camera Start remains explicit.
+- [x] Style text-like actions/expanders as visible keyboard-accessible44px controls;fullscreen keeps QR visible.
+- [x] Final153application tests,phone browser15checks/admin browser12checks pass,0runtime errors;build,101syntax files,52client-asset secret scan andwhitespace pass.
+- [x] Screenshots/desktop/mobile reviewed;docs/continuity updated and running app smoke200. No actual room approvals/session/environment changes,reseed,restart,physical switching or deployment.
+
 ## CE-022 complete - no available rooms diagnosis
 
 - [x] Run existing room/phone tests first (17passed); inspect actual room/master/inventory flags read-only.

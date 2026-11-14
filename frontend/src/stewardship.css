@@ -26,6 +26,22 @@
 }
 .presenter-shell { max-width: 1280px; margin: auto; padding: 24px; }
 .presenter-header { display: flex; gap: 20px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 24px; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
+:root button.text-link { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 4px; background: var(--card-bg); color: var(--text-primary); cursor: pointer; }
+:root button.text-link:hover { background: var(--sidebar-bg); }
+:root button.text-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.presenter-shell summary, summary.disclosure-button { display: list-item; width: fit-content; max-width: 100%; min-height: 44px; padding: 12px 16px; margin: 8px 0 16px; border: 1px solid var(--border); border-radius: 4px; background: var(--card-bg); color: var(--text-primary); cursor: pointer; font-size: .85rem; font-weight: 600; }
+.presenter-shell summary:hover, summary.disclosure-button:hover { background: var(--sidebar-bg); }
+.presenter-shell summary:focus-visible, summary.disclosure-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.presenter-shell details[open] > summary, details[open] > summary.disclosure-button { border-color: var(--text-primary); }
+.demo-advanced { grid-column: 1 / -1; }
+.demo-advanced[open] { padding: 12px; border: 1px solid var(--border); }
+.demo-advanced .field { max-width: 420px; margin: 12px 0; }
+.demo-room-setup .field { max-width: 550px; }
+.demo-room-setup .checkbox { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border: 1px solid var(--border); margin: 12px 0; }
+.demo-room-setup input[type=checkbox] { flex: 0 0 20px; width: 20px; height: 20px; }
+.demo-next-step { margin: 16px 0; padding: 16px; border-left: 4px solid var(--accent); background: var(--background); }
+:root .presenter-shell .phone-demo-pairings { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 20px; }
+@media(max-width:700px) { :root .presenter-shell .phone-demo-pairings { grid-template-columns: 1fr; } }
 .consumption-filters { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0; align-items: end; }
 .consumption-filters label { display: grid; gap: 5px; font-size: 12px; flex: 1 1 155px; min-width: 0; }
 .consumption-filters input, .consumption-filters select { width: 100%; min-width: 0; padding: 8px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text-primary); border-radius: 3px; }

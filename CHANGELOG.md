@@ -1,5 +1,9 @@
 # Changelog
 
+## CE-023 - shorter demonstration setup and clearer controls
+
+Presenter consolidates explicit room supply/load reviews,auto-selects the active session and prepares both one-use phone links together. Opening an issued link pairs the phone automatically; camera permission/Start remains explicit. Timing/mode and replacement/code controls are grouped under visible native disclosures. Protected loads and all backend policy checks remain authoritative. Load review is a secondary button; room registration/disclosures have44px targets and focus styling. Context guidance distinguishes classroom QR from real person detection, and fullscreen scales the scene so the QR stays visible. Existing palette,accounts,data and active sessions preserved; no silent approvals,physical switching or synthetic-to-live conversion.
+
 ## CE-021 - final integration and deployment preparation
 
 Separated direct authenticated presenter setup from product navigation/overview, preserving phone pairing/session/control acknowledgements and independent room/device setup. Added independently buildable camera/classroom artifacts with local assets and public API/real-time origins; retained meter phone tools. Added exact application versus scoped phone origin handling, production HTTPS-origin validation, deployment phone URLs, backend bind setting and cross-origin images/assistant handling. Embedded AI rereads website data without the short data cache. Prepared Linux Docker Compose/Caddy runtime, persistence, backup/migration and demo/physical rehearsal documentation without publishing. Current executed verification and host/hardware limitations are in HANDOFF.md.

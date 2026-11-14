@@ -2606,7 +2606,7 @@ function InventoryForm({ roomId }) {
   const { act } = useApp();
   return (
     <details className="section-gap">
-      <summary className="text-link">Register a downstream load</summary>
+      <summary className="disclosure-button">Register a downstream load</summary>
       <form
         className="inline-form"
         onSubmit={async (e) => {
@@ -2651,7 +2651,7 @@ function DevicePolicy({ record: d }) {
   if (!roleCan(user, RESPONDERS)) return null;
   return (
     <>
-      <button className="text-link" onClick={() => setOpen(true)}>
+      <button className="button secondary" type="button" aria-haspopup="dialog" onClick={() => setOpen(true)}>
         Review load policy
       </button>
       {open && (

@@ -40,27 +40,60 @@ try {
   await dashboard.goto(base); await waitFor(() => dashboard.evaluate(() => !!document.querySelector('.sidebar')));
   assert.equal(await dashboard.evaluate(() => [...document.querySelectorAll('a')].some(a => /phone-demo|presenter/.test(a.getAttribute('href') || '')) || document.body.innerText.includes('Camera to classroom')), false);
   checks.push("Normal dashboard has no phone-demo navigation or summary; direct presenter has a separate authenticated layout");
-  await dashboard.goto(`${base}/presenter`); await dashboard.getByLabel("Existing room").selectOption("room-r101"); await dashboard.getByLabel("Vacancy confirmation (seconds)").fill("2");
+  // Fresh rooms can be prepared in the presenter without navigating through
+  // policy/inventory dialogs. This fixture represents virtual equipment only.
+  await models.Room.create({ _id: "room-quick", code: "QUICK", name: "Virtual quick setup", roomBreakerId: "MASTER-QUICK" });
+  await models.Breaker.create({ _id: "MASTER-QUICK", roomId: "room-quick", adapter: "simulator" });
+  await dashboard.goto(`${base}/presenter`);
+  await waitFor(() => dashboard.evaluate(() => !!document.querySelector('.demo-room-setup summary')));
+  await dashboard.evaluate(() => { document.querySelector('.demo-room-setup summary').focus(); });
+  await dashboard.pressKey("Enter");
+  await dashboard.getByLabel("Room to prepare").selectOption("room-quick");
+  await waitFor(() => dashboard.evaluate(() => !!document.querySelector('.demo-room-setup input[name="virtualLight"]')));
+  assert.equal((await models.Room.findById("room-quick").lean()).independentInfrastructure, false);
+  assert.equal(await models.Device.countDocuments({roomId:"room-quick"}),0);
+  assert.ok(await dashboard.evaluate(() => getComputedStyle(document.querySelector('.demo-room-setup summary')).borderTopStyle !== 'none'));
+  await dashboard.screenshot({ path: ".local/screenshots/demo-quick-room-review.png", fullPage: true });
+  await dashboard.locator('.demo-room-setup input[name="independent"]').check();
+  await dashboard.locator('.demo-room-setup input[name="virtualLight"]').check();
+  await dashboard.getByRole("button", { name: "Save simulation setup" }).click();
+  await waitFor(async () => (await models.Room.findById("room-quick").lean()).independentInfrastructure && await models.Device.countDocuments({roomId:"room-quick",supplyInterruptionApproved:true})===1);
+  await waitFor(() => dashboard.evaluate(() => [...document.querySelector('select[name="roomId"]').options].some(o=>o.value==='room-quick')));
+  checks.push("Keyboard-operable button-styled room setup combines explicit independent-supply and virtual inventory approval on one page; no automatic approvals");
+  await models.Room.create({ _id: "room-protected", code: "PROTECTED", name: "Protected load fixture", roomBreakerId: "MASTER-PROTECTED", independentInfrastructure: true });
+  await models.Breaker.create({ _id: "MASTER-PROTECTED", roomId: "room-protected", adapter: "simulator" });
+  await models.Device.create({ roomId: "room-protected", name: "Protected essential load", category: "other", essential: true, supplyInterruptionApproved: false });
+  await waitFor(() => dashboard.evaluate(() => [...document.querySelectorAll('.demo-room-setup option')].some(o=>o.value==='room-protected')));
+  await dashboard.getByLabel("Room to prepare").selectOption("room-protected");
+  await waitFor(() => dashboard.evaluate(() => document.body.innerText.includes('Protected loads block room-wide cutoff')));
+  assert.ok(await dashboard.evaluate(() => [...document.querySelectorAll('.demo-room-setup button')].find(b=>b.textContent==='Save simulation setup').disabled));
+  assert.equal((await models.Device.findOne({roomId:'room-protected'}).lean()).supplyInterruptionApproved,false);
+  checks.push("Consolidated setup refuses protected loads and leaves their approvals unchanged");
+  await dashboard.evaluate(() => { document.querySelector('.demo-room-setup').open = false; document.querySelector('.demo-advanced').open = true; });
+  await dashboard.getByLabel("Existing room").selectOption("room-r101"); await dashboard.getByLabel("Vacancy confirmation (seconds)").fill("2");
   await dashboard.locator('form input[type="checkbox"]').check(); await dashboard.locator('input[name="manual"]').check();
   await dashboard.getByRole("button", { name: "Create demo session" }).click();
   const session = await waitFor(() => models.DemoSession.findOne({ active: true }).lean(), 30000);
-  await dashboard.getByRole("button", { name: "Create camera pairing" }).click();
-  await waitFor(() => dashboard.evaluate(() => document.querySelectorAll(".phone-pair-secret code").length === 1));
-  const cameraCode = await dashboard.evaluate(() => document.querySelector(".phone-pair-secret code").textContent);
-  await dashboard.getByRole("button", { name: "Create classroom pairing" }).click();
-  await waitFor(() => dashboard.evaluate(() => document.querySelectorAll(".phone-pair-secret code").length === 2));
-  const classroomCode = await dashboard.evaluate(() => document.querySelectorAll(".phone-pair-secret code")[1].textContent);
+  await dashboard.getByRole("button", { name: "Prepare both phone links" }).click();
+  await waitFor(() => dashboard.evaluate(() => document.querySelectorAll(".phone-pair-secret a").length === 2));
+  const cameraUrl = await dashboard.evaluate(() => document.querySelectorAll(".phone-pair-secret a")[0].href);
+  const classroomUrl = await dashboard.evaluate(() => document.querySelectorAll(".phone-pair-secret a")[1].href);
+  const generation = await models.DemoClient.find({sessionId:session._id}).select("role generation").lean();
+  await dashboard.getByRole("button", { name: "Prepare both phone links" }).click();
+  await waitFor(() => dashboard.evaluate(() => [...document.querySelectorAll('button')].find(b=>b.textContent==='Prepare both phone links')?.disabled === false));
+  assert.deepEqual(await models.DemoClient.find({sessionId:session._id}).select("role generation").lean(), generation);
+  checks.push("One action prepares both one-use phone links; repeated preparation preserves their pairing generations");
   // Clear secret cards before screenshots; codes are never written to reports.
   await dashboard.goto(`${base}/presenter`);
   await waitFor(() => dashboard.evaluate(id => [...document.querySelectorAll('select option')].some(option => option.value === id), session._id));
-  await dashboard.getByLabel("Session").selectOption(session._id);
+  assert.equal(await dashboard.evaluate(() => [...document.querySelectorAll('label')].find(l=>l.querySelector('span')?.textContent==='Session')?.querySelector('select')?.value), session._id);
   await waitFor(() => dashboard.evaluate(() => !!document.querySelector('.phone-demo-pairings')));
   checks.push("Administrator creates scoped session and one-use camera/classroom pairings through the authenticated presenter");
-  await classroom.goto(`${base}/demo/circuit-board/`); await classroom.getByLabel("Classroom pairing code").fill(classroomCode); await classroom.getByRole("button", { name: "Pair classroom" }).click();
+  await classroom.goto(classroomUrl);
   await waitFor(() => classroom.evaluate(() => !document.querySelector("#paired-panel").hidden && !!document.querySelector("#marker").getAttribute("src")));
-  await camera.goto(`${base}/demo/cctv-camera/`); await camera.getByLabel("Camera pairing code").fill(cameraCode); await camera.getByRole("button", { name: "Pair camera" }).click();
+  await camera.goto(cameraUrl);
   await waitFor(() => camera.evaluate(() => !document.querySelector("#paired-panel").hidden));
-  checks.push("Separate mobile camera and virtual-classroom entry points pair without admin credentials");
+  checks.push("Pairing links connect camera and classroom automatically, remove fragments, and keep explicit camera Start permission");
   await classroom.evaluate(() => { document.querySelector("details.presenter").open = true; });
   for (const name of ["light", "fan", "ac", "display", "occupied", "empty_off", "empty_on"]) {
     await classroom.locator("#scene-select").selectOption(name);
@@ -72,6 +105,10 @@ try {
   await classroom.locator("#presenter-lock").click();
   await waitFor(() => classroom.evaluate(() => !document.querySelector("#next").disabled));
   checks.push("Seven manually selected scenes render; presenter lock freezes carousel and local switches");
+  await classroom.getByRole("button", { name: "Present fullscreen" }).click();
+  assert.ok(await classroom.evaluate(() => { const r=document.querySelector('#marker').getBoundingClientRect(); return r.top>=0 && r.bottom<=innerHeight && r.width>=100; }));
+  await classroom.getByRole("button", { name: "Exit presentation" }).click();
+  checks.push("Fullscreen presentation keeps the instrumented QR in the viewport instead of below the scene");
   await classroom.screenshot({ path: ".local/screenshots/phone-classroom-desktop.png", fullPage: true });
   await camera.evaluate(() => {
     const canvas = document.createElement("canvas"); canvas.width = 640; canvas.height = 640; window.demoPixelFeed = canvas;
@@ -131,6 +168,10 @@ try {
     await page.setViewportSize({ width: 390, height: 844 });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   }
+  await classroom.getByRole("button", { name: "Present fullscreen" }).click();
+  assert.ok(await classroom.evaluate(() => { const r=document.querySelector('#marker').getBoundingClientRect(); return r.top>=0 && r.bottom<=innerHeight && r.right<=innerWidth && r.width>=100; }));
+  await classroom.screenshot({ path: ".local/screenshots/demo-classroom-qr-mobile.png", fullPage: false });
+  await classroom.getByRole("button", { name: "Exit presentation" }).click();
   await classroom.screenshot({ path: ".local/screenshots/phone-classroom-mobile.png", fullPage: true });
   checks.push("Camera, classroom and dashboard layouts fit a 390px viewport");
   await dashboard.getByRole("button", { name: "Stop session" }).click();
