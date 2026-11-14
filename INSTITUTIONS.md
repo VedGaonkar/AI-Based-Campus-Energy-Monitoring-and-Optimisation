@@ -1,5 +1,9 @@
 # Institution workspaces
 
+## CE-024 deployment compatibility
+
+Sign-in continues using persisted bcrypt hashes, including existing six/eight-character passwords, with no code or seed variable required. Production ignores local .env and never auto-seeds. Explicit demo provisioning validates credentials only when invoked (minimum6 in development/test, minimum20 in production); repeated provisioning preserves IDs/hashes/roles/memberships. See [Render/Vercel/Atlas deployment](deployment/RENDER_VERCEL.md) for secure Strict-cookie HTTP proxy, direct session-ticket real-time updates and directory plus institution database transfer. No schema migration is required by this change.
+
 CE-013 supports independent institutions, each with one building. There is no multi-building portfolio or cross-institution dashboard. The existing Node/Express, MongoDB/Mongoose, React and worker stack remains in place.
 
 ## Accounts and onboarding

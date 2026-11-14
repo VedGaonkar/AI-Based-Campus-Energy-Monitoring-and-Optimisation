@@ -1,5 +1,9 @@
 # Two-phone classroom demonstration
 
+## Persistent judge accounts on Render/Vercel (CE-024)
+
+Existing six/eight-character passwords remain valid against stored hashes. Keep their Atlas directory and institution databases; a fresh database has no prior accounts. Login requires email/password only. Demo environment credentials and Building Join Codes are not sign-in fields. Explicit fixture seed accepts 6+ characters only in development/test; production provisioning remains 20+, with both seed gates required. Ordinary registration retains its six-character minimum and administrator-registration key. Repeated seeds preserve existing hashes; startup never seeds. Follow [hosted setup/account workflow](deployment/RENDER_VERCEL.md) for the main-site proxy, direct real-time origin and separate camera/classroom URLs.
+
 ## Short demo flow (CE-023)
 
 1. Open `/presenter`. If your room is not ready, expand **Prepare a room for simulation**. Select it, review the displayed independent-supply and ordinary-load checkboxes, then **Save simulation setup**. An empty room can add one explicitly approved **virtual demo light (20 W estimate)** in that form. Existing protected loads remain blocked; this is never electrical commissioning. You no longer need to visit Advanced settings and inventory dialogs for the same simulation review.

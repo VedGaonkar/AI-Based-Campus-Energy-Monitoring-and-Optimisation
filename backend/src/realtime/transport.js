@@ -19,7 +19,7 @@ export async function syncSnapshot({ connection, models, workspaceDirectory }, u
 
 // Every API process tails persisted changes, including writes from a different
 // worker process/provider callback. No replica-set change stream is required.
-export function startRealtime(io, { connection, models, workspaceDirectory }) {
+export function startRealtime(io, { connection, models, workspaceDirectory, loadSession }) {
   let stopped = false, running = false;
   const initialise = socket => {
     socket.data.syncCursor = null;
@@ -28,14 +28,20 @@ export function startRealtime(io, { connection, models, workspaceDirectory }) {
   };
   io.on("connection", initialise);
   async function validate(socket) {
-    await new Promise((resolve, reject) => socket.request.session.reload(error => error ? reject(error) : resolve()));
+    let identitySession;
+    if (socket.data.syncSessionId) identitySession = await loadSession(socket.data.syncSessionId);
+    else {
+      await new Promise((resolve, reject) => socket.request.session.reload(error => error ? reject(error) : resolve()));
+      identitySession = socket.request.session;
+    }
+    if (!identitySession?.userId || identitySession.userId !== socket.data.sessionUserId) throw new Error("AUTH_REQUIRED");
     let realm, user;
     if (workspaceDirectory) {
-      if (socket.request.session.institutionId !== socket.data.institutionId) throw new Error("SESSION_CHANGED");
+      if (identitySession.institutionId !== socket.data.institutionId) throw new Error("SESSION_CHANGED");
       realm = await workspaceDirectory.realm(socket.data.institutionId);
-      user = await workspaceDirectory.user(realm, socket.request.session.userId);
-    } else user = await models.User.findOne({ _id: socket.request.session.userId, active: true }).lean();
-    if (!user || user.role === "admin" && !socket.request.session.adminVerified) throw new Error("AUTH_REQUIRED");
+      user = await workspaceDirectory.user(realm, identitySession.userId);
+    } else user = await models.User.findOne({ _id: identitySession.userId, active: true }).lean();
+    if (!user || user.role === "admin" && !identitySession.adminVerified) throw new Error("AUTH_REQUIRED");
     const signature = permissions(user);
     if (signature !== socket.data.permissionSignature) {
       for (const room of socket.rooms) if (room.startsWith("room:")) socket.leave(room);

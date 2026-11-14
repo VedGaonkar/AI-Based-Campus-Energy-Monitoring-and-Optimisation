@@ -1,5 +1,9 @@
 # API and integration contracts
 
+## Deployment session transport (CE-024)
+
+Authenticated `GET /api/v1/sync/ticket` returns `{data:{syncTicket}}` with `Cache-Control: no-store`. The signed 60-second handshake token references the existing session and carries no roles/passwords; use only in Socket.IO auth, never URL/storage/logs. Exact allowed Origin, current MongoDB session, active account/membership and administrator verification are still required. Active sockets revalidate session/membership; logout or workspace changes revoke the old connection. Cookie-based same-origin sockets and phone-scoped pairing are preserved. For Vercel, proxy HTTP `/api/*` and `/assistant/*` to Render; connect real-time directly. See [deployment instructions](deployment/RENDER_VERCEL.md).
+
 ## Deployment and presenter integration (CE-021)
 
 Canonical setup UI is direct `/presenter`, authenticated with existing Administrator membership and separate from product navigation/shell. Legacy `/phone-demo` is a direct compatibility alias; API paths under `/demo/sessions`, `/demo-phone` and `/meter-phone` are unchanged. Room/device registration remains in normal Management/API. Application HTTP CORS allows exactly `FRONTEND_ORIGIN` and the external `PUBLIC_APP_URL` origin with credentials; mutation CSRF/Origin checks still apply. `DEMO_PHONE_ORIGINS` grants bearer phone-route CORS and socket handshake eligibility, never app membership or general API CORS. Socket namespaces separately enforce current session/membership or scoped capability. Production origins reject HTTP, loopback, wildcards, credentials and paths. Optional `DEMO_CAMERA_APP_URL`/`DEMO_CLASSROOM_APP_URL` select complete trailing-slash, allowlisted frontend URLs for issued pairing fragments; these URLs are interfaces, not camera feed/control proof. Missing API/demo/build assets return404; SPA routes serve the main entry.

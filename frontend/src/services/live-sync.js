@@ -1,9 +1,20 @@
 import { io } from "socket.io-client";
 import { REALTIME_ORIGIN } from "./origins.js";
 
+function liveSocket(request) {
+  return io(REALTIME_ORIGIN || undefined, {
+    withCredentials: !REALTIME_ORIGIN, autoConnect: false, closeOnBeforeunload: true,
+    ...(REALTIME_ORIGIN ? {
+      // The HTTP proxy owns the cookie; direct cross-site sockets use its ticket.
+      // Socket.IO calls auth again on each reconnect, so expired tickets renew.
+      auth: callback => { request("/sync/ticket").then(callback).catch(() => callback({})); },
+    } : {}),
+  });
+}
+
 // Events invalidate data; only authorised HTTP snapshots replace page state.
 // One controller per authenticated App, independent of navigation and tabs.
-export function startLiveSync({ request, invalidate, identity, status, revoked, expectedInstitutionId, socket = io(REALTIME_ORIGIN || undefined, { withCredentials: true, autoConnect: false, closeOnBeforeunload: true }), environment = window }) {
+export function startLiveSync({ request, invalidate, identity, status, revoked, expectedInstitutionId, socket = liveSocket(request), environment = window }) {
   let stopped = false, revision = -1, heartbeat = 0, pending = false, again = false, timer, controller;
   const institutionId = () => socket.institutionId;
   const visible = () => environment.document.visibilityState !== "hidden";

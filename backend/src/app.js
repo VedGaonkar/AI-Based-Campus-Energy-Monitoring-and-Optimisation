@@ -1,3 +1,4 @@
+import { issueSyncTicket, verifySyncTicket } from "./realtime/tickets.js";
 import { mountWebsiteAssistant } from "./services/website-assistant.js";
 import { browserOrigins } from "./security/browser-origins.js";
 import express from "express";
@@ -100,6 +101,7 @@ export function createApplication({ config, connection, models, workspaceDirecto
     collectionName: "sessions",
     autoRemove: "native",
   });
+  const loadSession = sessionId => new Promise((resolve, reject) => store.get(sessionId, (error, value) => error ? reject(error) : resolve(value)));
   const sessions = session({
     name: "campus.sid",
     secret: config.sessionSecret,
@@ -121,6 +123,7 @@ export function createApplication({ config, connection, models, workspaceDirecto
     new URL(config.publicAppUrl).origin,
   ]);
   const api = express.Router();
+  api.use((_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
   const phoneDemo = createPhoneDemoService(models, config);
   registerDemoPhoneRoutes(api, { models, config, service: phoneDemo, origins });
   registerMeterPhoneRoutes(api, { models, config, origins });
@@ -339,6 +342,7 @@ export function createApplication({ config, connection, models, workspaceDirecto
     next();
   });
   if (workspaceDirectory) registerWorkspaceAdministration(api, { directory: workspaceDirectory });
+  api.get("/sync/ticket", (req, res) => { res.setHeader("Cache-Control", "no-store"); res.json({ data: { syncTicket: issueSyncTicket(config.sessionSecret, req.sessionID) } }); });
   api.get("/sync/snapshot", async (req, res) => { res.setHeader("Cache-Control", "no-store"); res.json({ data: await syncSnapshot({ connection, models, workspaceDirectory }, req.user) }); });
   registerManagement(api, { models, config });
   registerSustainability(api, { models });
@@ -1475,18 +1479,25 @@ export function createApplication({ config, connection, models, workspaceDirecto
   io.engine.use((req, res, next) => req._query.sid === undefined ? sessions(req, res, next) : next());
   io.use(async (socket, next) => {
     try {
+      let identitySession = socket.request.session;
+      if (socket.handshake.auth?.syncTicket) {
+        socket.data.syncSessionId = verifySyncTicket(config.sessionSecret, socket.handshake.auth.syncTicket);
+        identitySession = await loadSession(socket.data.syncSessionId);
+      }
+      if (!identitySession?.userId) return next(new Error("AUTH_REQUIRED"));
+      socket.data.sessionUserId = identitySession.userId;
       if (workspaceDirectory) {
-        const realm = await workspaceDirectory.realm(socket.request.session?.institutionId);
-        const user = await workspaceDirectory.user(realm, socket.request.session?.userId);
-        if (!user || (user.role === "admin" && !socket.request.session.adminVerified)) return next(new Error("AUTH_REQUIRED"));
+        const realm = await workspaceDirectory.realm(identitySession.institutionId);
+        const user = await workspaceDirectory.user(realm, identitySession.userId);
+        if (!user || (user.role === "admin" && !identitySession.adminVerified)) return next(new Error("AUTH_REQUIRED"));
         socket.data.user = user; socket.data.institutionId = realm.institution._id;
         return next();
       }
       const user = await models.User.findOne({
-        _id: socket.request.session?.userId,
+        _id: identitySession.userId,
         active: true,
       }).lean();
-      if (!user || (user.role === "admin" && !socket.request.session.adminVerified)) return next(new Error("AUTH_REQUIRED"));
+      if (!user || (user.role === "admin" && !identitySession.adminVerified)) return next(new Error("AUTH_REQUIRED"));
       socket.data.user = user;
       next();
     } catch {
@@ -1499,7 +1510,7 @@ export function createApplication({ config, connection, models, workspaceDirecto
         id.parse(roomId);
         if (workspaceDirectory) {
           const realm = await workspaceDirectory.realm(socket.data.institutionId);
-          const user = await workspaceDirectory.user(realm, socket.request.session?.userId);
+          const user = await workspaceDirectory.user(realm, socket.data.sessionUserId);
           if (!user || !await realm.models.Room.exists({ _id: roomId })) throw new Error("ROOM_FORBIDDEN");
           socket.data.user = user;
         }
@@ -1512,7 +1523,7 @@ export function createApplication({ config, connection, models, workspaceDirecto
       }
     });
   });
-  const closeRealtime = startRealtime(io, { connection, models, workspaceDirectory });
+  const closeRealtime = startRealtime(io, { connection, models, workspaceDirectory, loadSession });
   return {
     app,
     server,

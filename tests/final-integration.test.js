@@ -16,9 +16,9 @@ const password = randomBytes(20).toString("hex"), adminKey = randomBytes(20).toS
 const environment = () => ({ NODE_ENV: "test", FRONTEND_ORIGIN: frontend, PUBLIC_APP_URL: backend, DEMO_PHONE_ORIGINS: `${phone},${classroom}`, DEMO_CAMERA_APP_URL: `${phone}/`, DEMO_CLASSROOM_APP_URL: `${classroom}/`, SESSION_SECRET: randomBytes(32).toString("hex"), SERVICE_INGEST_TOKEN: randomBytes(32).toString("hex"), ADMIN_INVITE_KEY: adminKey });
 test("production origins fail closed; phone pairing URLs must match exact allowlisted secure deployments", () => {
   for (const value of ["https://*.example.org", "http://energy.example.org", "https://localhost", "https://127.0.0.1", "https://user:password@example.org", "https://example.org/path", "https://example.org?x=1"]) assert.throws(() => deploymentOrigin(value, { production: true }));
-  const config = loadConfig({ ...environment(), NODE_ENV: "production", HOST: "0.0.0.0", DEMO_TIME_SCALE: "1" }); assert.equal(config.host, "0.0.0.0"); assert.equal(config.demoCameraAppUrl, `${phone}/`);
+  const config = loadConfig({ ...environment(), NODE_ENV: "production", MONGODB_URI: "mongodb+srv://example.invalid/campus", HOST: "0.0.0.0", DEMO_TIME_SCALE: "1" }); assert.equal(config.host, "0.0.0.0"); assert.equal(config.demoCameraAppUrl, `${phone}/`);
   assert.throws(() => loadConfig({ ...environment(), DEMO_CAMERA_APP_URL: "https://foreign.example.org/" }), /listed/);
-  assert.throws(() => loadConfig({ ...environment(), NODE_ENV: "production", DEMO_PHONE_ORIGINS: "http://localhost:5174" }), /HTTPS/);
+  assert.throws(() => loadConfig({ ...environment(), NODE_ENV: "production", MONGODB_URI: "mongodb+srv://example.invalid/campus", DEMO_PHONE_ORIGINS: "http://localhost:5174" }), /HTTPS/);
 });
 test("camera and classroom build independently with local assets and explicit public API/realtime origins", async () => {
   const dir = await mkdtemp(join(tmpdir(), "campus-build-"));

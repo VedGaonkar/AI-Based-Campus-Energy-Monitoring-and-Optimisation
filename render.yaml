@@ -1,0 +1,116 @@
+# Preparation only: no deployment or seed is executed by this file.
+# Secrets/origins are prompted on the API; worker references those exact values.
+envVarGroups:
+- name: campus-runtime
+  envVars:
+  - key: NODE_ENV
+    value: production
+  - key: BUILD_MAIN
+    value: 'false'
+  - key: HOST
+    value: 0.0.0.0
+  - key: DEMO_MODE
+    value: 'true'
+  - key: DEMO_TIME_SCALE
+    value: '60'
+  - key: DEVICE_ADAPTER
+    value: simulator
+  - key: ALLOW_PHYSICAL_CONTROL
+    value: 'false'
+  - key: ALLOW_NATIVE_DEVICE_CONTROL
+    value: 'false'
+  - key: NOTIFICATIONS_MODE
+    value: in_app
+  - key: ENABLE_DEMO_SETUP
+    value: 'false'
+  - key: ALLOW_PRODUCTION_DEMO_SEED
+    value: 'false'
+services:
+- type: web
+  name: campus-api
+  runtime: docker
+  plan: starter
+  dockerfilePath: ./deployment/Dockerfile
+  dockerContext: .
+  dockerCommand: npm start
+  healthCheckPath: /api/v1/ready
+  envVars:
+  - fromGroup: campus-runtime
+  - key: ASSISTANT_DATA_DIR
+    value: /app/.local/assistant
+  - key: MONGODB_URI
+    sync: false
+  - key: SESSION_SECRET
+    sync: false
+  - key: SERVICE_INGEST_TOKEN
+    sync: false
+  - key: ADMIN_INVITE_KEY
+    sync: false
+  - key: FRONTEND_ORIGIN
+    sync: false
+  - key: PUBLIC_APP_URL
+    sync: false
+  - key: DEMO_PHONE_ORIGINS
+    sync: false
+  - key: DEMO_CAMERA_APP_URL
+    sync: false
+  - key: DEMO_CLASSROOM_APP_URL
+    sync: false
+  disk:
+    name: assistant-state
+    mountPath: /app/.local/assistant
+    sizeGB: 1
+- type: worker
+  name: campus-policy-worker
+  runtime: docker
+  plan: starter
+  dockerfilePath: ./deployment/Dockerfile
+  dockerContext: .
+  dockerCommand: npm run worker
+  envVars:
+  - fromGroup: campus-runtime
+  - key: MONGODB_URI
+    fromService:
+      name: campus-api
+      type: web
+      envVarKey: MONGODB_URI
+  - key: SESSION_SECRET
+    fromService:
+      name: campus-api
+      type: web
+      envVarKey: SESSION_SECRET
+  - key: SERVICE_INGEST_TOKEN
+    fromService:
+      name: campus-api
+      type: web
+      envVarKey: SERVICE_INGEST_TOKEN
+  - key: ADMIN_INVITE_KEY
+    fromService:
+      name: campus-api
+      type: web
+      envVarKey: ADMIN_INVITE_KEY
+  - key: FRONTEND_ORIGIN
+    fromService:
+      name: campus-api
+      type: web
+      envVarKey: FRONTEND_ORIGIN
+  - key: PUBLIC_APP_URL
+    fromService:
+      name: campus-api
+      type: web
+      envVarKey: PUBLIC_APP_URL
+  - key: DEMO_PHONE_ORIGINS
+    fromService:
+      name: campus-api
+      type: web
+      envVarKey: DEMO_PHONE_ORIGINS
+  - key: DEMO_CAMERA_APP_URL
+    fromService:
+      name: campus-api
+      type: web
+      envVarKey: DEMO_CAMERA_APP_URL
+  - key: DEMO_CLASSROOM_APP_URL
+    fromService:
+      name: campus-api
+      type: web
+      envVarKey: DEMO_CLASSROOM_APP_URL

@@ -1,5 +1,9 @@
 # Website assistant
 
+## Embedded deployment persistence (CE-024)
+
+The API mounts the authenticated assistant at `/assistant/`; the main Vercel proxy forwards that path alongside `/api/*`. Render must install assistant dependencies (`npm ci --prefix website-smart-bot`, included in the Docker runtime). Production embedding ignores this directory's local `.env`; set optional provider configuration on Render. ASSISTANT_DATA_DIR selects the durable per-building SQLite directory. Website links use the main frontend origin; internal API calls stay server-side. No provider key is required for fallback responses. See [hosted deployment instructions](../deployment/RENDER_VERCEL.md).
+
 A role-aware chat assistant for the Campus Energy website, powered by Gemini only where it is needed.
 
 The main website now embeds this assistant at /assistant and shows an Ask assistant button to signed-in users. It can also run as a separate service. It reads and changes data **only through the website's own HTTP API, as the person who is signed in**, so the website keeps enforcing roles, room scope, validation, CSRF and its own audit trail.

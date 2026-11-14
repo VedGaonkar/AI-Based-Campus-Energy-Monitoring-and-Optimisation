@@ -14,7 +14,9 @@ export async function seed(
     throw new Error(
       "Demo seed is disabled outside non-production demonstration mode",
     );
-  if (!password || password.length < 12 || password.includes("replace_"))
+  const minimum = config.env === "production" ? 20 : 6;
+  const provisioningPasswords = [password, ...(accounts ?? []).map(account => account[3]).filter(value => value !== undefined)];
+  if (provisioningPasswords.some(value => typeof value !== "string" || value.length < minimum || value.length > 100 || value.includes("replace_")))
     throw new Error("Generate local demo credentials with npm run setup");
   await models.Settings.updateOne(
     { _id: "installation" },

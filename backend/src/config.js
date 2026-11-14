@@ -8,6 +8,7 @@ import { deploymentOrigin } from "../../shared/deployment-origins.js";
 // file rather than inherit a stale copy loaded by their parent. Deployment-set
 // environment variables explicitly take precedence over the local file.
 export function readServerEnvironment(env = process.env, path = fileURLToPath(new URL("../../.env", import.meta.url))) {
+  if (env.NODE_ENV === "production") return { ...env };
   let file = {};
   try {
     const contents = readFileSync(path, "utf8");
@@ -26,11 +27,11 @@ export function loadConfig(env = readServerEnvironment()) {
         .enum(["development", "test", "production"])
         .default("development"),
       PORT: z.coerce.number().int().min(1).max(65535).default(5000),
-      HOST: z.enum(["127.0.0.1", "0.0.0.0", "::1", "::"]).default("127.0.0.1"),
+      HOST: z.enum(["127.0.0.1", "0.0.0.0", "::1", "::"]).default(env.NODE_ENV === "production" ? "0.0.0.0" : "127.0.0.1"),
       MONGODB_URI: z
         .string()
-        .startsWith("mongodb")
-        .default("mongodb://127.0.0.1:27017/campus_energy"),
+        .regex(/^mongodb(?:\+srv)?:\/\//, "Use a MongoDB connection URI")
+        .default(env.NODE_ENV === "production" ? "" : "mongodb://127.0.0.1:27017/campus_energy").refine(value => Boolean(value), "Required in production"),
       SESSION_SECRET: z
         .string()
         .min(32)
@@ -50,21 +51,22 @@ export function loadConfig(env = readServerEnvironment()) {
       HA_ALLOWED_ORIGINS: z.string().default(""),
       HA_ALLOW_HTTP: bool.default(false),
       HA_ALLOW_LOOPBACK: bool.default(false),
+      ASSISTANT_DATA_DIR: z.string().min(1).optional(),
       OCR_PYTHON: z.string().min(1).default("python"),
       OCR_MODULE_PATH: z.string().optional(),
       OCR_TESSDATA_PATH: z.string().optional(),
       DEMO_VISION_PYTHON: z.string().min(1).default("python"),
       ENABLE_DEMO_SETUP: bool.default(false),
       ALLOW_PRODUCTION_DEMO_SEED: bool.default(false),
-      DEMO_ADMIN_EMAIL: z.email().optional(),
-      DEMO_ADMIN_PASSWORD: z.string().min(20).optional(),
-      DEMO_VIEWER_EMAIL: z.email().optional(),
-      DEMO_VIEWER_PASSWORD: z.string().min(20).optional(),
+      DEMO_ADMIN_EMAIL: z.string().optional(),
+      DEMO_ADMIN_PASSWORD: z.string().optional(),
+      DEMO_VIEWER_EMAIL: z.string().optional(),
+      DEMO_VIEWER_PASSWORD: z.string().optional(),
       DEMO_PHONE_ORIGINS: z.string().default(env.NODE_ENV === "production" ? "" : "http://localhost:5174,http://localhost:5175"),
       DEMO_CAMERA_APP_URL: z.url().optional(),
       DEMO_CLASSROOM_APP_URL: z.url().optional(),
       DEVICE_ADAPTER: z.literal("simulator").default("simulator"),
-      DEMO_TIME_SCALE: z.coerce.number().min(1).max(60).default(60),
+      DEMO_TIME_SCALE: z.coerce.number().min(1).max(60).default(env.NODE_ENV === "production" ? 1 : 60),
       VACANCY_CONFIRMATION_MINUTES: z.coerce
         .number()
         .min(0.1)
@@ -92,7 +94,15 @@ export function loadConfig(env = readServerEnvironment()) {
       ADMIN_INVITE_KEY: z.string().trim().min(8).max(200).optional().or(z.literal("").transform(() => undefined)),
 
     })
-    .parse(env);
+    .safeParse(env);
+  if (!parsed.success) {
+    const requirements = { SESSION_SECRET: "SESSION_SECRET (at least 32 characters, no placeholder)", SERVICE_INGEST_TOKEN: "SERVICE_INGEST_TOKEN (at least 32 characters, no placeholder)", MONGODB_URI: "MONGODB_URI (required MongoDB URI in production)", ADMIN_INVITE_KEY: "ADMIN_INVITE_KEY (at least 8 characters when configured)" };
+    const fields = [...new Set(parsed.error.issues.map(issue => issue.path.join(".")))];
+    throw new Error("Invalid server configuration: " + fields.map(field => requirements[field] ?? field).join(", ") + ". Values withheld.");
+  }
+  return validatedConfig(parsed.data, env);
+}
+function validatedConfig(parsed, env) {
   if (parsed.ALLOW_PHYSICAL_CONTROL)
     throw new Error(
       "No commissioned physical adapter exists; physical control must remain disabled",
@@ -125,6 +135,7 @@ export function loadConfig(env = readServerEnvironment()) {
     demoMode: parsed.DEMO_MODE,
     allowPhysicalControl: parsed.ALLOW_PHYSICAL_CONTROL,
     allowNativeControl: parsed.ALLOW_NATIVE_DEVICE_CONTROL,
+    assistantDataDir: parsed.ASSISTANT_DATA_DIR,
     ocrPython: parsed.OCR_PYTHON, ocrModulePath: parsed.OCR_MODULE_PATH, ocrTessdataPath: parsed.OCR_TESSDATA_PATH,
     demoVisionPython: parsed.DEMO_VISION_PYTHON,
     enableDemoSetup: parsed.ENABLE_DEMO_SETUP,

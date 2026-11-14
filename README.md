@@ -1,5 +1,9 @@
 # AI-Based Campus Energy Monitoring and Optimisation
 
+## Render/Vercel authentication and deployment (CE-024)
+
+See [Render + Vercel + Atlas instructions](deployment/RENDER_VERCEL.md) for exact required server/build variables, deployment order, proxy/session setup, database transfer and persistent demonstration accounts. Existing passwords and memberships are preserved; no seed runs at startup. Normal login uses stored hashes, not demo environment values. Production still requires independent 32+ character session/service secrets; demo provisioning passwords validate only on an explicit seed (6+ development/test, 20+ production). `npm run configure:vercel -- https://<api>.onrender.com` prepares three local configurations without publishing. Main Vercel uses a same-origin HTTP proxy and direct Render real-time session tickets.
+
 **Quicker local demonstration:** open `/presenter`, review a room in **Prepare a room for simulation** if needed, create the session and click **Prepare both phone links**. The links pair their apps automatically; camera Start/permission stays explicit. Existing active sessions reopen automatically, advanced settings are collapsible and fullscreen keeps the classroom QR visible. [Short walkthrough](DEMO_SETUP.md#short-demo-flow-ce-023). Actual protected loads and backend safety checks remain enforced.
 
 **Optional sustainability / ESG reporting:** open **Sustainability / ESG** after signing in; an Administrator can enable the module. It reports accepted electricity, estimated CO2, comparable-period changes, source coverage, manual participation evidence and a visible governance documentation rubric. It is internal reporting, not a certified rating. Includes append-only factor history and Administrator JSON snapshot exports. [Methodology and permissions](SUSTAINABILITY.md). Billing/payment integration is outside this optional commercial reporting module.

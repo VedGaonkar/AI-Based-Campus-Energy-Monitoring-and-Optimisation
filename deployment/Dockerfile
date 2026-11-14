@@ -5,17 +5,19 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY backend/package.json backend/package.json
 COPY frontend/package.json frontend/package.json
-RUN npm ci
+RUN npm ci --include=dev
 COPY frontend frontend
 COPY shared shared
 COPY demo demo
 COPY scripts scripts
 # Recommended topology is same-origin through Caddy. Only public build args.
+ARG BUILD_MAIN=true
 ARG VITE_API_ORIGIN=""
 ARG VITE_REALTIME_ORIGIN=""
 ARG PHONE_API_ORIGIN=""
 ARG PHONE_REALTIME_ORIGIN=""
-RUN VITE_API_ORIGIN="$VITE_API_ORIGIN" VITE_REALTIME_ORIGIN="$VITE_REALTIME_ORIGIN" PHONE_API_ORIGIN="$PHONE_API_ORIGIN" PHONE_REALTIME_ORIGIN="$PHONE_REALTIME_ORIGIN" npm run build
+ENV VITE_API_ORIGIN="$VITE_API_ORIGIN" VITE_REALTIME_ORIGIN="$VITE_REALTIME_ORIGIN" PHONE_API_ORIGIN="$PHONE_API_ORIGIN" PHONE_REALTIME_ORIGIN="$PHONE_REALTIME_ORIGIN"
+RUN if [ "$BUILD_MAIN" = "true" ]; then npm run build:main; elif [ "$BUILD_MAIN" = "false" ]; then mkdir -p frontend/dist; else echo "BUILD_MAIN must be true or false" >&2; exit 1; fi && npm run build:demo
 
 FROM ${NODE_IMAGE} AS runtime
 WORKDIR /app

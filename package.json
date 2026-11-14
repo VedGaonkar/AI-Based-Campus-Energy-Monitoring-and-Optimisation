@@ -43,7 +43,9 @@
     "test:final-browsers": "node scripts/final-browser-checks.mjs",
     "setup:ocr": "node scripts/setup-ocr.mjs",
     "test:meter-browser": "node scripts/meter-camera-browser.mjs",
-    "test:meter-camera": "node --test tests/meter-camera.test.js"
+    "test:meter-camera": "node --test tests/meter-camera.test.js",
+    "configure:vercel": "node scripts/configure-vercel.mjs",
+    "test:proxy-auth-browser": "node scripts/cross-origin-browser.mjs --proxy"
   },
   "devDependencies": {
     "mongodb-memory-server": "11.3.0",

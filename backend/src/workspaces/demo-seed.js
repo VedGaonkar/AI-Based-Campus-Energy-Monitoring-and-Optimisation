@@ -1,9 +1,11 @@
+import { z } from "zod";
 import { seed } from "../seed.js";
 import { fail } from "../security/access.js";
 export async function seedDedicatedDemo(directory, config) {
   if (!config.enableDemoSetup || !config.demoMode || (config.env === "production" && !config.allowProductionDemoSeed)) fail(409, "DEMO_SEED_DISABLED", "Explicit ENABLE_DEMO_SETUP and simulated mode required; production also requires ALLOW_PRODUCTION_DEMO_SEED.");
   const entries = [["admin", "Demo administrator", config.demoAdminEmail, config.demoAdminPassword], ["viewer", "Demo viewer", config.demoViewerEmail, config.demoViewerPassword]];
-  if (entries.some(([, , email, password]) => !email || !password || password.length < 20)) fail(503, "DEMO_CREDENTIALS_REQUIRED", "Set dedicated DEMO_ADMIN_EMAIL/PASSWORD and DEMO_VIEWER_EMAIL/PASSWORD, or run local setup --enable-demo; values are never printed.");
+  const minimum = config.env === "production" ? 20 : 6;
+  if (entries.some(([, , email, password]) => !z.email().safeParse(email).success || typeof password !== "string" || password.length < minimum || password.length > 100 || password.includes("replace_"))) fail(503, "DEMO_CREDENTIALS_REQUIRED", `Explicit demo provisioning requires distinct valid emails and passwords of ${minimum}-100 characters; values withheld. Existing account passwords are never changed.`);
   if (entries[0][2].toLowerCase() === entries[1][2].toLowerCase()) fail(409, "DEMO_IDENTITY_CONFLICT", "Demo administrator/viewer must use distinct globally unique emails");
   let existing = await directory.Institution.findOne({ kind: "demo" }).lean();
   if (!existing) {

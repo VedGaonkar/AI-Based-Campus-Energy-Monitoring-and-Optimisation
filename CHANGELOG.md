@@ -1,5 +1,9 @@
 # Changelog
 
+## CE-024 - 2026-11-14
+
+Preserved existing short account passwords while separating optional demo provisioning from startup. Production seed remains20+,development/test explicit seed6+; unchanged strong infrastructure secrets and bcrypt hashes. Added safe production binding/config errors,HTTP proxy plus stored-session real-time tickets for Vercel/Render,durable assistant directory,Render API/worker preparation and three-project local Vercel generator. No database schema/password migration or automatic seed. Fresh156application+59assistant tests,7proxy browser+15phone browser checks,builds,104syntax/52asset scan passed;hosted Atlas/TLS/Docker/physical verification remains external.
+
 ## CE-023 - shorter demonstration setup and clearer controls
 
 Presenter consolidates explicit room supply/load reviews,auto-selects the active session and prepares both one-use phone links together. Opening an issued link pairs the phone automatically; camera permission/Start remains explicit. Timing/mode and replacement/code controls are grouped under visible native disclosures. Protected loads and all backend policy checks remain authoritative. Load review is a secondary button; room registration/disclosures have44px targets and focus styling. Context guidance distinguishes classroom QR from real person detection, and fullscreen scales the scene so the QR stays visible. Existing palette,accounts,data and active sessions preserved; no silent approvals,physical switching or synthetic-to-live conversion.

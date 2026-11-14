@@ -1,5 +1,9 @@
 # Database design and consistency
 
+## CE-024 credential preservation
+
+No schema migration or password rewrite. Authentication remains persisted bcrypt. Normal startup creates no demo accounts; explicit provisioning uses insert-only password fields and refuses conflicting/inactive identities. Six/eight-character accounts retain hashes, IDs, roles and memberships across restart. Atlas transfer must restore the directory plus every institution database together; changing only the URI does not migrate data. Sessions stay in MongoDB; short-lived signed real-time tickets reference those records without another identity store. Optional ASSISTANT_DATA_DIR supports durable per-institution SQLite. Preserve the session secret, which also keys join-code lookup verifiers.
+
 ## Optional sustainability reporting (CE-020)
 
 Additive institution-local `sustainabilityConfig` holds singleton `module`, disabled-by-default enablement, reduction/coverage thresholds and atomic factorRevision counter. `emissionFactors` stores append-only value, kg CO2/kWh unit, geography, source, reporting year, effective UTC dates, verificationStatus, methodology, actor and timestamps; revision has a unique index. Initial user assumption is persisted once as revision0 when enabled. Explicit versions have monotonically allocated revisions (gaps on failure allowed), and matching dates select the newest revision. Once explicit versions exist the default assumption is no longer a fallback. History has no update/delete API.
